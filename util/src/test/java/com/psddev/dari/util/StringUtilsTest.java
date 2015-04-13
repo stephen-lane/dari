@@ -408,9 +408,15 @@ public class StringUtilsTest {
         assertArrayEquals(new String[]{ "a", "b", "c", "" }, StringUtils.fromCsv("a,b,c,"));
     }
 
+    // The last field in the record must not be followed by a comma.
+    @Test // Make sure the trailing comma results in an extra field
+    public void fromCsv_comma_trailing_with_space() {
+        assertArrayEquals(new String[]{ "a", "b", "c", " " }, StringUtils.fromCsv("a,b,c, "));
+    }
 
 
-	/**
+
+    /**
 	 * public static String toCsv(String... strings)
 	 * Tests per: http://tools.ietf.org/html/rfc4180
 	 */
