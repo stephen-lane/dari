@@ -353,37 +353,37 @@ public class StringUtilsTest {
     }
 
     // If fields are not enclosed with double quotes, then double quotes may not appear inside the fields
-    @Test(expected=CsvParsingException.class)
+    @Test(expected=CsvParser.CsvParsingException.class)
     public void fromCsv_quote_invalid_middle() {
         StringUtils.fromCsv("a \"b,c"); // this should blow up
     }
 
-    @Test(expected=CsvParsingException.class)
+    @Test(expected=CsvParser.CsvParsingException.class)
     public void fromCsv_quote_unbalanced_start() {
         StringUtils.fromCsv("\"a,c"); // this should blow up
     }
 
-    @Test(expected=CsvParsingException.class)
+    @Test(expected=CsvParser.CsvParsingException.class)
     public void fromCsv_quote_unbalanced_end() {
         StringUtils.fromCsv("a \",c"); // this should blow up
     }
 
-    @Test(expected=CsvParsingException.class)
+    @Test(expected=CsvParser.CsvParsingException.class)
     public void fromCsv_quote_internal_start() {
         StringUtils.fromCsv("a\"b\",c"); // this should blow up
     }
 
-    @Test(expected=CsvParsingException.class)
+    @Test(expected=CsvParser.CsvParsingException.class)
     public void fromCsv_quote_internal_end() {
         StringUtils.fromCsv("\"a\"b,c"); // this should blow up
     }
 
-    @Test(expected=CsvParsingException.class)
+    @Test(expected=CsvParser.CsvParsingException.class)
     public void fromCsv_quote_internal_both() {
         StringUtils.fromCsv("a\"b\"c,d"); // this should blow up
     }
 
-    @Test(expected=CsvParsingException.class)
+    @Test(expected=CsvParser.CsvParsingException.class)
     public void fromCsv_double_quotes_unquoted() {
         StringUtils.fromCsv("a\"\"c,d"); // this should blow up
     }
@@ -633,8 +633,4 @@ public class StringUtilsTest {
 		assertEquals("http://test.com/a?b=&c=2", StringUtils.addQueryParameters("http://test.com/a", "b", "", "c", "2"));
 	}
 
-    // Putting an empty exception class here to be able to show where we might want to be throwing exceptions above
-    public static class CsvParsingException extends RuntimeException {
-
-    }
 }

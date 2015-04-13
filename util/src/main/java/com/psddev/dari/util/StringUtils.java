@@ -284,6 +284,10 @@ public final class StringUtils {
      *  passing the result to this method will always return the same array
      *  as specified by the <code>Arrays.equals()</code> method. */
     public static String[] fromCsv(String string) {
+        return CsvParser.Static.fromCsv(string, CsvParser.DEFAULT_FIELD_SEPARATOR, CsvParser.DEFAULT_QUOTE_CHARACTER);
+    }
+
+    public static String[] fromCsv_original(String string) {
         if (string == null) {
             return null;
         } else {
@@ -1003,28 +1007,28 @@ public final class StringUtils {
      * Checks if a String is empty ("") or null.
      */
     public static boolean isEmpty(String string) {
-        return org.apache.commons.lang.StringUtils.isEmpty(string);
+        return StringUtils.isEmpty(string);
     }
 
     /**
      * Checks if a String is whitespace, empty ("") or null.
      */
     public static boolean isBlank(String string) {
-        return org.apache.commons.lang.StringUtils.isBlank(string);
+        return StringUtils.isBlank(string);
     }
 
     /**
      * Null-safe comparison of two Strings, returning true if they are equal.
      */
     public static boolean equals(String str1, String str2) {
-        return org.apache.commons.lang.StringUtils.equals(str1, str2);
+        return StringUtils.equals(str1, str2);
     }
 
     /**
      * Null-safe, case-insensitive comparison of two Strings, returning true if they are equal.
      */
     public static boolean equalsIgnoreCase(String str1, String str2) {
-        return org.apache.commons.lang.StringUtils.equalsIgnoreCase(str1, str2);
+        return StringUtils.equalsIgnoreCase(str1, str2);
     }
 
     public static String stripHtml(CharSequence sequence) {
