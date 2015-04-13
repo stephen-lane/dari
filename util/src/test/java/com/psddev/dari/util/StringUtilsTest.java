@@ -313,40 +313,101 @@ public class StringUtilsTest {
 	 * public static String[] fromCsv(String string)
 	 * Tests per: http://tools.ietf.org/html/rfc4180
 	 */
-	@Test
-	public void fromCsv_null() {
-		assertArrayEquals(null, StringUtils.fromCsv(null));
-	}
-	@Test
-	public void fromCsv() {
-		assertArrayEquals(new String[]{"a","b"}, StringUtils.fromCsv("a,b"));
-	}
-	@Ignore // The CVS functionality in StringUtils is to be deprecated, so failing test can be ignored
-	@Test
-	public void fromCsv_quoted() {
-		assertArrayEquals(new String[]{"a","b"}, StringUtils.fromCsv("\"a\",b"));
-	}
-	@Ignore // The CVS functionality in StringUtils is to be deprecated, so failing test can be ignored
-	@Test
-	public void fromCsv_quoted_multichar() {
-		assertArrayEquals(new String[]{"abc","b"}, StringUtils.fromCsv("\"abc\",b"));
-	}
-	@Test
-	public void fromCsv_inline_quoted_quote() {
-		assertArrayEquals(new String[]{"a\"","b"}, StringUtils.fromCsv("\"a\"\"\",b"));
-	}
-	@Test
-	public void fromCsv_space() {
-		assertArrayEquals(new String[]{" a"," b "}, StringUtils.fromCsv(" a, b "));
-	}
-	@Test
-	public void fromCsv_comma() {
-		assertArrayEquals(new String[]{"a,b","c"}, StringUtils.fromCsv("\"a,b\",c"));
-	}
-	@Test
-	public void fromCsv_newline() {
-		assertArrayEquals(new String[]{"a\nb","c"}, StringUtils.fromCsv("\"a\nb\",c"));
-	}
+    @Test
+    public void fromCsv_null() {
+        assertArrayEquals(null, StringUtils.fromCsv(null));
+    }
+
+    @Test
+    public void fromCsv() {
+        assertArrayEquals(new String[]{ "a", "b" }, StringUtils.fromCsv("a,b"));
+    }
+
+    // Each field may or may not be enclosed in double quotes
+    @Test
+    public void fromCsv_quoted() {
+        assertArrayEquals(new String[]{ "a", "b" }, StringUtils.fromCsv("\"a\",b"));
+    }
+
+    // Fields containing line breaks (CRLF), double quotes, and commas should be enclosed in double-quotes.
+    @Test
+    public void fromCsv_quoted_linebreak() {
+        assertArrayEquals(new String[]{ "a\nb", "c" }, StringUtils.fromCsv("\"a\nb\",c"));
+    }
+
+    @Test
+    public void fromCsv_quoted_comma() {
+        assertArrayEquals(new String[]{ "a,b", "c" }, StringUtils.fromCsv("\"a,b\",c"));
+    }
+
+    // If double-quotes are used to enclose fields, then a double-quote appearing inside a field must
+    // be escaped by preceding it with another double quote.
+    @Test
+    public void fromCsv_quoted_quote() {
+        assertArrayEquals(new String[]{ "a\"b", "c" }, StringUtils.fromCsv("\"a\"\"b\",c"));
+    }
+
+    @Test
+    public void fromCsv_inline_quote_end() {
+        assertArrayEquals(new String[]{"a\"","b"}, StringUtils.fromCsv("\"a\"\"\",b"));
+    }
+
+    // If fields are not enclosed with double quotes, then double quotes may not appear inside the fields
+    @Test(expected=CsvParsingException.class)
+    public void fromCsv_quote_invalid_middle() {
+        StringUtils.fromCsv("a \"b,c"); // this should blow up
+    }
+
+    @Test(expected=CsvParsingException.class)
+    public void fromCsv_quote_unbalanced_start() {
+        StringUtils.fromCsv("\"a,c"); // this should blow up
+    }
+
+    @Test(expected=CsvParsingException.class)
+    public void fromCsv_quote_unbalanced_end() {
+        StringUtils.fromCsv("a \",c"); // this should blow up
+    }
+
+    @Test(expected=CsvParsingException.class)
+    public void fromCsv_quote_internal_start() {
+        StringUtils.fromCsv("a\"b\",c"); // this should blow up
+    }
+
+    @Test(expected=CsvParsingException.class)
+    public void fromCsv_quote_internal_end() {
+        StringUtils.fromCsv("\"a\"b,c"); // this should blow up
+    }
+
+    @Test(expected=CsvParsingException.class)
+    public void fromCsv_quote_internal_both() {
+        StringUtils.fromCsv("a\"b\"c,d"); // this should blow up
+    }
+
+    @Test(expected=CsvParsingException.class)
+    public void fromCsv_double_quotes_unquoted() {
+        StringUtils.fromCsv("a\"\"c,d"); // this should blow up
+    }
+
+    // Spaces are considered part of a field and should not be ignored.
+    @Test
+    public void fromCsv_space_first() {
+        assertArrayEquals(new String[]{ " a", " b" }, StringUtils.fromCsv(" a, b"));
+    }
+    @Test
+    public void fromCsv_space_middle() {
+        assertArrayEquals(new String[]{ "A B C", "a b c" }, StringUtils.fromCsv("A B C,a b c"));
+    }
+    @Test
+    public void fromCsv_space_last() {
+        assertArrayEquals(new String[]{ "a ", "b " }, StringUtils.fromCsv("a ,b "));
+    }
+
+    // The last field in the record must not be followed by a comma.
+    @Test // Make sure the trailing comma results in an extra field
+    public void fromCsv_comma_trailing() {
+        assertArrayEquals(new String[]{ "a", "b", "c", "" }, StringUtils.fromCsv("a,b,c,"));
+    }
+
 
 
 	/**
@@ -571,4 +632,9 @@ public class StringUtilsTest {
 		assertEquals("http://test.com/a?b=", StringUtils.addQueryParameters("http://test.com/a", "b", ""));
 		assertEquals("http://test.com/a?b=&c=2", StringUtils.addQueryParameters("http://test.com/a", "b", "", "c", "2"));
 	}
+
+    // Putting an empty exception class here to be able to show where we might want to be throwing exceptions above
+    public static class CsvParsingException extends RuntimeException {
+
+    }
 }
