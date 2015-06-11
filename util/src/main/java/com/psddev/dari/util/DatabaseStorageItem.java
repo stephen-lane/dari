@@ -1,10 +1,12 @@
 package com.psddev.dari.util;
 
-import org.apache.commons.codec.DecoderException;
-
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Base64;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 public class DatabaseStorageItem extends AbstractStorageItem {
 
@@ -15,26 +17,20 @@ public class DatabaseStorageItem extends AbstractStorageItem {
         setStorage(DEFAULT_STORAGE);
     }
 
-    private String hexData;
+    private String binaryData;
 
-
-    public String getHexData() {
-        return hexData;
+    public String getBinaryData() {
+        return binaryData;
     }
 
-    public void setHexData(String hexData) {
-        this.hexData = hexData;
+    public void setBinaryData(String binaryData) {
+        this.binaryData = binaryData;
     }
 
     @Override
     protected InputStream createData() throws IOException {
 
-        try {
-            byte[] bytes = (byte[]) new org.apache.commons.codec.binary.Hex().decode(getHexData());
-            return new ByteArrayInputStream(bytes);
-        } catch (DecoderException e) {
-            return null;
-        }
+        return new GZIPInputStream(new ByteArrayInputStream(Base64.getDecoder().decode(getBinaryData())));
     }
 
     @Override
@@ -42,13 +38,18 @@ public class DatabaseStorageItem extends AbstractStorageItem {
 
         byte[] source;
         try {
-            source = IoUtils.toByteArray(data);
+            ByteArrayOutputStream byteOutput = new ByteArrayOutputStream();
+            try (GZIPOutputStream gzipOutput = new GZIPOutputStream(byteOutput)) {
+
+                gzipOutput.write(IoUtils.toByteArray(data));
+            }
+            source = byteOutput.toByteArray();
         } finally {
             data.close();
         }
 
-        setHexData(StringUtils.hex(source));
-        setPath(DEFAULT_STORAGE + "/" + StringUtils.hex(StringUtils.hash("SHA-256", getHexData())));
+        setBinaryData(Base64.getEncoder().encodeToString(source));
+        setPath(DEFAULT_STORAGE + "/" + StringUtils.encodeUri(Base64.getEncoder().encodeToString(StringUtils.hash("SHA-256", getBinaryData()))));
     }
 
     @Override
