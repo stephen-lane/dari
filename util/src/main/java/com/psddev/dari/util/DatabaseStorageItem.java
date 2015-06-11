@@ -77,6 +77,9 @@ public class DatabaseStorageItem extends AbstractStorageItem {
     private StorageItem getProxyStorageItem() {
 
         StorageItem proxyStorageItem = StorageItem.Static.create();
+        if (DEFAULT_STORAGE.equals(proxyStorageItem.getStorage())) {
+            return null;
+        }
         proxyStorageItem.setPath(getPath());
         proxyStorageItem.setContentType(getContentType());
 
