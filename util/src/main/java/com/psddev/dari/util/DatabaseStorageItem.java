@@ -82,6 +82,7 @@ public class DatabaseStorageItem extends AbstractStorageItem {
         }
         proxyStorageItem.setPath(getPath());
         proxyStorageItem.setContentType(getContentType());
+        proxyStorageItem.setMetadata(getMetadata());
 
         if (!proxyStorageItem.isInStorage()) {
             try {
