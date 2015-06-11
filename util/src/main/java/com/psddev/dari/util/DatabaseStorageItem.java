@@ -15,16 +15,8 @@ public class DatabaseStorageItem extends AbstractStorageItem {
         setStorage(DEFAULT_STORAGE);
     }
 
-    private String path;
     private String hexData;
 
-    public String getPath() {
-        return path;
-    }
-
-    public void setPath(String path) {
-        this.path = path;
-    }
 
     public String getHexData() {
         return hexData;
