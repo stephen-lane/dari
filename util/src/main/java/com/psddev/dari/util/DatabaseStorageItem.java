@@ -1,23 +1,38 @@
 package com.psddev.dari.util;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Base64;
+import java.util.Map;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
+/**
+ * DatabaseStorageItem stores binary data internal as a {@link java.util.zip gzipped},
+ * {@link java.util.Base64 Base64}-encoded String.  {@link #getPublicUrl()} and {@link #getSecurePublicUrl()}
+ * both require use of another Storage as a proxy.  When invoked, these methods will
+ * push the binary data into the proxy storage if it does not already exist.
+ * The SHA-256 digest of the binary {@code byte[]} in the proxy storage path segment
+ * ensures that unique binary files are always stored at unique paths in the proxy storage.
+ *
+ */
 public class DatabaseStorageItem extends AbstractStorageItem {
 
-    /** Storage name assigned to all instances by default. */
-    public static final String DEFAULT_STORAGE = "_dbStorage";
+    private static final Logger LOGGER = LoggerFactory.getLogger(DatabaseStorageItem.class);
 
-    {
-        setStorage(DEFAULT_STORAGE);
-    }
+    /** Storage name assigned to all instances by default. */
+    public static final String BASE_PATH = "_dbStorage";
+
+    public static final String PROXY_STORAGE_SETTING = "proxyStorage";
 
     private String binaryData;
+
+    private transient volatile String proxyStorage;
 
     public String getBinaryData() {
         return binaryData;
@@ -25,6 +40,14 @@ public class DatabaseStorageItem extends AbstractStorageItem {
 
     public void setBinaryData(String binaryData) {
         this.binaryData = binaryData;
+    }
+
+    public String getProxyStorage() {
+        return proxyStorage;
+    }
+
+    public void setProxyStorage(String proxyStorage) {
+        this.proxyStorage = proxyStorage;
     }
 
     @Override
@@ -49,41 +72,63 @@ public class DatabaseStorageItem extends AbstractStorageItem {
         }
 
         setBinaryData(Base64.getEncoder().encodeToString(source));
-        setPath(DEFAULT_STORAGE + "/" + StringUtils.encodeUri(Base64.getEncoder().encodeToString(StringUtils.hash("SHA-256", getBinaryData()))));
+        setPath(BASE_PATH + "/" + StringUtils.encodeUri(Base64.getEncoder().encodeToString(StringUtils.hash("SHA-256", getBinaryData()))));
     }
 
     @Override
     public String getPublicUrl() {
-        return getProxyStorageItem().getPublicUrl();
+
+        try {
+            return getProxyStorageItem().getPublicUrl();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
     public String getSecurePublicUrl() {
-        return getProxyStorageItem().getSecurePublicUrl();
+
+        try {
+            return getProxyStorageItem().getSecurePublicUrl();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
+    /**
+     * Implements support for {@link StorageItem#isInStorage()}.  Data is always
+     * present in storage.
+     * @return {@code true}
+     */
     @Override
     public boolean isInStorage() {
         return true;
     }
 
-    private StorageItem getProxyStorageItem() {
+    @Override
+    public void initialize(
+            String settingsKey,
+            Map<String, Object> settings) {
 
-        StorageItem proxyStorageItem = StorageItem.Static.create();
-        if (DEFAULT_STORAGE.equals(proxyStorageItem.getStorage())) {
-            return null;
+        setProxyStorage(ObjectUtils.to(String.class, settings.get(PROXY_STORAGE_SETTING)));
+    }
+
+    private StorageItem getProxyStorageItem() throws IOException {
+
+        LOGGER.debug("Proxying through " + getProxyStorage());
+
+        StorageItem proxyStorageItem = StorageItem.Static.createIn(getProxyStorage());
+        if (DatabaseStorageItem.class.isAssignableFrom(proxyStorageItem.getClass())) {
+            throw new IllegalStateException("Default or proxy StorageItem must not be a DatabaseStorageItem!");
         }
         proxyStorageItem.setPath(getPath());
         proxyStorageItem.setContentType(getContentType());
         proxyStorageItem.setMetadata(getMetadata());
 
         if (!proxyStorageItem.isInStorage()) {
-            try {
-                proxyStorageItem.setData(createData());
-                proxyStorageItem.save();
-            } catch (IOException e) {
-                return null;
-            }
+
+            proxyStorageItem.setData(createData());
+            proxyStorageItem.save();
         }
         return proxyStorageItem;
     }
