@@ -104,9 +104,6 @@ public interface StorageItem extends SettingsBackedObject {
             if (UrlStorageItem.DEFAULT_STORAGE.equals(storage)) {
                 return new UrlStorageItem();
 
-            } else if (DatabaseStorageItem.DEFAULT_STORAGE.equals(storage)) {
-                return new DatabaseStorageItem();
-
             } else {
                 if (ObjectUtils.isBlank(storage)) {
                     storage = Settings.get(String.class, DEFAULT_STORAGE_SETTING);
