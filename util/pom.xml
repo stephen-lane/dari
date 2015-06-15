@@ -111,7 +111,7 @@
 
         <!-- Storage -->
         <dependency>
-            <groupId>org.jclouds</groupId>
+            <groupId>org.apache.jclouds</groupId>
             <artifactId>jclouds-all</artifactId>
             <optional>true</optional>
         </dependency>
