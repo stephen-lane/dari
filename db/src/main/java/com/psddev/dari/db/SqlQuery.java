@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -12,7 +11,9 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
+import com.psddev.dari.util.CompactMap;
 import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.StringUtils;
 import org.jooq.Condition;
@@ -48,11 +49,11 @@ class SqlQuery {
     private String havingClause;
     private String orderByClause;
     private String extraSourceColumns;
-    private final List<String> orderBySelectColumns = new ArrayList<String>();
-    private final Map<String, String> groupBySelectColumnAliases = new LinkedHashMap<String, String>();
-    private final List<Join> joins = new ArrayList<Join>();
-    private final Map<Query<?>, String> subQueries = new LinkedHashMap<Query<?>, String>();
-    private final Map<Query<?>, SqlQuery> subSqlQueries = new HashMap<Query<?>, SqlQuery>();
+    private final List<String> orderBySelectColumns = new ArrayList<>();
+    private final Map<String, String> groupBySelectColumnAliases = new CompactMap<>();
+    private final List<Join> joins = new ArrayList<>();
+    private final Map<Query<?>, String> subQueries = new CompactMap<>();
+    private final Map<Query<?>, SqlQuery> subSqlQueries = new HashMap<>();
 
     private boolean needsDistinct;
     private Join mysqlIndexHint;
@@ -78,7 +79,7 @@ class SqlQuery {
         recordTypeIdField = DSL.field(DSL.name(aliasPrefix + "r", SqlDatabase.TYPE_ID_COLUMN), vendor.uuidDataType());
         recordInRowIndexField = aliasedField("r", SqlDatabase.IN_ROW_INDEX_COLUMN);
         mappedKeys = query.mapEmbeddedKeys(database.getEnvironment());
-        selectedIndexes = new HashMap<String, ObjectIndex>();
+        selectedIndexes = new HashMap<>();
 
         for (Map.Entry<String, Query.MappedKey> entry : mappedKeys.entrySet()) {
             selectIndex(entry.getKey(), entry.getValue());
@@ -143,7 +144,7 @@ class SqlQuery {
     private void initializeClauses() {
 
         // Determine whether any of the fields are sourced somewhere else.
-        Set<ObjectField> sourceTables = new HashSet<ObjectField>();
+        Set<ObjectField> sourceTables = new HashSet<>();
         Set<ObjectType> queryTypes = query.getConcreteTypes(database.getEnvironment());
 
         for (ObjectType type : queryTypes) {
@@ -239,7 +240,7 @@ class SqlQuery {
 
         // Builds the FROM clause.
         StringBuilder fromBuilder = new StringBuilder();
-        HashMap<String, String> joinTableAliases = new HashMap<String, String>();
+        HashMap<String, String> joinTableAliases = new HashMap<>();
 
         for (Join join : joins) {
 
@@ -283,19 +284,17 @@ class SqlQuery {
             }
 
             // AND i#.symbolId in (...)
-            List<Object> convertedIndexKeys = new ArrayList<Object>();
-
-            for (String indexKey : join.indexKeys) {
-                convertedIndexKeys.add(join.convertIndexKey(indexKey));
-            }
-
-            joinCondition = joinCondition.and(join.keyField.in(convertedIndexKeys));
+            joinCondition = joinCondition.and(
+                    join.keyField.in(
+                            join.indexKeys.stream()
+                                    .map(join::convertIndexKey)
+                                    .collect(Collectors.toList())));
 
             fromBuilder.append(jooqContext.renderInlined(joinCondition));
         }
 
         StringBuilder extraColumnsBuilder = new StringBuilder();
-        Set<String> sourceTableColumns = new HashSet<String>();
+        Set<String> sourceTableColumns = new HashSet<>();
         for (ObjectField field : sourceTables) {
             SqlDatabase.FieldData fieldData = field.as(SqlDatabase.FieldData.class);
             StringBuilder sourceTableNameBuilder = new StringBuilder();
@@ -303,12 +302,13 @@ class SqlQuery {
             String sourceTableName = sourceTableNameBuilder.toString();
 
             String sourceTableAlias;
-            StringBuilder keyNameBuilder = new StringBuilder(field.getParentType().getInternalName());
 
-            keyNameBuilder.append('/');
-            keyNameBuilder.append(field.getInternalName());
+            Query.MappedKey key = query.mapEmbeddedKey(
+                    database.getEnvironment(),
+                    field.getParentType().getInternalName()
+                            + "/"
+                            + field.getInternalName());
 
-            Query.MappedKey key = query.mapEmbeddedKey(database.getEnvironment(), keyNameBuilder.toString());
             ObjectIndex useIndex = null;
 
             for (ObjectIndex index : key.getIndexes()) {
@@ -485,7 +485,7 @@ class SqlQuery {
             Join join = null;
             if (mappedKey.getField() != null
                     && parentPredicate instanceof CompoundPredicate
-                    && PredicateParser.OR_OPERATOR.equals(((CompoundPredicate) parentPredicate).getOperator())) {
+                    && PredicateParser.OR_OPERATOR.equals(parentPredicate.getOperator())) {
                 for (Join j : joins) {
                     if (j.parent == parentPredicate
                             && j.sqlIndex.equals(SqlIndex.Static.getByType(mappedKeys.get(queryKey).getInternalType()))) {
@@ -779,7 +779,7 @@ class SqlQuery {
                     orderBySelectColumns.add(joinValueField);
                 }
 
-            } else if (closest || farthest) {
+            } else {
                 Location location = (Location) sorter.getOptions().get(1);
 
                 StringBuilder selectBuilder = new StringBuilder();
@@ -876,8 +876,8 @@ class SqlQuery {
      * grouped by the values of the given {@code groupFields}.
      */
     public String groupStatement(String[] groupFields) {
-        Map<String, Join> groupJoins = new LinkedHashMap<String, Join>();
-        Map<String, SqlQuery> groupSubSqlQueries = new HashMap<String, SqlQuery>();
+        Map<String, Join> groupJoins = new CompactMap<>();
+        Map<String, SqlQuery> groupSubSqlQueries = new HashMap<>();
         if (groupFields != null) {
             for (String groupField : groupFields) {
                 Query.MappedKey mappedKey = query.mapEmbeddedKey(database.getEnvironment(), groupField);
@@ -920,9 +920,7 @@ class SqlQuery {
         for (Map.Entry<String, Join> entry : groupJoins.entrySet()) {
             statementBuilder.append(", ");
             if (groupSubSqlQueries.containsKey(entry.getKey())) {
-                for (String subSqlSelectField : groupSubSqlQueries.get(entry.getKey()).orderBySelectColumns) {
-                    statementBuilder.append(subSqlSelectField);
-                }
+                groupSubSqlQueries.get(entry.getKey()).orderBySelectColumns.forEach(statementBuilder::append);
             } else {
                 statementBuilder.append(entry.getValue().getValueField(entry.getKey(), null));
             }
@@ -954,9 +952,7 @@ class SqlQuery {
 
         for (Map.Entry<String, Join> entry : groupJoins.entrySet()) {
             if (groupSubSqlQueries.containsKey(entry.getKey())) {
-                for (String subSqlSelectField : groupSubSqlQueries.get(entry.getKey()).orderBySelectColumns) {
-                    groupBy.append(subSqlSelectField);
-                }
+                groupSubSqlQueries.get(entry.getKey()).orderBySelectColumns.forEach(groupBy::append);
             } else {
                 groupBy.append(entry.getValue().getValueField(entry.getKey(), null));
             }
@@ -1166,7 +1162,7 @@ class SqlQuery {
 
         public final String token;
 
-        private JoinType(String token) {
+        JoinType(String token) {
             this.token = token;
         }
     }
@@ -1264,7 +1260,7 @@ class SqlQuery {
         public final Field<Object> idField;
         public final Field<Object> typeIdField;
         public final Field<Object> keyField;
-        public final List<String> indexKeys = new ArrayList<String>();
+        public final List<String> indexKeys = new ArrayList<>();
 
         private final String alias;
         private final String tableName;
@@ -1287,11 +1283,6 @@ class SqlQuery {
             this.sqlIndex = this.index != null
                     ? SqlIndex.Static.getByIndex(this.index)
                     : SqlIndex.Static.getByType(this.indexType);
-
-            ObjectField joinField = null;
-            if (this.index != null) {
-                joinField = this.index.getParent().getField(this.index.getField());
-            }
 
             if (Query.ID_KEY.equals(queryKey)) {
                 needsIndexTable = false;
@@ -1336,7 +1327,7 @@ class SqlQuery {
                     || Query.LABEL_KEY.equals(queryKey)) {
                 throw new UnsupportedIndexException(database, queryKey);
 
-            } else if (database.hasInRowIndex() && index.isShortConstant()) {
+            } else if (database.hasInRowIndex() && index != null && index.isShortConstant()) {
                 needsIndexTable = false;
                 likeValuePrefix = "%;" + database.getSymbolId(mappedKeys.get(queryKey).getIndexKey(selectedIndexes.get(queryKey))) + "=";
                 valueField = recordInRowIndexField;
