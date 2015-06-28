@@ -19,6 +19,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import org.jooq.Converter;
+import org.jooq.DataType;
+import org.jooq.impl.SQLDataType;
+import org.jooq.util.mysql.MySQLDataType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,6 +57,10 @@ public class SqlVendor {
 
     public void setDatabase(SqlDatabase database) {
         this.database = database;
+    }
+
+    public DataType<UUID> uuidDataType() {
+        return SQLDataType.UUID;
     }
 
     /**
@@ -814,12 +822,40 @@ public class SqlVendor {
 
     public static class MySQL extends SqlVendor {
 
+        private static final DataType<UUID> UUID_DATA_TYPE = MySQLDataType.BINARY.asConvertedDataType(new Converter<byte[], UUID>() {
+
+            @Override
+            public UUID from(byte[] bytes) {
+                return UuidUtils.fromBytes(bytes);
+            }
+
+            @Override
+            public byte[] to(UUID uuid) {
+                return UuidUtils.toBytes(uuid);
+            }
+
+            @Override
+            public Class<byte[]> fromType() {
+                return byte[].class;
+            }
+
+            @Override
+            public Class<UUID> toType() {
+                return UUID.class;
+            }
+        });
+
         private volatile Boolean statementReplication;
         private volatile Boolean hasSTMethod;
         private volatile Boolean hasUdfGetFields;
         private volatile Boolean hasUdfIncrementMetric;
 
         private static final Logger LOGGER = LoggerFactory.getLogger(MySQL.class);
+
+        @Override
+        public DataType<UUID> uuidDataType() {
+            return UUID_DATA_TYPE;
+        }
 
         @Override
         public void setTransactionIsolation(Connection connection) throws SQLException {

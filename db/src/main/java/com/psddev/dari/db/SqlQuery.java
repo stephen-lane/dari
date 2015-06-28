@@ -19,6 +19,12 @@ import org.joda.time.DateTime;
 
 import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.StringUtils;
+import org.jooq.Condition;
+import org.jooq.DSLContext;
+import org.jooq.Field;
+import org.jooq.SQLDialect;
+import org.jooq.Table;
+import org.jooq.impl.DSL;
 
 //import org.slf4j.Logger;
 //import org.slf4j.LoggerFactory;
@@ -34,9 +40,10 @@ class SqlQuery {
     private final String aliasPrefix;
 
     private final SqlVendor vendor;
-    private final String recordIdField;
-    private final String recordTypeIdField;
-    private final String recordInRowIndexField;
+    private final DSLContext jooqContext;
+    private final Field<UUID> recordIdField;
+    private final Field<UUID> recordTypeIdField;
+    private final Field<Object> recordInRowIndexField;
     private final Map<String, Query.MappedKey> mappedKeys;
     private final Map<String, ObjectIndex> selectedIndexes;
 
@@ -87,8 +94,9 @@ class SqlQuery {
         aliasPrefix = initialAliasPrefix;
 
         vendor = database.getVendor();
-        recordIdField = aliasedField("r", SqlDatabase.ID_COLUMN);
-        recordTypeIdField = aliasedField("r", SqlDatabase.TYPE_ID_COLUMN);
+        jooqContext = DSL.using(SQLDialect.MYSQL);
+        recordIdField = DSL.field(DSL.name(aliasPrefix + "r", SqlDatabase.ID_COLUMN), vendor.uuidDataType());
+        recordTypeIdField = DSL.field(DSL.name(aliasPrefix + "r", SqlDatabase.TYPE_ID_COLUMN), vendor.uuidDataType());
         recordInRowIndexField = aliasedField("r", SqlDatabase.IN_ROW_INDEX_COLUMN);
         mappedKeys = query.mapEmbeddedKeys(database.getEnvironment());
         selectedIndexes = new HashMap<String, ObjectIndex>();
@@ -137,17 +145,8 @@ class SqlQuery {
         this(initialDatabase, initialQuery, "");
     }
 
-    private String aliasedField(String alias, String field) {
-        if (field == null) {
-            return null;
-        }
-
-        StringBuilder fieldBuilder = new StringBuilder();
-        fieldBuilder.append(aliasPrefix);
-        fieldBuilder.append(alias);
-        fieldBuilder.append('.');
-        vendor.appendIdentifier(fieldBuilder, field);
-        return fieldBuilder.toString();
+    private Field<Object> aliasedField(String alias, String field) {
+        return field != null ? DSL.field(DSL.name(aliasPrefix + alias, field)) : null;
     }
 
     private SqlQuery getOrCreateSubSqlQuery(Query<?> subQuery, boolean forceLeftJoins) {
@@ -227,34 +226,9 @@ class SqlQuery {
         }
 
         // Builds the WHERE clause.
-        StringBuilder whereBuilder = new StringBuilder();
-        whereBuilder.append("\nWHERE ");
-
-        String extraWhere = ObjectUtils.to(String.class, query.getOptions().get(SqlDatabase.EXTRA_WHERE_QUERY_OPTION));
-        if (!ObjectUtils.isBlank(extraWhere)) {
-            whereBuilder.append('(');
-        }
-
-        whereBuilder.append("1 = 1");
-
-        if (!query.isFromAll()) {
-            Set<UUID> typeIds = query.getConcreteTypeIds(database);
-            whereBuilder.append("\nAND ");
-
-            if (typeIds.isEmpty()) {
-                whereBuilder.append("0 = 1");
-
-            } else {
-                whereBuilder.append(recordTypeIdField);
-                whereBuilder.append(" IN (");
-                for (UUID typeId : typeIds) {
-                    vendor.appendValue(whereBuilder, typeId);
-                    whereBuilder.append(", ");
-                }
-                whereBuilder.setLength(whereBuilder.length() - 2);
-                whereBuilder.append(')');
-            }
-        }
+        Condition whereCondition = query.isFromAll()
+                ? DSL.trueCondition()
+                : recordTypeIdField.in(query.getConcreteTypeIds(database));
 
         Predicate predicate = query.getPredicate();
 
@@ -262,15 +236,14 @@ class SqlQuery {
             StringBuilder childBuilder = new StringBuilder();
             addWherePredicate(childBuilder, predicate, null, false, true);
             if (childBuilder.length() > 0) {
-                whereBuilder.append("\nAND (");
-                whereBuilder.append(childBuilder);
-                whereBuilder.append(')');
+                whereCondition = whereCondition.and(childBuilder.toString());
             }
         }
 
+        String extraWhere = ObjectUtils.to(String.class, query.getOptions().get(SqlDatabase.EXTRA_WHERE_QUERY_OPTION));
+
         if (!ObjectUtils.isBlank(extraWhere)) {
-            whereBuilder.append(") ");
-            whereBuilder.append(extraWhere);
+            whereCondition = whereCondition.and(extraWhere);
         }
 
         // Builds the ORDER BY clause.
@@ -303,7 +276,7 @@ class SqlQuery {
             fromBuilder.append('\n');
             fromBuilder.append((forceLeftJoins ? JoinType.LEFT_OUTER : join.type).token);
             fromBuilder.append(' ');
-            fromBuilder.append(join.table);
+            fromBuilder.append(jooqContext.renderContext().declareTables(true).render(join.table));
 
             if (join.type == JoinType.INNER && join.equals(mysqlIndexHint)) {
                 fromBuilder.append(" /*! USE INDEX (k_name_value) */");
@@ -322,35 +295,24 @@ class SqlQuery {
 
             // e.g. ON i#.recordId = r.id
             fromBuilder.append(" ON ");
-            fromBuilder.append(join.idField);
-            fromBuilder.append(" = ");
-            fromBuilder.append(aliasPrefix);
-            fromBuilder.append("r.");
-            vendor.appendIdentifier(fromBuilder, "id");
+
+            Condition joinCondition = join.idField.eq(recordIdField);
 
             // AND i#.typeId = r.typeId
             if (join.typeIdField != null) {
-                fromBuilder.append(" AND ");
-                fromBuilder.append(join.typeIdField);
-                fromBuilder.append(" = ");
-                fromBuilder.append(aliasPrefix);
-                fromBuilder.append("r.");
-                vendor.appendIdentifier(fromBuilder, "typeId");
+                joinCondition = joinCondition.and(join.typeIdField.eq(recordTypeIdField));
             }
 
             // AND i#.symbolId in (...)
-            fromBuilder.append(" AND ");
-            fromBuilder.append(join.keyField);
-            fromBuilder.append(" IN (");
+            List<Object> convertedIndexKeys = new ArrayList<Object>();
 
             for (String indexKey : join.indexKeys) {
-                fromBuilder.append(join.quoteIndexKey(indexKey));
-                fromBuilder.append(", ");
+                convertedIndexKeys.add(join.convertIndexKey(indexKey));
             }
 
-            fromBuilder.setLength(fromBuilder.length() - 2);
-            fromBuilder.append(')');
+            joinCondition = joinCondition.and(join.keyField.in(convertedIndexKeys));
 
+            fromBuilder.append(jooqContext.renderInlined(joinCondition));
         }
 
         StringBuilder extraColumnsBuilder = new StringBuilder();
@@ -396,19 +358,11 @@ class SqlQuery {
                 fromBuilder.append(" AS ");
                 vendor.appendIdentifier(fromBuilder, sourceTableAlias);
                 fromBuilder.append(" ON ");
-                vendor.appendIdentifier(fromBuilder, sourceTableAlias);
-                fromBuilder.append('.');
-                vendor.appendIdentifier(fromBuilder, "id");
-                fromBuilder.append(" = ");
-                fromBuilder.append(aliasPrefix);
-                fromBuilder.append("r.");
-                vendor.appendIdentifier(fromBuilder, "id");
-                fromBuilder.append(" AND ");
-                vendor.appendIdentifier(fromBuilder, sourceTableAlias);
-                fromBuilder.append('.');
-                vendor.appendIdentifier(fromBuilder, "symbolId");
-                fromBuilder.append(" = ");
-                fromBuilder.append(symbolId);
+
+                fromBuilder.append(jooqContext.renderInlined(
+                        DSL.field(DSL.name(sourceTableAlias, "id")).eq(recordIdField)
+                                .and(DSL.field(DSL.name(sourceTableAlias, "symbolId")).eq(symbolId))));
+
                 joinTableAliases.put(sourceTableAndSymbol, sourceTableAlias);
 
             } else {
@@ -466,7 +420,7 @@ class SqlQuery {
             fromBuilder.append(extraJoins);
         }
 
-        this.whereClause = whereBuilder.toString();
+        this.whereClause = "\nWHERE " + jooqContext.renderInlined(whereCondition);
 
         StringBuilder havingBuilder = new StringBuilder();
         if (hasDeferredHavingPredicates()) {
@@ -505,7 +459,7 @@ class SqlQuery {
 
             // e.g. (child1) OR (child2) OR ... (child#)
             if (isNot || PredicateParser.OR_OPERATOR.equals(operator)) {
-                StringBuilder compoundBuilder = new StringBuilder();
+                Condition compoundCondition = null;
                 List<Predicate> children = compoundPredicate.getChildren();
 
                 boolean usesLeftJoinChildren;
@@ -520,45 +474,37 @@ class SqlQuery {
                     StringBuilder childBuilder = new StringBuilder();
                     addWherePredicate(childBuilder, child, predicate, usesLeftJoinChildren, deferMetricAndHavingPredicates);
                     if (childBuilder.length() > 0) {
-                        compoundBuilder.append('(');
-                        compoundBuilder.append(childBuilder);
-                        compoundBuilder.append(")\nOR ");
+                        compoundCondition = compoundCondition != null
+                                ? compoundCondition.or(childBuilder.toString())
+                                : DSL.condition(childBuilder.toString());
                     }
                 }
 
-                if (compoundBuilder.length() > 0) {
-                    compoundBuilder.setLength(compoundBuilder.length() - 4);
-
-                    // e.g. NOT ((child1) OR (child2) OR ... (child#))
-                    if (isNot) {
-                        whereBuilder.append("NOT (");
-                        whereBuilder.append(compoundBuilder);
-                        whereBuilder.append(')');
-
-                    } else {
-                        whereBuilder.append(compoundBuilder);
-                    }
+                if (compoundCondition != null) {
+                    whereBuilder.append(
+                            jooqContext.renderInlined(isNot
+                                    ? compoundCondition.not()
+                                    : compoundCondition));
                 }
 
                 return;
 
             // e.g. (child1) AND (child2) AND .... (child#)
             } else if (PredicateParser.AND_OPERATOR.equals(operator)) {
-                StringBuilder compoundBuilder = new StringBuilder();
+                Condition compoundCondition = null;
 
                 for (Predicate child : compoundPredicate.getChildren()) {
                     StringBuilder childBuilder = new StringBuilder();
                     addWherePredicate(childBuilder, child, predicate, usesLeftJoin, deferMetricAndHavingPredicates);
                     if (childBuilder.length() > 0) {
-                        compoundBuilder.append('(');
-                        compoundBuilder.append(childBuilder);
-                        compoundBuilder.append(")\nAND ");
+                        compoundCondition = compoundCondition != null
+                                ? compoundCondition.and(childBuilder.toString())
+                                : DSL.condition(childBuilder.toString());
                     }
                 }
 
-                if (compoundBuilder.length() > 0) {
-                    compoundBuilder.setLength(compoundBuilder.length() - 5);
-                    whereBuilder.append(compoundBuilder);
+                if (compoundCondition != null) {
+                    whereBuilder.append(jooqContext.renderInlined(compoundCondition));
                 }
 
                 return;
@@ -842,7 +788,7 @@ class SqlQuery {
                     if (join.needsIndexTable) {
                         String indexKey = mappedKeys.get(queryKey).getIndexKey(selectedIndexes.get(queryKey));
                         if (indexKey != null) {
-                            whereBuilder.append(join.keyField);
+                            whereBuilder.append(jooqContext.render(join.keyField));
                             whereBuilder.append(" = ");
                             whereBuilder.append(join.quoteIndexKey(indexKey));
                             whereBuilder.append(" AND ");
@@ -983,7 +929,7 @@ class SqlQuery {
         if (needsDistinct) {
             statementBuilder.append("DISTINCT ");
         }
-        statementBuilder.append(recordIdField);
+        statementBuilder.append(jooqContext.render(recordIdField));
         statementBuilder.append(')');
 
         statementBuilder.append(" \nFROM ");
@@ -1105,7 +1051,7 @@ class SqlQuery {
         if (needsDistinct) {
             statementBuilder.append("DISTINCT ");
         }
-        statementBuilder.append(recordIdField);
+        statementBuilder.append(jooqContext.render(recordIdField));
         statementBuilder.append(')');
         statementBuilder.append(' ');
         vendor.appendIdentifier(statementBuilder, "_count");
@@ -1793,10 +1739,10 @@ class SqlQuery {
         public final String likeValuePrefix;
         public final String queryKey;
         public final String indexType;
-        public final String table;
-        public final String idField;
-        public final String typeIdField;
-        public final String keyField;
+        public final Table<?> table;
+        public final Field<Object> idField;
+        public final Field<Object> typeIdField;
+        public final Field<Object> keyField;
         public final List<String> indexKeys = new ArrayList<String>();
 
         private final String alias;
@@ -1804,7 +1750,7 @@ class SqlQuery {
         private final ObjectIndex index;
         private final SqlIndex sqlIndex;
         private final SqlIndex.Table sqlIndexTable;
-        private final String valueField;
+        private final Field<?> valueField;
         private final String hashAttribute;
         private final boolean isHaving;
 
@@ -1855,12 +1801,7 @@ class SqlQuery {
             } else if (Query.DIMENSION_KEY.equals(queryKey)) {
                 needsIndexTable = false;
                 likeValuePrefix = null;
-                //valueField = MetricAccess.METRIC_DIMENSION_FIELD;
-                StringBuilder fieldBuilder = new StringBuilder();
-                vendor.appendIdentifier(fieldBuilder, "r");
-                fieldBuilder.append('.');
-                vendor.appendIdentifier(fieldBuilder, MetricAccess.METRIC_DIMENSION_FIELD);
-                valueField = fieldBuilder.toString();
+                valueField = DSL.field(DSL.name("r", MetricAccess.METRIC_DIMENSION_FIELD));
                 sqlIndexTable = null;
                 table = null;
                 tableName = null;
@@ -1873,13 +1814,7 @@ class SqlQuery {
             } else if (Query.COUNT_KEY.equals(queryKey)) {
                 needsIndexTable = false;
                 likeValuePrefix = null;
-                StringBuilder fieldBuilder = new StringBuilder();
-                fieldBuilder.append("COUNT(");
-                vendor.appendIdentifier(fieldBuilder, "r");
-                fieldBuilder.append('.');
-                vendor.appendIdentifier(fieldBuilder, "id");
-                fieldBuilder.append(')');
-                valueField = fieldBuilder.toString(); // "count(r.id)";
+                valueField = recordIdField.count();
                 sqlIndexTable = null;
                 table = null;
                 tableName = null;
@@ -1914,7 +1849,7 @@ class SqlQuery {
                 sqlIndexTable = this.sqlIndex.getReadTable(database, index);
 
                 tableName = MetricAccess.Static.getMetricTableIdentifier(database); // Don't wrap this with appendIdentifier
-                table = tableName;
+                table = DSL.table(DSL.name(tableName));
                 alias = "r";
 
                 idField = null;
@@ -1925,17 +1860,15 @@ class SqlQuery {
 
                 if (Query.METRIC_DIMENSION_ATTRIBUTE.equals(mappedKey.getHashAttribute())) {
                     // for metricField#dimension, use dimensionId
-                    valueField = MetricAccess.METRIC_DIMENSION_FIELD;
+                    valueField = DSL.field(DSL.name(MetricAccess.METRIC_DIMENSION_FIELD));
                     isHaving = false;
                 } else if (Query.METRIC_DATE_ATTRIBUTE.equals(mappedKey.getHashAttribute())) {
                     // for metricField#date, use "data"
-                    valueField = MetricAccess.METRIC_DATA_FIELD;
+                    valueField = DSL.field(DSL.name(MetricAccess.METRIC_DATA_FIELD));
                     isHaving = false;
                 } else {
                     // for metricField, use internalName
-                    StringBuilder fieldBuilder = new StringBuilder();
-                    vendor.appendAlias(fieldBuilder, joinField.getInternalName());
-                    valueField = fieldBuilder.toString();
+                    valueField = DSL.field(DSL.name(joinField.getInternalName()));
                     isHaving = true;
                 }
 
@@ -1946,13 +1879,8 @@ class SqlQuery {
                 valueField = null;
                 sqlIndexTable = this.sqlIndex.getReadTable(database, index);
 
-                StringBuilder tableBuilder = new StringBuilder();
                 tableName = sqlIndexTable.getName(database, index);
-                vendor.appendIdentifier(tableBuilder, tableName);
-                tableBuilder.append(' ');
-                tableBuilder.append(aliasPrefix);
-                tableBuilder.append(alias);
-                table = tableBuilder.toString();
+                table = DSL.table(DSL.name(tableName)).as(aliasPrefix + alias);
 
                 idField = aliasedField(alias, sqlIndexTable.getIdField(database, index));
                 typeIdField = aliasedField(alias, sqlIndexTable.getTypeIdField(database, index));
@@ -1967,7 +1895,7 @@ class SqlQuery {
         }
 
         public String toString() {
-            return this.tableName + " (" + this.alias + ") ." + this.valueField;
+            return this.tableName + " (" + this.alias + ") ." + jooqContext.render(this.valueField);
         }
 
         public String getTableName() {
@@ -1984,8 +1912,12 @@ class SqlQuery {
             }
         }
 
+        public Object convertIndexKey(String indexKey) {
+            return sqlIndexTable.convertKey(database, index, indexKey);
+        }
+
         public Object quoteIndexKey(String indexKey) {
-            return SqlDatabase.quoteValue(sqlIndexTable.convertKey(database, index, indexKey));
+            return SqlDatabase.quoteValue(convertIndexKey(indexKey));
         }
 
         public void appendValue(StringBuilder builder, ComparisonPredicate comparison, Object value) {
@@ -2057,7 +1989,7 @@ class SqlQuery {
         }
 
         public String getValueField(String queryKey, ComparisonPredicate comparison) {
-            String field;
+            Field<?> field;
 
             if (valueField != null) {
                 field = valueField;
@@ -2082,10 +2014,10 @@ class SqlQuery {
                     && (sqlIndex != SqlIndex.STRING
                     || sqlIndexTable.getVersion() < 3)) {
 
-                field = "LOWER(" + vendor.convertRawToStringSql(field) + ")";
+                field = DSL.field(vendor.convertRawToStringSql(jooqContext.renderInlined(field)), String.class).lower();
             }
 
-            return field;
+            return jooqContext.render(field);
         }
     }
 }
