@@ -1,8 +1,6 @@
 package com.psddev.dari.db;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -14,8 +12,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import org.joda.time.DateTime;
 
 import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.StringUtils;
@@ -47,10 +43,8 @@ class SqlQuery {
     private final Map<String, Query.MappedKey> mappedKeys;
     private final Map<String, ObjectIndex> selectedIndexes;
 
-    private String selectClause;
     private String fromClause;
     private String whereClause;
-    private String groupByClause;
     private String havingClause;
     private String orderByClause;
     private String extraSourceColumns;
@@ -64,21 +58,6 @@ class SqlQuery {
     private Join mysqlIndexHint;
     private boolean mysqlIgnoreIndexPrimaryDisabled;
     private boolean forceLeftJoins;
-
-    private final List<Predicate> recordMetricDatePredicates = new ArrayList<Predicate>();
-    private final List<Predicate> recordMetricParentDatePredicates = new ArrayList<Predicate>();
-
-    private final List<Predicate> recordMetricDimensionPredicates = new ArrayList<Predicate>();
-    private final List<Predicate> recordMetricParentDimensionPredicates = new ArrayList<Predicate>();
-
-    private final List<Predicate> recordMetricHavingPredicates = new ArrayList<Predicate>();
-    private final List<Predicate> recordMetricParentHavingPredicates = new ArrayList<Predicate>();
-    private final List<Sorter> recordMetricSorters = new ArrayList<Sorter>();
-    private ObjectField recordMetricField;
-    private final Map<String, String> reverseAliasSql = new HashMap<String, String>();
-
-    private final List<Predicate> havingPredicates = new ArrayList<Predicate>();
-    private final List<Predicate> parentHavingPredicates = new ArrayList<Predicate>();
 
     /**
      * Creates an instance that can translate the given {@code query}
@@ -234,7 +213,7 @@ class SqlQuery {
 
         if (predicate != null) {
             StringBuilder childBuilder = new StringBuilder();
-            addWherePredicate(childBuilder, predicate, null, false, true);
+            addWherePredicate(childBuilder, predicate, null, false);
             if (childBuilder.length() > 0) {
                 whereCondition = whereCondition.and(childBuilder.toString());
             }
@@ -250,7 +229,7 @@ class SqlQuery {
         StringBuilder orderByBuilder = new StringBuilder();
 
         for (Sorter sorter : query.getSorters()) {
-            addOrderByClause(orderByBuilder, sorter, true, false);
+            addOrderByClause(orderByBuilder, sorter, false);
         }
 
         if (orderByBuilder.length() > 0) {
@@ -423,18 +402,6 @@ class SqlQuery {
         this.whereClause = "\nWHERE " + jooqContext.renderInlined(whereCondition);
 
         StringBuilder havingBuilder = new StringBuilder();
-        if (hasDeferredHavingPredicates()) {
-            StringBuilder childBuilder = new StringBuilder();
-            int i = 0;
-            for (Predicate havingPredicate : havingPredicates) {
-                addWherePredicate(childBuilder, havingPredicate, parentHavingPredicates.get(i++), false, false);
-            }
-            if (childBuilder.length() > 0) {
-                havingBuilder.append(" \nHAVING ");
-                havingBuilder.append(childBuilder);
-            }
-        }
-
         String extraHaving = ObjectUtils.to(String.class, query.getOptions().get(SqlDatabase.EXTRA_HAVING_QUERY_OPTION));
         havingBuilder.append(ObjectUtils.isBlank(extraHaving) ? "" : ("\n" + (ObjectUtils.isBlank(this.havingClause) ? "HAVING" : "AND") + " " + extraHaving));
         this.havingClause = havingBuilder.toString();
@@ -449,8 +416,7 @@ class SqlQuery {
             StringBuilder whereBuilder,
             Predicate predicate,
             Predicate parentPredicate,
-            boolean usesLeftJoin,
-            boolean deferMetricAndHavingPredicates) {
+            boolean usesLeftJoin) {
 
         if (predicate instanceof CompoundPredicate) {
             CompoundPredicate compoundPredicate = (CompoundPredicate) predicate;
@@ -472,7 +438,7 @@ class SqlQuery {
 
                 for (Predicate child : children) {
                     StringBuilder childBuilder = new StringBuilder();
-                    addWherePredicate(childBuilder, child, predicate, usesLeftJoinChildren, deferMetricAndHavingPredicates);
+                    addWherePredicate(childBuilder, child, predicate, usesLeftJoinChildren);
                     if (childBuilder.length() > 0) {
                         compoundCondition = compoundCondition != null
                                 ? compoundCondition.or(childBuilder.toString())
@@ -495,7 +461,7 @@ class SqlQuery {
 
                 for (Predicate child : compoundPredicate.getChildren()) {
                     StringBuilder childBuilder = new StringBuilder();
-                    addWherePredicate(childBuilder, child, predicate, usesLeftJoin, deferMetricAndHavingPredicates);
+                    addWherePredicate(childBuilder, child, predicate, usesLeftJoin);
                     if (childBuilder.length() > 0) {
                         compoundCondition = compoundCondition != null
                                 ? compoundCondition.and(childBuilder.toString())
@@ -551,40 +517,7 @@ class SqlQuery {
                 needsDistinct = true;
             }
 
-            if (deferMetricAndHavingPredicates) {
-                if (mappedKey.getField() != null) {
-                    if (mappedKey.getField().isMetric()) {
-                        if (recordMetricField == null) {
-                            recordMetricField = mappedKey.getField();
-                        } else if (!recordMetricField.equals(mappedKey.getField())) {
-                            throw new Query.NoFieldException(query.getGroup(), recordMetricField.getInternalName() + " AND " + mappedKey.getField().getInternalName());
-                        }
-                        if (Query.METRIC_DATE_ATTRIBUTE.equals(mappedKey.getHashAttribute())) {
-                            recordMetricDatePredicates.add(predicate);
-                            recordMetricParentDatePredicates.add(parentPredicate);
-                        } else if (Query.METRIC_DIMENSION_ATTRIBUTE.equals(mappedKey.getHashAttribute())) {
-                            recordMetricDimensionPredicates.add(predicate);
-                            recordMetricParentDimensionPredicates.add(parentPredicate);
-                        } else {
-                            recordMetricHavingPredicates.add(predicate);
-                            recordMetricParentHavingPredicates.add(parentPredicate);
-                        }
-                        return;
-                    }
-
-                }
-                if (join.isHaving) {
-                    // pass for now; we'll get called again later.
-                    havingPredicates.add(predicate);
-                    parentHavingPredicates.add(parentPredicate);
-                    return;
-                }
-            }
-
             String joinValueField = join.getValueField(queryKey, comparisonPredicate);
-            if (reverseAliasSql.containsKey(joinValueField)) {
-                joinValueField = reverseAliasSql.get(joinValueField);
-            }
             String operator = comparisonPredicate.getOperator();
             StringBuilder comparisonBuilder = new StringBuilder();
             boolean hasMissing = false;
@@ -815,7 +748,7 @@ class SqlQuery {
         throw new UnsupportedPredicateException(this, predicate);
     }
 
-    private void addOrderByClause(StringBuilder orderByBuilder, Sorter sorter, boolean deferMetricPredicates, boolean useGroupBySelectAliases) {
+    private void addOrderByClause(StringBuilder orderByBuilder, Sorter sorter, boolean useGroupBySelectAliases) {
 
         String operator = sorter.getOperator();
         boolean ascending = Sorter.ASCENDING_OPERATOR.equals(operator);
@@ -825,20 +758,6 @@ class SqlQuery {
 
         if (ascending || descending || closest || farthest) {
             String queryKey = (String) sorter.getOptions().get(0);
-
-            if (deferMetricPredicates) {
-                ObjectField sortField = mappedKeys.get(queryKey).getField();
-                if (sortField != null && sortField.isMetric()) {
-                    if (recordMetricField == null) {
-                        recordMetricField = sortField;
-                    } else if (!recordMetricField.equals(sortField)) {
-                        throw new Query.NoFieldException(query.getGroup(), recordMetricField.getInternalName() + " AND " + sortField.getInternalName());
-                    }
-                    recordMetricSorters.add(sorter);
-                    return;
-                }
-            }
-
             Join join = getSortFieldJoin(queryKey);
             String joinValueField = join.getValueField(queryKey, null);
             if (useGroupBySelectAliases && groupBySelectColumnAliases.containsKey(joinValueField)) {
@@ -906,17 +825,6 @@ class SqlQuery {
         return false;
     }
 
-    private boolean hasDeferredHavingPredicates() {
-        return !havingPredicates.isEmpty();
-    }
-
-    private boolean hasAnyDeferredMetricPredicates() {
-        return !recordMetricDatePredicates.isEmpty()
-                || !recordMetricDimensionPredicates.isEmpty()
-                || !recordMetricHavingPredicates.isEmpty()
-                || !recordMetricSorters.isEmpty();
-    }
-
     /**
      * Returns an SQL statement that can be used to get a count
      * of all rows matching the query.
@@ -938,30 +846,7 @@ class SqlQuery {
         statementBuilder.append(aliasPrefix);
         statementBuilder.append('r');
         statementBuilder.append(fromClause.replace(" /*! USE INDEX (k_name_value) */", ""));
-        if (!recordMetricHavingPredicates.isEmpty()) {
-            statementBuilder.append(" \nJOIN (");
-            appendSubqueryMetricSql(statementBuilder, recordMetricField);
-            statementBuilder.append(") m \nON (");
-            appendSimpleOnClause(statementBuilder, vendor, "r", "id", "=", "m", "id");
-            statementBuilder.append(" AND ");
-            appendSimpleOnClause(statementBuilder, vendor, "r", "typeId", "=", "m", "typeId");
-            statementBuilder.append(')');
-            statementBuilder.append(whereClause);
-            StringBuilder havingChildBuilder = new StringBuilder();
-
-            for (int i = 0; i < recordMetricHavingPredicates.size(); i++) {
-                addWherePredicate(havingChildBuilder, recordMetricHavingPredicates.get(i), recordMetricParentHavingPredicates.get(i), false, false);
-                havingChildBuilder.append(" AND ");
-            }
-            if (havingChildBuilder.length() > 0) {
-                havingChildBuilder.setLength(havingChildBuilder.length() - 5); // " AND "
-                statementBuilder.append(" AND ");
-                statementBuilder.append(havingChildBuilder);
-            }
-
-        } else {
-            statementBuilder.append(whereClause);
-        }
+        statementBuilder.append(whereClause);
         return statementBuilder.toString();
     }
 
@@ -972,10 +857,6 @@ class SqlQuery {
     public String deleteStatement() {
         StringBuilder statementBuilder = new StringBuilder();
         initializeClauses();
-
-        if (hasAnyDeferredMetricPredicates()) {
-            throw new Query.NoFieldException(query.getGroup(), recordMetricField.getInternalName());
-        }
 
         statementBuilder.append("DELETE r\nFROM ");
         vendor.appendIdentifier(statementBuilder, "Record");
@@ -1000,18 +881,6 @@ class SqlQuery {
         if (groupFields != null) {
             for (String groupField : groupFields) {
                 Query.MappedKey mappedKey = query.mapEmbeddedKey(database.getEnvironment(), groupField);
-                if (mappedKey.getField() != null) {
-                    if (mappedKey.getField().isMetric()) {
-                        if (Query.METRIC_DIMENSION_ATTRIBUTE.equals(mappedKey.getHashAttribute())) {
-                            // TODO: this one has to work eventually . . .
-                        } else if (Query.METRIC_DATE_ATTRIBUTE.equals(mappedKey.getHashAttribute())) {
-                            // TODO: this one has to work eventually . . .
-                            throw new Query.NoFieldException(query.getGroup(), groupField);
-                        } else {
-                            throw new RuntimeException("Unable to group by @MetricValue: " + groupField);
-                        }
-                    }
-                }
                 mappedKeys.put(groupField, mappedKey);
                 Iterator<ObjectIndex> indexesIterator = mappedKey.getIndexes().iterator();
                 if (indexesIterator.hasNext()) {
@@ -1038,14 +907,6 @@ class SqlQuery {
         StringBuilder statementBuilder = new StringBuilder();
         StringBuilder groupBy = new StringBuilder();
         initializeClauses();
-
-        if (hasAnyDeferredMetricPredicates()) {
-            // add "id" and "dimensionId" to groupJoins
-            mappedKeys.put(Query.ID_KEY, query.mapEmbeddedKey(database.getEnvironment(), Query.ID_KEY));
-            groupJoins.put(Query.ID_KEY, getJoin(Query.ID_KEY));
-            mappedKeys.put(Query.DIMENSION_KEY, query.mapEmbeddedKey(database.getEnvironment(), Query.DIMENSION_KEY));
-            groupJoins.put(Query.DIMENSION_KEY, getJoin(Query.DIMENSION_KEY));
-        }
 
         statementBuilder.append("SELECT COUNT(");
         if (needsDistinct) {
@@ -1077,7 +938,6 @@ class SqlQuery {
                 vendor.appendIdentifier(statementBuilder, columnAlias);
             }
         }
-        selectClause = statementBuilder.toString();
 
         for (String field : orderBySelectColumns) {
             statementBuilder.append(", ");
@@ -1113,9 +973,7 @@ class SqlQuery {
             groupBy.insert(0, " GROUP BY ");
         }
 
-        groupByClause = groupBy.toString();
-
-        statementBuilder.append(groupByClause);
+        statementBuilder.append(groupBy.toString());
 
         statementBuilder.append(havingClause);
 
@@ -1140,281 +998,7 @@ class SqlQuery {
             statementBuilder.append(orderByClause);
         }
 
-        if (hasAnyDeferredMetricPredicates()) {
-            // If there are deferred HAVING predicates, we need to go ahead and execute the metric query
-            // TODO: there might be a way to filter on more than 1 metric simultaneously.
-            return buildGroupedMetricSql(recordMetricField.getInternalName(), groupFields, selectClause, fromClause, whereClause, groupByClause, orderByClause);
-        } else {
-            return statementBuilder.toString();
-        }
-    }
-
-    /**
-     * Returns an SQL statement that can be used to get the sum
-     * of the specified Metric {@code metricFieldName} grouped by the values
-     * of the given {@code groupFields}.
-     */
-    public String groupedMetricSql(String metricFieldName, String[] groupFields) {
-        int addFields = 2;
-        boolean addIdField = true;
-        boolean addDimField = true;
-        for (int i = 0; i < groupFields.length; i++) {
-            if (Query.ID_KEY.equals(groupFields[i])) {
-                addFields--;
-                addIdField = false;
-            }
-            if (Query.DIMENSION_KEY.equals(groupFields[i])) {
-                addFields--;
-                addDimField = false;
-            }
-        }
-        String[] innerGroupByFields = Arrays.copyOf(groupFields, groupFields.length + addFields);
-        if (addIdField) {
-            innerGroupByFields[groupFields.length] = Query.ID_KEY;
-        }
-        if (addDimField) {
-            innerGroupByFields[groupFields.length + 1] = Query.DIMENSION_KEY;
-        }
-        // This prepares selectClause, et al.
-        groupStatement(innerGroupByFields);
-        return buildGroupedMetricSql(metricFieldName, groupFields, selectClause, fromClause, whereClause, groupByClause, orderByClause);
-    }
-
-    private String buildGroupedMetricSql(String metricFieldName, String[] groupFields, String selectClause, String fromClause, String whereClause, String groupByClause, String orderByClause) {
-        StringBuilder selectBuilder = new StringBuilder(selectClause);
-        StringBuilder fromBuilder = new StringBuilder(fromClause);
-        StringBuilder whereBuilder = new StringBuilder(whereClause);
-        StringBuilder groupByBuilder = new StringBuilder(groupByClause);
-        StringBuilder havingBuilder = new StringBuilder(orderByClause);
-        StringBuilder orderByBuilder = new StringBuilder(orderByClause);
-
-        Query.MappedKey mappedKey = query.mapEmbeddedKey(database.getEnvironment(), metricFieldName);
-        if (mappedKey.getField() == null) {
-            throw new Query.NoFieldException(query.getGroup(), metricFieldName);
-        }
-        ObjectField metricField = mappedKey.getField();
-        String actionSymbol = metricField.getUniqueName(); // JavaDeclaringClassName() + "/" + metricField.getInternalName();
-
-        selectBuilder.insert(7, "MIN(r.data) minData, MAX(r.data) maxData, "); // Right after "SELECT " (7 chars)
-        fromBuilder.insert(0, "FROM " + MetricAccess.Static.getMetricTableIdentifier(database) + " r ");
-        whereBuilder.append(" AND r." + MetricAccess.METRIC_SYMBOL_FIELD + " = ");
-        vendor.appendValue(whereBuilder, database.getSymbolId(actionSymbol));
-
-        // If a dimensionId is not specified, we will append dimensionId = 00000000000000000000000000000000
-        if (recordMetricDimensionPredicates.isEmpty()) {
-            whereBuilder.append(" AND ");
-            appendSimpleWhereClause(whereBuilder, vendor, "r", MetricAccess.METRIC_DIMENSION_FIELD, "=", MetricAccess.getDimensionIdByValue(database, null));
-        }
-
-        // Apply deferred WHERE predicates (eventDates and dimensionIds)
-        for (int i = 0; i < recordMetricDatePredicates.size(); i++) {
-            whereBuilder.append(" AND ");
-            addWherePredicate(whereBuilder, recordMetricDatePredicates.get(i), recordMetricParentDatePredicates.get(i), false, false);
-        }
-
-        for (int i = 0; i < recordMetricDimensionPredicates.size(); i++) {
-            whereBuilder.append(" AND ");
-            addWherePredicate(whereBuilder, recordMetricDimensionPredicates.get(i), recordMetricParentDimensionPredicates.get(i), false, false);
-        }
-
-        String innerSql = selectBuilder.toString() + " " + fromBuilder.toString() + " " + whereBuilder.toString() + " " + groupByBuilder.toString() + " " + havingBuilder.toString() + " " + orderByBuilder.toString();
-
-        selectBuilder = new StringBuilder();
-        fromBuilder = new StringBuilder();
-        whereBuilder = new StringBuilder();
-        groupByBuilder = new StringBuilder();
-        havingBuilder = new StringBuilder();
-        orderByBuilder = new StringBuilder();
-
-        selectBuilder.append("SELECT ");
-
-        StringBuilder amountBuilder  = new StringBuilder();
-        MetricAccess.Static.appendSelectCalculatedAmountSql(amountBuilder, vendor, "minData", "maxData", true);
-        selectBuilder.append(amountBuilder);
-        reverseAliasSql.put(metricField.getInternalName(), amountBuilder.toString());
-
-        vendor.appendAlias(selectBuilder, metricField.getInternalName());
-
-        selectBuilder.append(", COUNT(");
-        vendor.appendIdentifier(selectBuilder, "id");
-        selectBuilder.append(") ");
-        vendor.appendIdentifier(selectBuilder, "_count");
-
-        List<String> groupBySelectColumns = new ArrayList<String>();
-        for (String field : groupBySelectColumnAliases.values()) {
-            groupBySelectColumns.add(field);
-        }
-        // Special case for id and dimensionId
-        for (int i = 0; i < groupFields.length; i++) {
-            if (Query.ID_KEY.equals(groupFields[i])) {
-                groupBySelectColumns.add("id");
-            }
-            if (Query.DIMENSION_KEY.equals(groupFields[i])) {
-                groupBySelectColumns.add("dimensionId");
-            }
-        }
-
-        for (String field : groupBySelectColumns) {
-            selectBuilder.append(", ");
-            vendor.appendIdentifier(selectBuilder, field);
-        }
-
-        fromBuilder.append(" \nFROM (");
-        fromBuilder.append(innerSql);
-        fromBuilder.append(" ) x ");
-
-        if (!groupBySelectColumns.isEmpty()) {
-            groupByBuilder.append(" GROUP BY ");
-            for (String field : groupBySelectColumns) {
-                if (groupByBuilder.length() > 10) {  // " GROUP BY ".length()
-                    groupByBuilder.append(", ");
-                }
-                vendor.appendIdentifier(groupByBuilder, field);
-            }
-        }
-
-        // Apply deferred HAVING predicates (sums)
-        StringBuilder havingChildBuilder = new StringBuilder();
-        for (int i = 0; i < recordMetricHavingPredicates.size(); i++) {
-            addWherePredicate(havingChildBuilder, recordMetricHavingPredicates.get(i), recordMetricParentHavingPredicates.get(i), false, false);
-            havingChildBuilder.append(" AND ");
-        }
-        if (havingChildBuilder.length() > 0) {
-            havingChildBuilder.setLength(havingChildBuilder.length() - 5); // " AND "
-            havingBuilder.append(" HAVING ");
-            havingBuilder.append(havingChildBuilder);
-        }
-
-        // Apply all ORDER BY (deferred and original)
-        for (Sorter sorter : query.getSorters()) {
-            addOrderByClause(orderByBuilder, sorter, false, true);
-        }
-
-        if (orderByBuilder.length() > 0) {
-            orderByBuilder.setLength(orderByBuilder.length() - 2);
-            orderByBuilder.insert(0, "\nORDER BY ");
-        }
-
-        return selectBuilder
-                + " " + fromBuilder
-                + " " + whereBuilder
-                + " " + groupByBuilder
-                + " " + havingBuilder
-                + " " + orderByBuilder;
-    }
-
-    private void appendSubqueryMetricSql(StringBuilder sql, ObjectField metricField) {
-        String actionSymbol = metricField.getUniqueName(); // JavaDeclaringClassName() + "/" + metricField.getInternalName();
-
-        StringBuilder minData = new StringBuilder("MIN(");
-        vendor.appendIdentifier(minData, "m2");
-        minData.append('.');
-        vendor.appendIdentifier(minData, MetricAccess.METRIC_DATA_FIELD);
-        minData.append(')');
-
-        StringBuilder maxData = new StringBuilder("MAX(");
-        vendor.appendIdentifier(maxData, "m2");
-        maxData.append('.');
-        vendor.appendIdentifier(maxData, MetricAccess.METRIC_DATA_FIELD);
-        maxData.append(')');
-
-        sql.append("SELECT ");
-        appendSimpleAliasedColumn(sql, vendor, "r", SqlDatabase.ID_COLUMN);
-        sql.append(", ");
-        appendSimpleAliasedColumn(sql, vendor, "r", SqlDatabase.TYPE_ID_COLUMN);
-        sql.append(", ");
-        MetricAccess.Static.appendSelectCalculatedAmountSql(sql, vendor, minData.toString(), maxData.toString(), false);
-        sql.append(' ');
-        vendor.appendAlias(sql, metricField.getInternalName());
-        sql.append(" FROM ");
-
-        vendor.appendIdentifier(sql, SqlDatabase.RECORD_TABLE);
-        sql.append(" ");
-        vendor.appendIdentifier(sql, "r");
-
-        // Left joins if we're only sorting, not filtering.
-        if (recordMetricHavingPredicates.isEmpty()) {
-            sql.append(" \nLEFT OUTER JOIN ");
-        } else {
-            sql.append(" \nINNER JOIN ");
-        }
-        sql.append(MetricAccess.Static.getMetricTableIdentifier(database));
-        sql.append(" ");
-        vendor.appendIdentifier(sql, "m2");
-        sql.append(" ON (\n");
-        appendSimpleOnClause(sql, vendor, "r", SqlDatabase.ID_COLUMN, "=", "m2", MetricAccess.METRIC_ID_FIELD);
-        sql.append(" AND \n");
-        appendSimpleOnClause(sql, vendor, "r", SqlDatabase.TYPE_ID_COLUMN, "=", "m2", MetricAccess.METRIC_TYPE_FIELD);
-        sql.append(" AND \n");
-        appendSimpleWhereClause(sql, vendor, "m2", MetricAccess.METRIC_SYMBOL_FIELD, "=", database.getSymbolId(actionSymbol));
-        // If a dimensionId is not specified, we will append dimensionId = 00000000000000000000000000000000
-        if (recordMetricDimensionPredicates.isEmpty()) {
-            sql.append(" AND ");
-            appendSimpleWhereClause(sql, vendor, "m2", MetricAccess.METRIC_DIMENSION_FIELD, "=", MetricAccess.getDimensionIdByValue(database, null));
-        }
-        // Apply deferred WHERE predicates (eventDates and metric Dimensions)
-        for (int i = 0; i < recordMetricDatePredicates.size(); i++) {
-            sql.append(" AND ");
-            vendor.appendIdentifier(sql, "m2");
-            sql.append(".");
-            addWherePredicate(sql, recordMetricDatePredicates.get(i), recordMetricParentDatePredicates.get(i), false, false);
-        }
-        for (int i = 0; i < recordMetricDimensionPredicates.size(); i++) {
-            sql.append(" AND ");
-            vendor.appendIdentifier(sql, "m2");
-            sql.append(".");
-            addWherePredicate(sql, recordMetricDimensionPredicates.get(i), recordMetricParentDimensionPredicates.get(i), false, false);
-        }
-        sql.append(")");
-
-        // Apply the "main" JOINs
-        sql.append(fromClause);
-
-        // Apply the "main" WHERE clause
-        sql.append(whereClause);
-
-        sql.append(" GROUP BY ");
-        appendSimpleAliasedColumn(sql, vendor, "r", SqlDatabase.ID_COLUMN);
-        sql.append(", ");
-        appendSimpleAliasedColumn(sql, vendor, "r", SqlDatabase.TYPE_ID_COLUMN);
-        sql.append(", ");
-        appendSimpleAliasedColumn(sql, vendor, "m2", MetricAccess.METRIC_DIMENSION_FIELD);
-
-        StringBuilder havingBuilder = new StringBuilder();
-        StringBuilder havingChildBuilder = new StringBuilder();
-
-        for (int i = 0; i < recordMetricHavingPredicates.size(); i++) {
-            addWherePredicate(havingChildBuilder, recordMetricHavingPredicates.get(i), recordMetricParentHavingPredicates.get(i), false, false);
-            havingChildBuilder.append(" AND ");
-        }
-        if (havingChildBuilder.length() > 0) {
-            havingChildBuilder.setLength(havingChildBuilder.length() - 5); // " AND "
-            havingBuilder.append(" HAVING ");
-            havingBuilder.append(havingChildBuilder);
-        }
-
-        String extraHaving = ObjectUtils.to(String.class, query.getOptions().get(SqlDatabase.EXTRA_HAVING_QUERY_OPTION));
-        havingBuilder.append(ObjectUtils.isBlank(extraHaving) ? "" : ("\n" + (ObjectUtils.isBlank(this.havingClause) ? "HAVING" : "AND") + " " + extraHaving));
-        havingClause = havingBuilder.toString();
-
-        sql.append(havingClause);
-
-        sql.append(orderByClause);
-        if (!recordMetricSorters.isEmpty()) {
-            StringBuilder orderByBuilder = new StringBuilder();
-            for (Sorter sorter : recordMetricSorters) {
-                addOrderByClause(orderByBuilder, sorter, false, true);
-            }
-            if (orderByBuilder.length() > 0) {
-                orderByBuilder.setLength(orderByBuilder.length() - 2);
-                orderByBuilder.insert(0, "\nORDER BY ");
-                sql.append(orderByBuilder);
-            }
-        }
-
-        // Add placeholder for LIMIT/OFFSET sql injected by SqlDatabase
-        sql.append(vendor.getLimitOffsetPlaceholder());
-
+        return statementBuilder.toString();
     }
 
     /**
@@ -1467,13 +1051,6 @@ class SqlQuery {
             vendor.appendSelectFields(statementBuilder, fields);
         }
 
-        if (hasAnyDeferredMetricPredicates()) {
-            statementBuilder.append(", ");
-            vendor.appendAlias(statementBuilder, recordMetricField.getInternalName());
-            statementBuilder.append(' ');
-            query.getExtraSourceColumns().put(recordMetricField.getInternalName(), recordMetricField.getInternalName());
-        }
-
         if (!orderBySelectColumns.isEmpty()) {
             for (String joinValueField : orderBySelectColumns) {
                 statementBuilder.append(", ");
@@ -1514,16 +1091,6 @@ class SqlQuery {
             statementBuilder.append(" /*! IGNORE INDEX (PRIMARY) */");
         }
 
-        if (hasAnyDeferredMetricPredicates()) {
-            statementBuilder.append(" \nJOIN (");
-            appendSubqueryMetricSql(statementBuilder, recordMetricField);
-            statementBuilder.append(") m \nON (");
-            appendSimpleOnClause(statementBuilder, vendor, "r", "id", "=", "m", "id");
-            statementBuilder.append(" AND ");
-            appendSimpleOnClause(statementBuilder, vendor, "r", "typeId", "=", "m", "typeId");
-            statementBuilder.append(')');
-        }
-
         statementBuilder.append(fromClause);
         statementBuilder.append(whereClause);
         statementBuilder.append(havingClause);
@@ -1562,52 +1129,6 @@ class SqlQuery {
             distinctBuilder.append(") d0 ON (r.id = d0.id)");
 
             statementBuilder = distinctBuilder;
-        } else if (!recordMetricHavingPredicates.isEmpty()) {
-            StringBuilder wrapperStatementBuilder = new StringBuilder();
-            wrapperStatementBuilder.append("SELECT * FROM (");
-            wrapperStatementBuilder.append(statementBuilder);
-            wrapperStatementBuilder.append(") d0 ");
-            statementBuilder = wrapperStatementBuilder;
-        }
-
-        if (!recordMetricHavingPredicates.isEmpty()) {
-            // the whole query is already aliased to d0 due to one of the above
-            //statementBuilder.append(" WHERE ");
-
-            StringBuilder havingChildBuilder = new StringBuilder();
-
-            for (int i = 0; i < recordMetricHavingPredicates.size(); i++) {
-                addWherePredicate(havingChildBuilder, recordMetricHavingPredicates.get(i), recordMetricParentHavingPredicates.get(i), false, false);
-                havingChildBuilder.append(" AND ");
-            }
-            if (havingChildBuilder.length() > 0) {
-                havingChildBuilder.setLength(havingChildBuilder.length() - 5); // " AND "
-                statementBuilder.append(" WHERE ");
-                statementBuilder.append(havingChildBuilder);
-            }
-
-            StringBuilder orderByBuilder = new StringBuilder();
-            // Apply all ORDER BY (deferred and original)
-            for (Sorter sorter : query.getSorters()) {
-                addOrderByClause(orderByBuilder, sorter, false, true);
-            }
-
-            if (orderByBuilder.length() > 0) {
-                orderByBuilder.setLength(orderByBuilder.length() - 2);
-                orderByBuilder.insert(0, "\nORDER BY ");
-                statementBuilder.append(orderByBuilder);
-            }
-
-        } else if (!recordMetricSorters.isEmpty()) {
-            StringBuilder orderByBuilder = new StringBuilder();
-            for (Sorter sorter : recordMetricSorters) {
-                addOrderByClause(orderByBuilder, sorter, false, true);
-            }
-            if (orderByBuilder.length() > 0) {
-                orderByBuilder.setLength(orderByBuilder.length() - 2);
-                orderByBuilder.insert(0, "\nORDER BY ");
-                statementBuilder.append(orderByBuilder);
-            }
         }
 
         return statementBuilder.toString();
@@ -1798,19 +1319,6 @@ class SqlQuery {
                 needsIsNotNull = true;
                 isHaving = false;
 
-            } else if (Query.DIMENSION_KEY.equals(queryKey)) {
-                needsIndexTable = false;
-                likeValuePrefix = null;
-                valueField = DSL.field(DSL.name("r", MetricAccess.METRIC_DIMENSION_FIELD));
-                sqlIndexTable = null;
-                table = null;
-                tableName = null;
-                idField = null;
-                typeIdField = null;
-                keyField = null;
-                needsIsNotNull = true;
-                isHaving = false;
-
             } else if (Query.COUNT_KEY.equals(queryKey)) {
                 needsIndexTable = false;
                 likeValuePrefix = null;
@@ -1841,36 +1349,6 @@ class SqlQuery {
                 keyField = null;
                 needsIsNotNull = true;
                 isHaving = false;
-
-            } else if (joinField != null && joinField.isMetric()) {
-
-                needsIndexTable = false;
-                likeValuePrefix = null;
-                sqlIndexTable = this.sqlIndex.getReadTable(database, index);
-
-                tableName = MetricAccess.Static.getMetricTableIdentifier(database); // Don't wrap this with appendIdentifier
-                table = DSL.table(DSL.name(tableName));
-                alias = "r";
-
-                idField = null;
-                typeIdField = null;
-                keyField = null;
-
-                needsIsNotNull = false;
-
-                if (Query.METRIC_DIMENSION_ATTRIBUTE.equals(mappedKey.getHashAttribute())) {
-                    // for metricField#dimension, use dimensionId
-                    valueField = DSL.field(DSL.name(MetricAccess.METRIC_DIMENSION_FIELD));
-                    isHaving = false;
-                } else if (Query.METRIC_DATE_ATTRIBUTE.equals(mappedKey.getHashAttribute())) {
-                    // for metricField#date, use "data"
-                    valueField = DSL.field(DSL.name(MetricAccess.METRIC_DATA_FIELD));
-                    isHaving = false;
-                } else {
-                    // for metricField, use internalName
-                    valueField = DSL.field(DSL.name(joinField.getInternalName()));
-                    isHaving = true;
-                }
 
             } else {
                 needsIndexTable = true;
@@ -1927,39 +1405,7 @@ class SqlQuery {
                     ? SqlIndex.Static.getByType(field.getInternalItemType())
                     : sqlIndex;
 
-            if (field != null && field.isMetric()) {
-
-                if (Query.METRIC_DIMENSION_ATTRIBUTE.equals(mappedKey.getHashAttribute())) {
-                    String stringValue = null;
-                    if (value != null) {
-                        stringValue = String.valueOf(value);
-                    }
-                    value = MetricAccess.getDimensionIdByValue(database, stringValue);
-
-                } else if (Query.METRIC_DATE_ATTRIBUTE.equals(mappedKey.getHashAttribute())) {
-
-                    // EventDates in MetricAccess are smaller than long
-                    Character padChar = 'F';
-                    if (PredicateParser.LESS_THAN_OPERATOR.equals(comparison.getOperator())
-                            || PredicateParser.GREATER_THAN_OR_EQUALS_OPERATOR.equals(comparison.getOperator())) {
-                        padChar = '0';
-                    }
-                    if (value instanceof DateTime) {
-                        value = ((DateTime) value).getMillis();
-                    }
-                    if (value instanceof Date) {
-                        value = ((Date) value).getTime();
-                    }
-                    vendor.appendMetricEncodeTimestampSql(builder, null, (Long) value, padChar);
-                    // Taking care of the appending since it is raw SQL; return here so it isn't appended again
-                    return;
-
-                } else {
-                    value = ObjectUtils.to(Double.class, value);
-
-                }
-
-            } else if (fieldSqlIndex == SqlIndex.UUID) {
+            if (fieldSqlIndex == SqlIndex.UUID) {
                 value = ObjectUtils.to(UUID.class, value);
 
             } else if (fieldSqlIndex == SqlIndex.NUMBER

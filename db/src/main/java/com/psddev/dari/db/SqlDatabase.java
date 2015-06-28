@@ -741,7 +741,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
     }
 
     public String buildGroupedMetricStatement(Query<?> query, String metricFieldName, String... groupFields) {
-        return new SqlQuery(this, query).groupedMetricSql(metricFieldName, groupFields);
+        throw new UnsupportedOperationException();
     }
 
     /**
