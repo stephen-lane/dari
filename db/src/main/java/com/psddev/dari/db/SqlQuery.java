@@ -48,7 +48,6 @@ class SqlQuery {
     private String whereClause;
     private String havingClause;
     private String orderByClause;
-    private String extraSourceColumns;
     private final Map<String, String> groupBySelectColumnAliases = new CompactMap<>();
     private final List<Join> joins = new ArrayList<>();
     private final Map<Query<?>, String> subQueries = new CompactMap<>();
@@ -141,45 +140,6 @@ class SqlQuery {
 
     /** Initializes FROM, WHERE, and ORDER BY clauses. */
     private void initializeClauses() {
-
-        // Determine whether any of the fields are sourced somewhere else.
-        Set<ObjectField> sourceTables = new HashSet<>();
-        Set<ObjectType> queryTypes = query.getConcreteTypes(database.getEnvironment());
-
-        for (ObjectType type : queryTypes) {
-            for (ObjectField field : type.getFields()) {
-                SqlDatabase.FieldData fieldData = field.as(SqlDatabase.FieldData.class);
-                if (fieldData.isIndexTableSource()
-                        && fieldData.getIndexTable() != null
-                        && !field.isMetric()) {
-                    // TODO/performance: if this is a count(), don't join to this table.
-                    // if this is a groupBy() and they don't want to group by
-                    // a field in this table, don't join to this table.
-                    sourceTables.add(field);
-                }
-            }
-        }
-
-        @SuppressWarnings("unchecked")
-        Set<UUID> unresolvedTypeIds = (Set<UUID>) query.getOptions().get(State.UNRESOLVED_TYPE_IDS_QUERY_OPTION);
-
-        if (unresolvedTypeIds != null) {
-            DatabaseEnvironment environment = database.getEnvironment();
-
-            for (UUID typeId : unresolvedTypeIds) {
-                ObjectType type = environment.getTypeById(typeId);
-
-                if (type != null) {
-                    for (ObjectField field : type.getFields()) {
-                        SqlDatabase.FieldData fieldData = field.as(SqlDatabase.FieldData.class);
-                        if (fieldData.isIndexTableSource() && fieldData.getIndexTable() != null && !field.isMetric()) {
-                            sourceTables.add(field);
-                        }
-                    }
-                }
-            }
-        }
-
         String extraJoins = ObjectUtils.to(String.class, query.getOptions().get(SqlDatabase.EXTRA_JOINS_QUERY_OPTION));
 
         if (extraJoins != null) {
@@ -290,87 +250,6 @@ class SqlQuery {
                                     .collect(Collectors.toSet())));
 
             fromBuilder.append(jooqContext.renderInlined(joinCondition));
-        }
-
-        StringBuilder extraColumnsBuilder = new StringBuilder();
-        Set<String> sourceTableColumns = new HashSet<>();
-        for (ObjectField field : sourceTables) {
-            SqlDatabase.FieldData fieldData = field.as(SqlDatabase.FieldData.class);
-            StringBuilder sourceTableNameBuilder = new StringBuilder();
-            vendor.appendIdentifier(sourceTableNameBuilder, fieldData.getIndexTable());
-            String sourceTableName = sourceTableNameBuilder.toString();
-
-            String sourceTableAlias;
-
-            Query.MappedKey key = query.mapEmbeddedKey(
-                    database.getEnvironment(),
-                    field.getParentType().getInternalName()
-                            + "/"
-                            + field.getInternalName());
-
-            ObjectIndex useIndex = null;
-
-            for (ObjectIndex index : key.getIndexes()) {
-                if (field.getInternalName().equals(index.getFields().get(0))) {
-                    useIndex = index;
-                    break;
-                }
-            }
-
-            if (useIndex == null) {
-                continue;
-            }
-
-            int symbolId = database.getSymbolId(key.getIndexKey(useIndex));
-            String sourceTableAndSymbol = fieldData.getIndexTable().toLowerCase(Locale.ENGLISH) + symbolId;
-
-            SqlIndex useSqlIndex = SqlIndex.Static.getByIndex(useIndex);
-            SqlIndex.Table indexTable = useSqlIndex.getReadTable(database, useIndex);
-
-            // This table hasn't been joined to for this symbol yet.
-            if (!joinTableAliases.containsKey(sourceTableAndSymbol)) {
-                sourceTableAlias = sourceTableAndSymbol;
-
-                fromBuilder.append(" LEFT OUTER JOIN ");
-                fromBuilder.append(sourceTableName);
-                fromBuilder.append(" AS ");
-                vendor.appendIdentifier(fromBuilder, sourceTableAlias);
-                fromBuilder.append(" ON ");
-
-                fromBuilder.append(jooqContext.renderInlined(
-                        DSL.field(DSL.name(sourceTableAlias, "id")).eq(recordIdField)
-                                .and(DSL.field(DSL.name(sourceTableAlias, "symbolId")).eq(symbolId))));
-
-                joinTableAliases.put(sourceTableAndSymbol, sourceTableAlias);
-
-            } else {
-                sourceTableAlias = joinTableAliases.get(sourceTableAndSymbol);
-            }
-
-            // Add columns to select.
-            int fieldIndex = 0;
-            for (String indexFieldName : useIndex.getFields()) {
-                if (sourceTableColumns.contains(indexFieldName)) {
-                    continue;
-                }
-                sourceTableColumns.add(indexFieldName);
-                String indexColumnName = indexTable.getValueField(database, useIndex, fieldIndex);
-
-                ++ fieldIndex;
-                query.getExtraSourceColumns().put(indexFieldName, indexFieldName);
-
-                extraColumnsBuilder.append(sourceTableAlias);
-                extraColumnsBuilder.append('.');
-                vendor.appendIdentifier(extraColumnsBuilder, indexColumnName);
-                extraColumnsBuilder.append(" AS ");
-                vendor.appendIdentifier(extraColumnsBuilder, indexFieldName);
-                extraColumnsBuilder.append(", ");
-            }
-        }
-
-        if (extraColumnsBuilder.length() > 0) {
-            extraColumnsBuilder.setLength(extraColumnsBuilder.length() - 2);
-            this.extraSourceColumns = extraColumnsBuilder.toString();
         }
 
         for (Map.Entry<Query<?>, String> entry : subQueries.entrySet()) {
@@ -1013,11 +892,6 @@ class SqlQuery {
         if (extraColumns != null) {
             statementBuilder.append(", ");
             statementBuilder.append(extraColumns);
-        }
-
-        if (extraSourceColumns != null) {
-            statementBuilder.append(", ");
-            statementBuilder.append(extraSourceColumns);
         }
 
         if (!needsDistinct && !subSqlQueries.isEmpty()) {
