@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import com.google.common.collect.ImmutableMap;
 import com.psddev.dari.util.LocaleUtils;
 import com.psddev.dari.util.ObjectToIterable;
 import com.psddev.dari.util.ObjectUtils;
@@ -891,26 +892,26 @@ public enum SqlIndex {
 
         /**
          * Inserts all index rows associated with the given {@code states}.
+         *
+         * @return Always an empty map to remain backward compatible.
          */
-        public static Map<State, String> insertByStates(
+        public static Map<String, Object> insertByStates(
                 SqlDatabase database,
                 Connection connection,
                 List<State> states)
                 throws SQLException {
-            return insertByStates(database, connection, null, states);
+
+            insertByStates(database, connection, null, states);
+
+            return ImmutableMap.of();
         }
 
-        private static Map<State, String> insertByStates(
+        private static void insertByStates(
                 SqlDatabase database,
                 Connection connection,
                 ObjectIndex onlyIndex,
                 List<State> states)
                 throws SQLException {
-
-            Map<State, String> inRowIndexes = new HashMap<State, String>();
-            if (states == null || states.isEmpty()) {
-                return inRowIndexes;
-            }
 
             Map<String, String> insertQueries = new HashMap<String, String>();
             Map<String, List<List<Object>>> insertParameters = new HashMap<String, List<List<Object>>>();
@@ -923,34 +924,6 @@ public enum SqlIndex {
                 for (IndexValue indexValue : getIndexValues(state)) {
                     ObjectIndex index = indexValue.getIndex();
                     if (onlyIndex != null && !onlyIndex.equals(index)) {
-                        continue;
-                    }
-
-                    if (database.hasInRowIndex() && index.isShortConstant()) {
-                        StringBuilder inRowIndex = new StringBuilder();
-                        String current = inRowIndexes.get(state);
-
-                        if (current != null) {
-                            inRowIndex.append(current);
-
-                        } else {
-                            inRowIndex.append(';');
-                        }
-
-                        int nameId = database.getSymbolId(index.getUniqueName());
-                        for (Object[] values : indexValue.getValuesArray()) {
-                            StringBuilder tokenBuilder = new StringBuilder();
-                            tokenBuilder.append(nameId);
-                            tokenBuilder.append("=");
-                            tokenBuilder.append(database.getSymbolId(values[0].toString()));
-                            tokenBuilder.append(";");
-                            String token = tokenBuilder.toString();
-                            if (inRowIndex.indexOf(";" + token) < 0) {
-                                inRowIndex.append(token);
-                            }
-                        }
-
-                        inRowIndexes.put(state, inRowIndex.toString());
                         continue;
                     }
 
@@ -988,8 +961,6 @@ public enum SqlIndex {
                     throw bue;
                 }
             }
-
-            return inRowIndexes;
         }
 
         /**

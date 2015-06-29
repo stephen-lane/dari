@@ -2,12 +2,10 @@ package com.psddev.dari.db;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -40,7 +38,6 @@ class SqlQuery {
     private final DSLContext jooqContext;
     private final Field<UUID> recordIdField;
     private final Field<UUID> recordTypeIdField;
-    private final Field<Object> recordInRowIndexField;
     private final Map<String, Query.MappedKey> mappedKeys;
     private final Map<String, ObjectIndex> selectedIndexes;
 
@@ -75,7 +72,6 @@ class SqlQuery {
         jooqContext = DSL.using(SQLDialect.MYSQL);
         recordIdField = DSL.field(DSL.name(aliasPrefix + "r", SqlDatabase.ID_COLUMN), vendor.uuidDataType());
         recordTypeIdField = DSL.field(DSL.name(aliasPrefix + "r", SqlDatabase.TYPE_ID_COLUMN), vendor.uuidDataType());
-        recordInRowIndexField = aliasedField("r", SqlDatabase.IN_ROW_INDEX_COLUMN);
         mappedKeys = query.mapEmbeddedKeys(database.getEnvironment());
         selectedIndexes = new HashMap<>();
 
@@ -478,24 +474,14 @@ class SqlQuery {
                             comparisonBuilder.append(joinValueField);
                             comparisonBuilder.append(" IS NULL OR ");
                             comparisonBuilder.append(joinValueField);
-                            if (join.likeValuePrefix != null) {
-                                comparisonBuilder.append(" NOT LIKE ");
-                                join.appendValue(comparisonBuilder, comparisonPredicate, join.likeValuePrefix + database.getSymbolId(value.toString()) + ";%");
-                            } else {
-                                comparisonBuilder.append(" != ");
-                                join.appendValue(comparisonBuilder, comparisonPredicate, value);
-                            }
+                            comparisonBuilder.append(" != ");
+                            join.appendValue(comparisonBuilder, comparisonPredicate, value);
                             comparisonBuilder.append(')');
 
                         } else {
                             comparisonBuilder.append(joinValueField);
-                            if (join.likeValuePrefix != null) {
-                                comparisonBuilder.append(" LIKE ");
-                                join.appendValue(comparisonBuilder, comparisonPredicate, join.likeValuePrefix + database.getSymbolId(value.toString()) + ";%");
-                            } else {
-                                comparisonBuilder.append(" = ");
-                                join.appendValue(comparisonBuilder, comparisonPredicate, value);
-                            }
+                            comparisonBuilder.append(" = ");
+                            join.appendValue(comparisonBuilder, comparisonPredicate, value);
                         }
                     }
 
@@ -1059,7 +1045,6 @@ class SqlQuery {
 
         public final boolean needsIndexTable;
         public final boolean needsIsNotNull;
-        public final String likeValuePrefix;
         public final String queryKey;
         public final String indexType;
         public final Table<?> table;
@@ -1092,7 +1077,6 @@ class SqlQuery {
 
             if (Query.ID_KEY.equals(queryKey)) {
                 needsIndexTable = false;
-                likeValuePrefix = null;
                 valueField = recordIdField;
                 sqlIndexTable = null;
                 table = null;
@@ -1105,7 +1089,6 @@ class SqlQuery {
 
             } else if (Query.TYPE_KEY.equals(queryKey)) {
                 needsIndexTable = false;
-                likeValuePrefix = null;
                 valueField = recordTypeIdField;
                 sqlIndexTable = null;
                 table = null;
@@ -1118,7 +1101,6 @@ class SqlQuery {
 
             } else if (Query.COUNT_KEY.equals(queryKey)) {
                 needsIndexTable = false;
-                likeValuePrefix = null;
                 valueField = recordIdField.count();
                 sqlIndexTable = null;
                 table = null;
@@ -1133,23 +1115,8 @@ class SqlQuery {
                     || Query.LABEL_KEY.equals(queryKey)) {
                 throw new UnsupportedIndexException(database, queryKey);
 
-            } else if (database.hasInRowIndex() && index != null && index.isShortConstant()) {
-                needsIndexTable = false;
-                likeValuePrefix = "%;" + database.getSymbolId(mappedKeys.get(queryKey).getIndexKey(selectedIndexes.get(queryKey))) + "=";
-                valueField = recordInRowIndexField;
-                sqlIndexTable = this.sqlIndex.getReadTable(database, index);
-
-                table = null;
-                tableName = null;
-                idField = null;
-                typeIdField = null;
-                keyField = null;
-                needsIsNotNull = true;
-                isHaving = false;
-
             } else {
                 needsIndexTable = true;
-                likeValuePrefix = null;
                 addIndexKey(queryKey);
                 valueField = null;
                 sqlIndexTable = this.sqlIndex.getReadTable(database, index);

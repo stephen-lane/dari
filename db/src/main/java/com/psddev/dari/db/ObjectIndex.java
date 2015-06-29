@@ -127,6 +127,10 @@ public class ObjectIndex {
         setFields(fields);
     }
 
+    /**
+     * @deprecated No replacement.
+     */
+    @Deprecated
     public boolean isShortConstant() {
         if (!isUnique()) {
             List<String> fields = getFields();
