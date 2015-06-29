@@ -287,7 +287,7 @@ class SqlQuery {
                     join.keyField.in(
                             join.indexKeys.stream()
                                     .map(join::convertIndexKey)
-                                    .collect(Collectors.toList())));
+                                    .collect(Collectors.toSet())));
 
             fromBuilder.append(jooqContext.renderInlined(joinCondition));
         }
