@@ -1178,28 +1178,6 @@ class SqlQuery {
         return aliasPrefix;
     }
 
-    private void appendSimpleOnClause(StringBuilder sql, SqlVendor vendor, String leftTableAlias, String leftColumnName, String operator, String rightTableAlias, String rightColumnName) {
-        appendSimpleAliasedColumn(sql, vendor, leftTableAlias, leftColumnName);
-        sql.append(' ');
-        sql.append(operator);
-        sql.append(' ');
-        appendSimpleAliasedColumn(sql, vendor, rightTableAlias, rightColumnName);
-    }
-
-    private void appendSimpleWhereClause(StringBuilder sql, SqlVendor vendor, String leftTableAlias, String leftColumnName, String operator, Object value) {
-        appendSimpleAliasedColumn(sql, vendor, leftTableAlias, leftColumnName);
-        sql.append(' ');
-        sql.append(operator);
-        sql.append(' ');
-        vendor.appendValue(sql, value);
-    }
-
-    private void appendSimpleAliasedColumn(StringBuilder sql, SqlVendor vendor, String tableAlias, String columnName) {
-        vendor.appendIdentifier(sql, tableAlias);
-        sql.append('.');
-        vendor.appendIdentifier(sql, columnName);
-    }
-
     private class Join {
 
         public Predicate parent;
