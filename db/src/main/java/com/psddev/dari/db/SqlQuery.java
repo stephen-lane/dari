@@ -45,7 +45,7 @@ class SqlQuery {
     private final Map<String, ObjectIndex> selectedIndexes;
 
     private String fromClause;
-    private String whereClause;
+    private Condition whereCondition;
     private String havingClause;
     private String orderByClause;
     private final List<Join> joins = new ArrayList<>();
@@ -171,10 +171,10 @@ class SqlQuery {
         Predicate predicate = query.getPredicate();
 
         if (predicate != null) {
-            StringBuilder childBuilder = new StringBuilder();
-            addWherePredicate(childBuilder, predicate, null, false);
-            if (childBuilder.length() > 0) {
-                whereCondition = whereCondition.and(childBuilder.toString());
+            Condition condition = createWhereCondition(predicate, null, false);
+
+            if (condition != null) {
+                whereCondition = whereCondition.and(condition);
             }
         }
 
@@ -276,7 +276,7 @@ class SqlQuery {
             fromBuilder.append(extraJoins);
         }
 
-        this.whereClause = "\nWHERE " + renderContext.render(whereCondition);
+        this.whereCondition = whereCondition;
 
         StringBuilder havingBuilder = new StringBuilder();
         String extraHaving = ObjectUtils.to(String.class, query.getOptions().get(SqlDatabase.EXTRA_HAVING_QUERY_OPTION));
@@ -288,9 +288,8 @@ class SqlQuery {
 
     }
 
-    /** Adds the given {@code predicate} to the {@code WHERE} clause. */
-    private void addWherePredicate(
-            StringBuilder whereBuilder,
+    // Creates jOOQ Condition from Dari Predicate.
+    private Condition createWhereCondition(
             Predicate predicate,
             Predicate parentPredicate,
             boolean usesLeftJoin) {
@@ -302,55 +301,48 @@ class SqlQuery {
 
             // e.g. (child1) OR (child2) OR ... (child#)
             if (isNot || PredicateParser.OR_OPERATOR.equals(operator)) {
-                Condition compoundCondition = null;
                 List<Predicate> children = compoundPredicate.getChildren();
-
                 boolean usesLeftJoinChildren;
+
                 if (children.size() > 1) {
                     usesLeftJoinChildren = true;
                     needsDistinct = true;
+
                 } else {
                     usesLeftJoinChildren = isNot;
                 }
 
+                Condition compoundCondition = null;
+
                 for (Predicate child : children) {
-                    StringBuilder childBuilder = new StringBuilder();
-                    addWherePredicate(childBuilder, child, predicate, usesLeftJoinChildren);
-                    if (childBuilder.length() > 0) {
+                    Condition childCondition = createWhereCondition(child, predicate, usesLeftJoinChildren);
+
+                    if (childCondition != null) {
                         compoundCondition = compoundCondition != null
-                                ? compoundCondition.or(childBuilder.toString())
-                                : DSL.condition(childBuilder.toString());
+                                ? compoundCondition.or(childCondition)
+                                : childCondition;
                     }
                 }
 
-                if (compoundCondition != null) {
-                    whereBuilder.append(
-                            renderContext.render(isNot
-                                    ? compoundCondition.not()
-                                    : compoundCondition));
-                }
-
-                return;
+                return isNot && compoundCondition != null
+                        ? compoundCondition.not()
+                        : compoundCondition;
 
             // e.g. (child1) AND (child2) AND .... (child#)
             } else if (PredicateParser.AND_OPERATOR.equals(operator)) {
                 Condition compoundCondition = null;
 
                 for (Predicate child : compoundPredicate.getChildren()) {
-                    StringBuilder childBuilder = new StringBuilder();
-                    addWherePredicate(childBuilder, child, predicate, usesLeftJoin);
-                    if (childBuilder.length() > 0) {
+                    Condition childCondition = createWhereCondition(child, predicate, usesLeftJoin);
+
+                    if (childCondition != null) {
                         compoundCondition = compoundCondition != null
-                                ? compoundCondition.and(childBuilder.toString())
-                                : DSL.condition(childBuilder.toString());
+                                ? compoundCondition.and(childCondition)
+                                : childCondition;
                     }
                 }
 
-                if (compoundCondition != null) {
-                    whereBuilder.append(renderContext.render(compoundCondition));
-                }
-
-                return;
+                return compoundCondition;
             }
 
         } else if (predicate instanceof ComparisonPredicate) {
@@ -358,20 +350,24 @@ class SqlQuery {
             String queryKey = comparisonPredicate.getKey();
             Query.MappedKey mappedKey = mappedKeys.get(queryKey);
             boolean isFieldCollection = mappedKey.isInternalCollectionType();
-
             Join join = null;
+
             if (mappedKey.getField() != null
                     && parentPredicate instanceof CompoundPredicate
                     && PredicateParser.OR_OPERATOR.equals(parentPredicate.getOperator())) {
+
                 for (Join j : joins) {
                     if (j.parent == parentPredicate
                             && j.sqlIndex.equals(SqlIndex.Static.getByType(mappedKeys.get(queryKey).getInternalType()))) {
-                        join = j;
-                        join.addIndexKey(queryKey);
+
                         needsDistinct = true;
+                        join = j;
+
+                        join.addIndexKey(queryKey);
                         break;
                     }
                 }
+
                 if (join == null) {
                     join = getJoin(queryKey);
                     join.parent = parentPredicate;
@@ -391,48 +387,47 @@ class SqlQuery {
             if (isFieldCollection
                     && (join.sqlIndexTable == null
                     || join.sqlIndexTable.getVersion() < 2)) {
+
                 needsDistinct = true;
             }
 
             Field<Object> joinValueField = join.getValueField(queryKey, comparisonPredicate);
+            Query<?> valueQuery = mappedKey.getSubQueryWithComparison(comparisonPredicate);
             String operator = comparisonPredicate.getOperator();
-            StringBuilder comparisonBuilder = new StringBuilder();
-            boolean hasMissing = false;
-            int subClauseCount = 0;
             boolean isNotEqualsAll = PredicateParser.NOT_EQUALS_ALL_OPERATOR.equals(operator);
 
-            if (isNotEqualsAll || PredicateParser.EQUALS_ANY_OPERATOR.equals(operator)) {
-                Query<?> valueQuery = mappedKey.getSubQueryWithComparison(comparisonPredicate);
-
-                // e.g. field IN (SELECT ...)
-                if (valueQuery != null) {
-                    if (isNotEqualsAll || isFieldCollection) {
-                        needsDistinct = true;
-                    }
-
-                    if (findSimilarComparison(mappedKey.getField(), query.getPredicate())) {
-                        Table<?> subQueryTable = DSL.table(new SqlQuery(database, valueQuery).subQueryStatement());
-                        Condition subQueryCondition = isNotEqualsAll
-                                ? joinValueField.notIn(subQueryTable)
-                                : joinValueField.in(subQueryTable);
-
-                        whereBuilder.append(renderContext.render(subQueryCondition));
-
-                    } else {
-                        SqlQuery subSqlQuery = getOrCreateSubSqlQuery(valueQuery, join.type == JoinType.LEFT_OUTER);
-
-                        subQueries.put(valueQuery, renderContext.render(joinValueField) + (isNotEqualsAll ? " != " : " = "));
-                        whereBuilder.append(subSqlQuery.whereClause.substring(7));
-                    }
-
-                    return;
+            // e.g. field IN (SELECT ...)
+            if (valueQuery != null) {
+                if (isNotEqualsAll || isFieldCollection) {
+                    needsDistinct = true;
                 }
 
+                if (findSimilarComparison(mappedKey.getField(), query.getPredicate())) {
+                    Table<?> subQueryTable = DSL.table(new SqlQuery(database, valueQuery).subQueryStatement());
+                    Condition subQueryCondition = isNotEqualsAll
+                            ? joinValueField.notIn(subQueryTable)
+                            : joinValueField.in(subQueryTable);
+
+                    return subQueryCondition;
+
+                } else {
+                    SqlQuery subSqlQuery = getOrCreateSubSqlQuery(valueQuery, join.type == JoinType.LEFT_OUTER);
+
+                    subQueries.put(valueQuery, renderContext.render(joinValueField) + (isNotEqualsAll ? " != " : " = "));
+                    return subSqlQuery.whereCondition;
+                }
+            }
+
+            List<Condition> comparisonConditions = new ArrayList<>();
+            boolean hasMissing = false;
+            int subClauseCount = 0;
+
+            if (isNotEqualsAll || PredicateParser.EQUALS_ANY_OPERATOR.equals(operator)) {
                 for (Object value : comparisonPredicate.resolveValues(database)) {
                     if (value == null) {
                         ++ subClauseCount;
 
-                        comparisonBuilder.append(renderContext.render(DSL.falseCondition()));
+                        comparisonConditions.add(DSL.falseCondition());
 
                     } else if (value == Query.MISSING_VALUE) {
                         ++ subClauseCount;
@@ -443,25 +438,32 @@ class SqlQuery {
                                 needsDistinct = true;
                             }
 
-                            comparisonBuilder.append(renderContext.render(joinValueField.isNotNull()));
+                            comparisonConditions.add(joinValueField.isNotNull());
 
                         } else {
                             join.type = JoinType.LEFT_OUTER;
 
-                            comparisonBuilder.append(renderContext.render(joinValueField.isNull()));
+                            comparisonConditions.add(joinValueField.isNull());
                         }
 
                     } else if (value instanceof Region) {
                         List<Location> locations = ((Region) value).getLocations();
+
                         if (!locations.isEmpty()) {
                             ++ subClauseCount;
 
-                            if (isNotEqualsAll) {
-                                comparisonBuilder.append("NOT ");
-                            }
-
                             try {
-                                vendor.appendWhereRegion(comparisonBuilder, (Region) value, renderContext.render(joinValueField));
+                                StringBuilder rcb = new StringBuilder();
+
+                                vendor.appendWhereRegion(rcb, (Region) value, renderContext.render(joinValueField));
+
+                                Condition rc = DSL.condition(rcb.toString());
+
+                                if (isNotEqualsAll) {
+                                    rc = rc.not();
+                                }
+
+                                comparisonConditions.add(rc);
 
                             } catch (UnsupportedIndexException uie) {
                                 throw new UnsupportedIndexException(vendor, queryKey);
@@ -478,79 +480,35 @@ class SqlQuery {
                             needsDistinct = true;
                             hasMissing = true;
 
-                            comparisonBuilder.append('(');
-                            comparisonBuilder.append(
-                                    renderContext.render(
-                                            joinValueField.isNull().or(
-                                                    joinValueField.ne(convertedValue))));
-                            comparisonBuilder.append(')');
+                            comparisonConditions.add(
+                                    joinValueField.isNull().or(
+                                            joinValueField.ne(convertedValue)));
 
                         } else {
-                            comparisonBuilder.append(
-                                    renderContext.render(joinValueField.eq(convertedValue)));
+                            comparisonConditions.add(joinValueField.eq(convertedValue));
                         }
                     }
-
-                    comparisonBuilder.append(isNotEqualsAll ? " AND " : " OR  ");
-                }
-
-                if (comparisonBuilder.length() == 0) {
-                    whereBuilder.append(isNotEqualsAll ? "1 = 1" : "0 = 1");
-                    return;
                 }
 
             } else {
-                boolean isStartsWith = PredicateParser.STARTS_WITH_OPERATOR.equals(operator);
-                boolean isContains = PredicateParser.CONTAINS_OPERATOR.equals(operator);
-                String sqlOperator = isStartsWith ? "LIKE"
-                        : isContains ? "LIKE"
-                        : PredicateParser.LESS_THAN_OPERATOR.equals(operator) ? "<"
-                        : PredicateParser.LESS_THAN_OR_EQUALS_OPERATOR.equals(operator) ? "<="
-                        : PredicateParser.GREATER_THAN_OPERATOR.equals(operator) ? ">"
-                        : PredicateParser.GREATER_THAN_OR_EQUALS_OPERATOR.equals(operator) ? ">="
-                        : null;
-
-                Query<?> valueQuery = mappedKey.getSubQueryWithComparison(comparisonPredicate);
-
-                // e.g. field startsWith (SELECT ...)
-                if (valueQuery != null) {
-                    if (isFieldCollection) {
-                        needsDistinct = true;
-                    }
-
-                    if (findSimilarComparison(mappedKey.getField(), query.getPredicate())) {
-                        Table<?> subQueryTable = DSL.table(new SqlQuery(database, valueQuery).subQueryStatement());
-                        Condition subQueryCondition = joinValueField.in(subQueryTable);
-
-                        whereBuilder.append(renderContext.render(subQueryCondition));
-
-                    } else {
-                        SqlQuery subSqlQuery = getOrCreateSubSqlQuery(valueQuery, join.type == JoinType.LEFT_OUTER);
-
-                        subQueries.put(valueQuery, renderContext.render(joinValueField) + " = ");
-                        whereBuilder.append(subSqlQuery.whereClause.substring(7));
-                    }
-
-                    return;
-                }
+                SqlQueryComparison sqlQueryComparison = SqlQueryComparison.find(operator);
 
                 // e.g. field OP value1 OR field OP value2 OR ... field OP value#
-                if (sqlOperator != null) {
+                if (sqlQueryComparison != null) {
                     for (Object value : comparisonPredicate.resolveValues(database)) {
                         ++ subClauseCount;
 
                         if (value == null) {
-                            comparisonBuilder.append(renderContext.render(DSL.falseCondition()));
+                            comparisonConditions.add(DSL.falseCondition());
 
                         } else if (value instanceof Location) {
                             ++ subClauseCount;
 
-                            if (isNotEqualsAll) {
-                                comparisonBuilder.append("NOT ");
-                            }
-
                             try {
-                                vendor.appendWhereLocation(comparisonBuilder, (Location) value, renderContext.render(joinValueField));
+                                StringBuilder lb = new StringBuilder();
+
+                                vendor.appendWhereLocation(lb, (Location) value, renderContext.render(joinValueField));
+                                comparisonConditions.add(DSL.condition(lb.toString()));
 
                             } catch (UnsupportedIndexException uie) {
                                 throw new UnsupportedIndexException(vendor, queryKey);
@@ -560,60 +518,44 @@ class SqlQuery {
                             hasMissing = true;
                             join.type = JoinType.LEFT_OUTER;
 
-                            comparisonBuilder.append(renderContext.render(joinValueField.isNull()));
+                            comparisonConditions.add(joinValueField.isNull());
 
                         } else {
-                            comparisonBuilder.append(renderContext.render(joinValueField));
-                            comparisonBuilder.append(' ');
-                            comparisonBuilder.append(sqlOperator);
-                            comparisonBuilder.append(' ');
-                            if (isStartsWith) {
-                                value = value.toString() + "%";
-                            } else if (isContains) {
-                                value = "%" + value.toString() + "%";
-                            }
-                            join.appendValue(comparisonBuilder, comparisonPredicate, value);
+                            comparisonConditions.add(
+                                    sqlQueryComparison.createCondition(
+                                            joinValueField,
+                                            join.convertValue(comparisonPredicate, value)));
                         }
-
-                        comparisonBuilder.append(" OR  ");
-                    }
-
-                    if (comparisonBuilder.length() == 0) {
-                        whereBuilder.append(renderContext.render(DSL.falseCondition()));
-                        return;
                     }
                 }
             }
 
-            if (comparisonBuilder.length() > 0) {
-                comparisonBuilder.setLength(comparisonBuilder.length() - 5);
+            if (comparisonConditions.isEmpty()) {
+                return isNotEqualsAll ? DSL.trueCondition() : DSL.falseCondition();
+            }
 
-                if (!hasMissing) {
-                    if (join.needsIndexTable) {
-                        String indexKey = mappedKeys.get(queryKey).getIndexKey(selectedIndexes.get(queryKey));
-                        if (indexKey != null) {
-                            whereBuilder.append(renderContext.render(join.keyField));
-                            whereBuilder.append(" = ");
-                            whereBuilder.append(join.quoteIndexKey(indexKey));
-                            whereBuilder.append(" AND ");
-                        }
-                    }
+            Condition whereCondition = isNotEqualsAll
+                    ? DSL.and(comparisonConditions)
+                    : DSL.or(comparisonConditions);
 
-                    if (join.needsIsNotNull) {
-                        whereBuilder.append(renderContext.render(joinValueField.isNotNull()));
-                        whereBuilder.append(" AND ");
-                    }
-
-                    if (subClauseCount > 1) {
-                        needsDistinct = true;
-                        whereBuilder.append('(');
-                        comparisonBuilder.append(')');
+            if (!hasMissing) {
+                if (join.needsIndexTable) {
+                    String indexKey = mappedKeys.get(queryKey).getIndexKey(selectedIndexes.get(queryKey));
+                    if (indexKey != null) {
+                        whereCondition = join.keyField.eq(join.convertIndexKey(indexKey)).and(whereCondition);
                     }
                 }
 
-                whereBuilder.append(comparisonBuilder);
-                return;
+                if (join.needsIsNotNull) {
+                    whereCondition = joinValueField.isNotNull().and(whereCondition);
+                }
+
+                if (subClauseCount > 1) {
+                    needsDistinct = true;
+                }
             }
+
+            return whereCondition;
         }
 
         throw new UnsupportedPredicateException(this, predicate);
@@ -710,7 +652,8 @@ class SqlQuery {
         statementBuilder.append(aliasPrefix);
         statementBuilder.append('r');
         statementBuilder.append(fromClause.replace(" /*! USE INDEX (k_name_value) */", ""));
-        statementBuilder.append(whereClause);
+        statementBuilder.append(" WHERE ");
+        statementBuilder.append(renderContext.render(whereCondition));
         return statementBuilder.toString();
     }
 
@@ -728,7 +671,8 @@ class SqlQuery {
         statementBuilder.append(aliasPrefix);
         statementBuilder.append('r');
         statementBuilder.append(fromClause);
-        statementBuilder.append(whereClause);
+        statementBuilder.append(" WHERE ");
+        statementBuilder.append(renderContext.render(whereCondition));
         statementBuilder.append(havingClause);
         statementBuilder.append(orderByClause);
 
@@ -804,7 +748,8 @@ class SqlQuery {
         statementBuilder.append(aliasPrefix);
         statementBuilder.append('r');
         statementBuilder.append(fromClause.replace(" /*! USE INDEX (k_name_value) */", ""));
-        statementBuilder.append(whereClause);
+        statementBuilder.append(" WHERE ");
+        statementBuilder.append(renderContext.render(whereCondition));
 
         for (Map.Entry<String, Join> entry : groupJoins.entrySet()) {
             if (!groupSubSqlQueries.containsKey(entry.getKey())) {
@@ -842,7 +787,8 @@ class SqlQuery {
         statementBuilder.append(aliasPrefix);
         statementBuilder.append('r');
         statementBuilder.append(fromClause);
-        statementBuilder.append(whereClause);
+        statementBuilder.append(" WHERE ");
+        statementBuilder.append(renderContext.render(whereCondition));
 
         return statementBuilder.toString();
     }
@@ -905,7 +851,8 @@ class SqlQuery {
         }
 
         statementBuilder.append(fromClause);
-        statementBuilder.append(whereClause);
+        statementBuilder.append(" WHERE ");
+        statementBuilder.append(renderContext.render(whereCondition));
         statementBuilder.append(havingClause);
         statementBuilder.append(orderByClause);
 
@@ -965,7 +912,8 @@ class SqlQuery {
         statementBuilder.append('r');
 
         statementBuilder.append(fromClause);
-        statementBuilder.append(whereClause);
+        statementBuilder.append(" WHERE ");
+        statementBuilder.append(renderContext.render(whereCondition));
         statementBuilder.append(havingClause);
         statementBuilder.append(orderByClause);
 
