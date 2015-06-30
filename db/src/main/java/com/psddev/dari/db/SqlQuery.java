@@ -19,6 +19,8 @@ import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.RenderContext;
 import org.jooq.SQLDialect;
+import org.jooq.SortField;
+import org.jooq.SortOrder;
 import org.jooq.Table;
 import org.jooq.conf.ParamType;
 import org.jooq.impl.DSL;
@@ -37,6 +39,7 @@ class SqlQuery {
     private final String aliasPrefix;
 
     private final SqlVendor vendor;
+    private final DSLContext dslContext;
     private final RenderContext tableRenderContext;
     private final RenderContext renderContext;
     private final Table<?> recordTable;
@@ -47,7 +50,8 @@ class SqlQuery {
 
     private String fromClause;
     private Condition whereCondition;
-    private String havingClause;
+    private Condition havingCondition;
+    private final List<SortField<?>> orderByFields = new ArrayList<>();
     private String orderByClause;
     private final List<Join> joins = new ArrayList<>();
     private final Map<Query<?>, String> subQueries = new CompactMap<>();
@@ -72,9 +76,7 @@ class SqlQuery {
         aliasPrefix = initialAliasPrefix;
 
         vendor = database.getVendor();
-
-        DSLContext dslContext = DSL.using(SQLDialect.MYSQL);
-
+        dslContext = DSL.using(SQLDialect.MYSQL);
         tableRenderContext = dslContext.renderContext().paramType(ParamType.INLINED).declareTables(true);
         renderContext = dslContext.renderContext().paramType(ParamType.INLINED);
 
@@ -192,17 +194,74 @@ class SqlQuery {
             whereCondition = whereCondition.and(extraWhere);
         }
 
-        // Builds the ORDER BY clause.
+        // Creates jOOQ SortField from Dari Sorter.
+        for (Sorter sorter : query.getSorters()) {
+            String operator = sorter.getOperator();
+            boolean ascending = Sorter.ASCENDING_OPERATOR.equals(operator);
+            boolean descending = Sorter.DESCENDING_OPERATOR.equals(operator);
+            boolean closest = Sorter.CLOSEST_OPERATOR.equals(operator);
+            boolean farthest = Sorter.FARTHEST_OPERATOR.equals(operator);
+
+            if (!(ascending || descending || closest || farthest)) {
+                throw new UnsupportedSorterException(database, sorter);
+            }
+
+            String queryKey = (String) sorter.getOptions().get(0);
+            Join join = getSortFieldJoin(queryKey);
+            Field<?> joinValueField = join.getValueField(queryKey, null);
+            Query<?> subQuery = mappedKeys.get(queryKey).getSubQueryWithSorter(sorter, 0);
+
+            if (subQuery != null) {
+                SqlQuery subSqlQuery = getOrCreateSubSqlQuery(subQuery, true);
+
+                subQueries.put(subQuery, renderContext.render(joinValueField) + " = ");
+                orderByFields.addAll(subSqlQuery.orderByFields);
+                continue;
+            }
+
+            if (ascending) {
+                orderByFields.add(joinValueField.sort(SortOrder.ASC));
+
+            } else if (descending) {
+                orderByFields.add(joinValueField.sort(SortOrder.DESC));
+
+            } else {
+                try {
+                    Location location = (Location) sorter.getOptions().get(1);
+                    StringBuilder selectBuilder = new StringBuilder();
+                    StringBuilder locationFieldBuilder = new StringBuilder();
+
+                    vendor.appendNearestLocation(locationFieldBuilder, selectBuilder, location, renderContext.render(joinValueField));
+
+                    Field<?> locationField = DSL.field(locationFieldBuilder.toString());
+
+                    if (closest) {
+                        orderByFields.add(locationField.sort(SortOrder.ASC));
+
+                    } else {
+                        orderByFields.add(locationField.sort(SortOrder.DESC));
+                    }
+
+                } catch (UnsupportedIndexException uie) {
+                    throw new UnsupportedIndexException(vendor, queryKey);
+                }
+            }
+        }
+
         StringBuilder orderByBuilder = new StringBuilder();
 
-        for (Sorter sorter : query.getSorters()) {
-            addOrderByClause(orderByBuilder, sorter);
+        if (!orderByFields.isEmpty()) {
+            orderByBuilder.append(" ORDER BY ");
+
+            for (SortField<?> orderByField : orderByFields) {
+                orderByBuilder.append(renderContext.render(orderByField));
+                orderByBuilder.append(", ");
+            }
+
+            orderByBuilder.setLength(orderByBuilder.length() - 2);
         }
 
-        if (orderByBuilder.length() > 0) {
-            orderByBuilder.setLength(orderByBuilder.length() - 2);
-            orderByBuilder.insert(0, "\nORDER BY ");
-        }
+        orderByClause = orderByBuilder.toString();
 
         // Builds the FROM clause.
         StringBuilder fromBuilder = new StringBuilder();
@@ -280,12 +339,12 @@ class SqlQuery {
 
         this.whereCondition = whereCondition;
 
-        StringBuilder havingBuilder = new StringBuilder();
         String extraHaving = ObjectUtils.to(String.class, query.getOptions().get(SqlDatabase.EXTRA_HAVING_QUERY_OPTION));
-        havingBuilder.append(ObjectUtils.isBlank(extraHaving) ? "" : ("\n" + (ObjectUtils.isBlank(this.havingClause) ? "HAVING" : "AND") + " " + extraHaving));
-        this.havingClause = havingBuilder.toString();
 
-        this.orderByClause = orderByBuilder.toString();
+        this.havingCondition = !ObjectUtils.isBlank(extraHaving)
+                ? DSL.condition(extraHaving)
+                : null;
+
         this.fromClause = fromBuilder.toString();
     }
 
@@ -421,17 +480,13 @@ class SqlQuery {
 
             List<Condition> comparisonConditions = new ArrayList<>();
             boolean hasMissing = false;
-            int subClauseCount = 0;
 
             if (isNotEqualsAll || PredicateParser.EQUALS_ANY_OPERATOR.equals(operator)) {
                 for (Object value : comparisonPredicate.resolveValues(database)) {
                     if (value == null) {
-                        ++ subClauseCount;
-
                         comparisonConditions.add(DSL.falseCondition());
 
                     } else if (value == Query.MISSING_VALUE) {
-                        ++ subClauseCount;
                         hasMissing = true;
 
                         if (isNotEqualsAll) {
@@ -451,8 +506,6 @@ class SqlQuery {
                         List<Location> locations = ((Region) value).getLocations();
 
                         if (!locations.isEmpty()) {
-                            ++ subClauseCount;
-
                             try {
                                 StringBuilder rcb = new StringBuilder();
 
@@ -473,8 +526,6 @@ class SqlQuery {
 
                     } else {
                         Object convertedValue = join.convertValue(comparisonPredicate, value);
-
-                        ++ subClauseCount;
 
                         if (isNotEqualsAll) {
                             join.type = JoinType.LEFT_OUTER;
@@ -497,14 +548,10 @@ class SqlQuery {
                 // e.g. field OP value1 OR field OP value2 OR ... field OP value#
                 if (sqlQueryComparison != null) {
                     for (Object value : comparisonPredicate.resolveValues(database)) {
-                        ++ subClauseCount;
-
                         if (value == null) {
                             comparisonConditions.add(DSL.falseCondition());
 
                         } else if (value instanceof Location) {
-                            ++ subClauseCount;
-
                             try {
                                 StringBuilder lb = new StringBuilder();
 
@@ -551,7 +598,7 @@ class SqlQuery {
                     whereCondition = joinValueField.isNotNull().and(whereCondition);
                 }
 
-                if (subClauseCount > 1) {
+                if (comparisonConditions.size() > 1) {
                     needsDistinct = true;
                 }
             }
@@ -560,53 +607,6 @@ class SqlQuery {
         }
 
         throw new UnsupportedPredicateException(this, predicate);
-    }
-
-    private void addOrderByClause(StringBuilder orderByBuilder, Sorter sorter) {
-
-        String operator = sorter.getOperator();
-        boolean ascending = Sorter.ASCENDING_OPERATOR.equals(operator);
-        boolean descending = Sorter.DESCENDING_OPERATOR.equals(operator);
-        boolean closest = Sorter.CLOSEST_OPERATOR.equals(operator);
-        boolean farthest = Sorter.FARTHEST_OPERATOR.equals(operator);
-
-        if (ascending || descending || closest || farthest) {
-            String queryKey = (String) sorter.getOptions().get(0);
-            Join join = getSortFieldJoin(queryKey);
-            String joinValueFieldString = renderContext.render(join.getValueField(queryKey, null));
-            Query<?> subQuery = mappedKeys.get(queryKey).getSubQueryWithSorter(sorter, 0);
-
-            if (subQuery != null) {
-                SqlQuery subSqlQuery = getOrCreateSubSqlQuery(subQuery, true);
-                subQueries.put(subQuery, joinValueFieldString + " = ");
-                orderByBuilder.append(subSqlQuery.orderByClause.substring(9));
-                orderByBuilder.append(", ");
-                return;
-            }
-
-            if (ascending || descending) {
-                orderByBuilder.append(joinValueFieldString);
-
-            } else {
-                Location location = (Location) sorter.getOptions().get(1);
-
-                StringBuilder selectBuilder = new StringBuilder();
-
-                try {
-                    vendor.appendNearestLocation(orderByBuilder, selectBuilder, location, joinValueFieldString);
-
-                } catch (UnsupportedIndexException uie) {
-                    throw new UnsupportedIndexException(vendor, queryKey);
-                }
-            }
-
-            orderByBuilder.append(' ');
-            orderByBuilder.append(ascending || closest ? "ASC" : "DESC");
-            orderByBuilder.append(", ");
-            return;
-        }
-
-        throw new UnsupportedSorterException(database, sorter);
     }
 
     private boolean findSimilarComparison(ObjectField field, Predicate predicate) {
@@ -637,22 +637,12 @@ class SqlQuery {
      * of all rows matching the query.
      */
     public String countStatement() {
-        StringBuilder statementBuilder = new StringBuilder();
         initializeClauses();
 
-        statementBuilder.append("SELECT COUNT(");
-        if (needsDistinct) {
-            statementBuilder.append("DISTINCT ");
-        }
-        statementBuilder.append(renderContext.render(recordIdField));
-        statementBuilder.append(')');
-
-        statementBuilder.append(" \nFROM ");
-        statementBuilder.append(tableRenderContext.render(recordTable));
-        statementBuilder.append(fromClause.replace(" /*! USE INDEX (k_name_value) */", ""));
-        statementBuilder.append(" WHERE ");
-        statementBuilder.append(renderContext.render(whereCondition));
-        return statementBuilder.toString();
+        return renderContext.render(dslContext
+                .select(needsDistinct ? recordIdField.countDistinct() : recordIdField.count())
+                .from(DSL.table(tableRenderContext.render(recordTable)) + fromClause.replace(" /*! USE INDEX (k_name_value) */", ""))
+                .where(whereCondition));
     }
 
     /**
@@ -660,18 +650,11 @@ class SqlQuery {
      * matching the query.
      */
     public String deleteStatement() {
-        StringBuilder statementBuilder = new StringBuilder();
         initializeClauses();
 
-        statementBuilder.append("DELETE r\nFROM ");
-        statementBuilder.append(tableRenderContext.render(recordTable));
-        statementBuilder.append(fromClause);
-        statementBuilder.append(" WHERE ");
-        statementBuilder.append(renderContext.render(whereCondition));
-        statementBuilder.append(havingClause);
-        statementBuilder.append(orderByClause);
-
-        return statementBuilder.toString();
+        return renderContext.render(dslContext
+                .deleteFrom(DSL.table(tableRenderContext.render(recordTable) + fromClause))
+                .where(whereCondition));
     }
 
     /**
@@ -757,7 +740,11 @@ class SqlQuery {
 
         statementBuilder.append(groupBy.toString());
 
-        statementBuilder.append(havingClause);
+        if (havingCondition != null) {
+            statementBuilder.append(" HAVING ");
+            statementBuilder.append(renderContext.render(havingCondition));
+        }
+
         statementBuilder.append(orderByClause);
 
         return statementBuilder.toString();
@@ -768,21 +755,14 @@ class SqlQuery {
      * matching the query were last updated.
      */
     public String lastUpdateStatement() {
-        StringBuilder statementBuilder = new StringBuilder();
         initializeClauses();
 
-        statementBuilder.append("SELECT MAX(r.");
-        vendor.appendIdentifier(statementBuilder, "updateDate");
-        statementBuilder.append(")\nFROM ");
-        vendor.appendIdentifier(statementBuilder, "RecordUpdate");
-        statementBuilder.append(' ');
-        statementBuilder.append(aliasPrefix);
-        statementBuilder.append('r');
-        statementBuilder.append(fromClause);
-        statementBuilder.append(" WHERE ");
-        statementBuilder.append(renderContext.render(whereCondition));
+        String alias = aliasPrefix + "r";
 
-        return statementBuilder.toString();
+        return renderContext.render(dslContext
+                .select(DSL.field(DSL.name(alias, "updateDate")).max())
+                .from(DSL.table(tableRenderContext.render(DSL.table("RecordUpdate").as(alias)) + fromClause))
+                .where(whereCondition));
     }
 
     /**
@@ -842,7 +822,12 @@ class SqlQuery {
         statementBuilder.append(fromClause);
         statementBuilder.append(" WHERE ");
         statementBuilder.append(renderContext.render(whereCondition));
-        statementBuilder.append(havingClause);
+
+        if (havingCondition != null) {
+            statementBuilder.append(" HAVING ");
+            statementBuilder.append(renderContext.render(havingCondition));
+        }
+
         statementBuilder.append(orderByClause);
 
         if (needsDistinct && !vendor.supportsDistinctBlob()) {
@@ -883,26 +868,19 @@ class SqlQuery {
         return statementBuilder.toString();
     }
 
-    /** Returns an SQL statement that can be used as a sub-query. */
+    /**
+     * Returns an SQL statement that can be used as a sub-query.
+     */
     public String subQueryStatement() {
-        StringBuilder statementBuilder = new StringBuilder();
         initializeClauses();
 
-        statementBuilder.append("SELECT");
-        if (needsDistinct) {
-            statementBuilder.append(" DISTINCT");
-        }
-        statementBuilder.append(" r.");
-        vendor.appendIdentifier(statementBuilder, "id");
-        statementBuilder.append("\nFROM ");
-        statementBuilder.append(tableRenderContext.render(recordTable));
-        statementBuilder.append(fromClause);
-        statementBuilder.append(" WHERE ");
-        statementBuilder.append(renderContext.render(whereCondition));
-        statementBuilder.append(havingClause);
-        statementBuilder.append(orderByClause);
-
-        return statementBuilder.toString();
+        return renderContext.render((needsDistinct
+                ? dslContext.selectDistinct(recordIdField)
+                : dslContext.select(recordIdField))
+                .from(DSL.table(tableRenderContext.render(recordTable) + fromClause))
+                .where(whereCondition)
+                .having(havingCondition)
+                .orderBy(orderByFields));
     }
 
     private enum JoinType {
