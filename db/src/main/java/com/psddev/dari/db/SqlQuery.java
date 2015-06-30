@@ -81,7 +81,7 @@ class SqlQuery {
 
         String recordTableAlias = aliasPrefix + "r";
 
-        recordTable = DSL.table(DSL.name("Record")).as(recordTableAlias);
+        recordTable = DSL.table(DSL.name(SqlDatabase.RECORD_TABLE)).as(recordTableAlias);
         recordIdField = DSL.field(DSL.name(recordTableAlias, SqlDatabase.ID_COLUMN), vendor.uuidDataType());
         recordTypeIdField = DSL.field(DSL.name(recordTableAlias, SqlDatabase.TYPE_ID_COLUMN), vendor.uuidDataType());
         mappedKeys = query.mapEmbeddedKeys(database.getEnvironment());
@@ -324,10 +324,10 @@ class SqlQuery {
             String alias = subSqlQuery.aliasPrefix + "r";
 
             fromBuilder.append("\nINNER JOIN ");
-            fromBuilder.append(tableRenderContext.render(DSL.table(DSL.name("Record")).as(alias)));
+            fromBuilder.append(tableRenderContext.render(DSL.table(DSL.name(SqlDatabase.RECORD_TABLE)).as(alias)));
             fromBuilder.append(" ON ");
             fromBuilder.append(entry.getValue());
-            fromBuilder.append(renderContext.render(DSL.field(DSL.name(alias, "id"))));
+            fromBuilder.append(renderContext.render(DSL.field(DSL.name(alias, SqlDatabase.ID_COLUMN))));
             fromBuilder.append(subSqlQuery.fromClause);
         }
 
@@ -759,8 +759,8 @@ class SqlQuery {
         String alias = aliasPrefix + "r";
 
         return renderContext.render(dslContext
-                .select(DSL.field(DSL.name(alias, "updateDate")).max())
-                .from(DSL.table(tableRenderContext.render(DSL.table("RecordUpdate").as(alias)) + fromClause))
+                .select(DSL.field(DSL.name(alias, SqlDatabase.UPDATE_DATE_COLUMN)).max())
+                .from(DSL.table(tableRenderContext.render(DSL.table(SqlDatabase.RECORD_UPDATE_TABLE).as(alias)) + fromClause))
                 .where(whereCondition));
     }
 
