@@ -10,6 +10,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import com.google.common.base.Preconditions;
 import com.psddev.dari.util.CompactMap;
 import com.psddev.dari.util.ObjectUtils;
 import org.jooq.Condition;
@@ -29,6 +30,8 @@ import org.jooq.impl.DSL;
 
 /** Internal representation of an SQL query based on a Dari one. */
 class SqlQuery {
+
+    public static final String COUNT_ALIAS = "_count";
 
     private static final Pattern QUERY_KEY_PATTERN = Pattern.compile("\\$\\{([^}]+)\\}");
     //private static final Logger LOGGER = LoggerFactory.getLogger(SqlQuery.class);
@@ -657,96 +660,58 @@ class SqlQuery {
     }
 
     /**
-     * Returns an SQL statement that can be used to get all objects
-     * grouped by the values of the given {@code groupFields}.
+     * Returns an SQL statement that can be used to group rows by the values
+     * of the given {@code groupKeys}.
+     *
+     * @param groupKeys Can't be {@code null} or empty.
+     * @throws IllegalArgumentException If {@code groupKeys} is empty.
+     * @throws NullPointerException If {@code groupKeys} is {@code null}.
      */
-    public String groupStatement(String[] groupFields) {
-        Map<String, SqlQueryJoin> groupJoins = new CompactMap<>();
-        Map<String, SqlQuery> groupSubSqlQueries = new HashMap<>();
-        if (groupFields != null) {
-            for (String groupField : groupFields) {
-                Query.MappedKey mappedKey = query.mapEmbeddedKey(database.getEnvironment(), groupField);
-                mappedKeys.put(groupField, mappedKey);
-                Iterator<ObjectIndex> indexesIterator = mappedKey.getIndexes().iterator();
-                if (indexesIterator.hasNext()) {
-                    ObjectIndex selectedIndex = indexesIterator.next();
-                    while (indexesIterator.hasNext()) {
-                        ObjectIndex index = indexesIterator.next();
-                        if (selectedIndex.getFields().size() < index.getFields().size()) {
-                            selectedIndex = index;
-                        }
-                    }
-                    selectedIndexes.put(groupField, selectedIndex);
-                }
-                SqlQueryJoin join = SqlQueryJoin.findOrCreate(this, groupField);
-                Query<?> subQuery = mappedKey.getSubQueryWithGroupBy();
-                if (subQuery != null) {
-                    SqlQuery subSqlQuery = getOrCreateSubSqlQuery(subQuery, true);
-                    groupSubSqlQueries.put(groupField, subSqlQuery);
-                    subQueries.put(subQuery, renderContext.render(join.getValueField(groupField, null)) + " = ");
-                }
-                groupJoins.put(groupField, join);
+    public String groupStatement(String... groupKeys) {
+        Preconditions.checkNotNull(groupKeys, "[groupKeys] can't be null!");
+        Preconditions.checkArgument(groupKeys.length > 0, "[groupKeys] can't be empty!");
+
+        List<Field<?>> groupByFields = new ArrayList<>();
+
+        for (String groupKey : groupKeys) {
+            Query.MappedKey mappedKey = query.mapEmbeddedKey(database.getEnvironment(), groupKey);
+
+            mappedKeys.put(groupKey, mappedKey);
+            selectIndex(groupKey, mappedKey);
+
+            SqlQueryJoin join = SqlQueryJoin.findOrCreate(this, groupKey);
+            Field<?> joinValueField = join.getValueField(groupKey, null);
+            Query<?> subQuery = mappedKey.getSubQueryWithGroupBy();
+
+            if (subQuery == null) {
+                groupByFields.add(joinValueField);
+
+            } else {
+                SqlQuery subSqlQuery = getOrCreateSubSqlQuery(subQuery, true);
+
+                subQueries.put(subQuery, renderContext.render(joinValueField) + " = ");
+                subSqlQuery.joins.forEach(j -> groupByFields.add(j.getValueField(groupKey, null)));
             }
         }
 
-        StringBuilder statementBuilder = new StringBuilder();
-        StringBuilder groupBy = new StringBuilder();
         initializeClauses();
 
-        statementBuilder.append("SELECT COUNT(");
-        if (needsDistinct) {
-            statementBuilder.append("DISTINCT ");
-        }
-        statementBuilder.append(renderContext.render(recordIdField));
-        statementBuilder.append(')');
-        statementBuilder.append(' ');
-        vendor.appendIdentifier(statementBuilder, "_count");
-        int columnNum = 0;
-        for (Map.Entry<String, SqlQueryJoin> entry : groupJoins.entrySet()) {
-            statementBuilder.append(", ");
-            if (!groupSubSqlQueries.containsKey(entry.getKey())) {
-                statementBuilder.append(renderContext.render(entry.getValue().getValueField(entry.getKey(), null)));
-            }
-            statementBuilder.append(' ');
-            String columnAlias = null;
-            if (!entry.getValue().queryKey.equals(Query.ID_KEY) && !entry.getValue().queryKey.equals(Query.DIMENSION_KEY)) { // Special case for id and dimensionId
-                // These column names just need to be unique if we put this statement in a subquery
-                columnAlias = "value" + columnNum;
-            }
-            ++columnNum;
-            if (columnAlias != null) {
-                vendor.appendIdentifier(statementBuilder, columnAlias);
-            }
-        }
+        List<Field<?>> selectFields = new ArrayList<>();
 
-        statementBuilder.append("\nFROM ");
-        statementBuilder.append(tableRenderContext.render(recordTable));
-        statementBuilder.append(fromClause.replace(" /*! USE INDEX (k_name_value) */", ""));
-        statementBuilder.append(" WHERE ");
-        statementBuilder.append(renderContext.render(whereCondition));
+        selectFields.add((needsDistinct
+                ? recordIdField.countDistinct()
+                : recordIdField.count())
+                .as(COUNT_ALIAS));
 
-        for (Map.Entry<String, SqlQueryJoin> entry : groupJoins.entrySet()) {
-            if (!groupSubSqlQueries.containsKey(entry.getKey())) {
-                groupBy.append(renderContext.render(entry.getValue().getValueField(entry.getKey(), null)));
-            }
-            groupBy.append(", ");
-        }
+        selectFields.addAll(groupByFields);
 
-        if (groupBy.length() > 0) {
-            groupBy.setLength(groupBy.length() - 2);
-            groupBy.insert(0, " GROUP BY ");
-        }
-
-        statementBuilder.append(groupBy.toString());
-
-        if (havingCondition != null) {
-            statementBuilder.append(" HAVING ");
-            statementBuilder.append(renderContext.render(havingCondition));
-        }
-
-        statementBuilder.append(orderByClause);
-
-        return statementBuilder.toString();
+        return renderContext.render(dslContext
+                .select(selectFields)
+                .from(DSL.table(tableRenderContext.render(recordTable) + fromClause.replace(" /*! USE INDEX (k_name_value) */", "")))
+                .where(whereCondition)
+                .groupBy(groupByFields)
+                .having(havingCondition)
+                .orderBy(orderByFields));
     }
 
     /**

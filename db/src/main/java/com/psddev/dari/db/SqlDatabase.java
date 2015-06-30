@@ -2238,7 +2238,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
                 SqlGrouping<T> grouping;
                 ResultSetMetaData meta = result.getMetaData();
                 String aggregateColumnName = meta.getColumnName(1);
-                if ("_count".equals(aggregateColumnName)) {
+                if (SqlQuery.COUNT_ALIAS.equals(aggregateColumnName)) {
                     long count = ObjectUtils.to(long.class, result.getObject(1));
                     for (int j = 0; j < fieldsLength; ++ j) {
                         keys.add(result.getObject(j + 2));
@@ -2250,7 +2250,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
                         keys.add(result.getObject(j + 3));
                     }
                     long count = 0L;
-                    if (meta.getColumnName(2).equals("_count")) {
+                    if (meta.getColumnName(2).equals(SqlQuery.COUNT_ALIAS)) {
                         count = ObjectUtils.to(long.class, result.getObject(2));
                     }
                     grouping = new SqlGrouping<T>(keys, query, fields, count, groupings);
