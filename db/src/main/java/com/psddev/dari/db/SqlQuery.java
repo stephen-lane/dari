@@ -2,8 +2,8 @@ package com.psddev.dari.db;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -19,6 +19,7 @@ import org.jooq.Field;
 import org.jooq.JoinType;
 import org.jooq.RenderContext;
 import org.jooq.SQLDialect;
+import org.jooq.Select;
 import org.jooq.SortField;
 import org.jooq.SortOrder;
 import org.jooq.Table;
@@ -54,7 +55,6 @@ class SqlQuery {
     private Condition whereCondition;
     private Condition havingCondition;
     private final List<SortField<?>> orderByFields = new ArrayList<>();
-    private String orderByClause;
     protected final List<SqlQueryJoin> joins = new ArrayList<>();
     private final Map<Query<?>, String> subQueries = new CompactMap<>();
     private final Map<Query<?>, SqlQuery> subSqlQueries = new HashMap<>();
@@ -249,21 +249,6 @@ class SqlQuery {
                 }
             }
         }
-
-        StringBuilder orderByBuilder = new StringBuilder();
-
-        if (!orderByFields.isEmpty()) {
-            orderByBuilder.append(" ORDER BY ");
-
-            for (SortField<?> orderByField : orderByFields) {
-                orderByBuilder.append(renderContext.render(orderByField));
-                orderByBuilder.append(", ");
-            }
-
-            orderByBuilder.setLength(orderByBuilder.length() - 2);
-        }
-
-        orderByClause = orderByBuilder.toString();
 
         // Builds the FROM clause.
         StringBuilder fromBuilder = new StringBuilder();
@@ -734,102 +719,58 @@ class SqlQuery {
      * matching the query.
      */
     public String selectStatement() {
-        StringBuilder statementBuilder = new StringBuilder();
         initializeClauses();
 
-        statementBuilder.append("SELECT");
-        if (needsDistinct && vendor.supportsDistinctBlob()) {
-            statementBuilder.append(" DISTINCT");
-        }
+        List<Field<?>> selectFields = new ArrayList<>();
 
-        statementBuilder.append(" r.");
-        vendor.appendIdentifier(statementBuilder, "id");
-        statementBuilder.append(", r.");
-        vendor.appendIdentifier(statementBuilder, "typeId");
+        selectFields.add(recordIdField);
+        selectFields.add(recordTypeIdField);
 
-        List<String> fields = query.getFields();
-        if (fields == null) {
-            if (!needsDistinct || vendor.supportsDistinctBlob()) {
-                statementBuilder.append(", r.");
-                vendor.appendIdentifier(statementBuilder, "data");
-            }
-        } else if (!fields.isEmpty()) {
-            statementBuilder.append(", ");
-            vendor.appendSelectFields(statementBuilder, fields);
+        List<String> queryFields = query.getFields();
+
+        if (queryFields == null) {
+            selectFields.add(DSL.field(DSL.name(aliasPrefix + "r", SqlDatabase.DATA_COLUMN)));
+
+        } else if (!queryFields.isEmpty()) {
+            queryFields.forEach(queryField -> selectFields.add(DSL.field(DSL.name(queryField))));
         }
 
         String extraColumns = ObjectUtils.to(String.class, query.getOptions().get(SqlDatabase.EXTRA_COLUMNS_QUERY_OPTION));
 
-        if (extraColumns != null) {
-            statementBuilder.append(", ");
-            statementBuilder.append(extraColumns);
-        }
-
-        if (!needsDistinct && !subSqlQueries.isEmpty()) {
-            for (Map.Entry<Query<?>, SqlQuery> entry : subSqlQueries.entrySet()) {
-                SqlQuery subSqlQuery = entry.getValue();
-                statementBuilder.append(", " + subSqlQuery.aliasPrefix + "r." + SqlDatabase.ID_COLUMN + " AS " + SqlDatabase.SUB_DATA_COLUMN_ALIAS_PREFIX + subSqlQuery.aliasPrefix + "_" + SqlDatabase.ID_COLUMN);
-                statementBuilder.append(", " + subSqlQuery.aliasPrefix + "r." + SqlDatabase.TYPE_ID_COLUMN + " AS " + SqlDatabase.SUB_DATA_COLUMN_ALIAS_PREFIX + subSqlQuery.aliasPrefix + "_" + SqlDatabase.TYPE_ID_COLUMN);
-                statementBuilder.append(", " + subSqlQuery.aliasPrefix + "r." + SqlDatabase.DATA_COLUMN + " AS " + SqlDatabase.SUB_DATA_COLUMN_ALIAS_PREFIX + subSqlQuery.aliasPrefix + "_" + SqlDatabase.DATA_COLUMN);
+        if (!ObjectUtils.isBlank(extraColumns)) {
+            for (String extraColumn : extraColumns.trim().split("\\s+")) {
+                selectFields.add(DSL.field(DSL.name(extraColumn)));
             }
         }
 
-        statementBuilder.append("\nFROM ");
-        statementBuilder.append(tableRenderContext.render(recordTable));
+        Table<?> selectTable = recordTable;
 
         if (fromClause.length() > 0
-                && !fromClause.contains("LEFT OUTER JOIN")
+                && !fromClause.toLowerCase(Locale.ENGLISH).contains("left outer join")
                 && !mysqlIgnoreIndexPrimaryDisabled) {
-            statementBuilder.append(" /*! IGNORE INDEX (PRIMARY) */");
+
+            selectTable = selectTable.ignoreIndex("PRIMARY");
         }
 
-        statementBuilder.append(fromClause);
-        statementBuilder.append(" WHERE ");
-        statementBuilder.append(renderContext.render(whereCondition));
+        Select<?> select = (needsDistinct
+                ? dslContext.selectDistinct(recordIdField, recordTypeIdField)
+                : dslContext.select(selectFields))
+                .from(DSL.table(tableRenderContext.render(selectTable) + fromClause))
+                .where(whereCondition)
+                .having(havingCondition)
+                .orderBy(orderByFields);
 
-        if (havingCondition != null) {
-            statementBuilder.append(" HAVING ");
-            statementBuilder.append(renderContext.render(havingCondition));
+        if (needsDistinct && selectFields.size() > 2) {
+            String distinctAlias = aliasPrefix + "d";
+            select = dslContext
+                    .select(selectFields)
+                    .from(recordTable)
+                    .join(select.asTable().as(distinctAlias))
+                    .on(recordTypeIdField.eq(DSL.field(DSL.name(distinctAlias, SqlDatabase.TYPE_ID_COLUMN), vendor.uuidDataType())))
+                    .and(recordIdField.eq(DSL.field(DSL.name(distinctAlias, SqlDatabase.ID_COLUMN), vendor.uuidDataType())));
         }
 
-        statementBuilder.append(orderByClause);
-
-        if (needsDistinct && !vendor.supportsDistinctBlob()) {
-            StringBuilder distinctBuilder = new StringBuilder();
-
-            distinctBuilder.append("SELECT");
-            distinctBuilder.append(" r.");
-            vendor.appendIdentifier(distinctBuilder, "id");
-            distinctBuilder.append(", r.");
-            vendor.appendIdentifier(distinctBuilder, "typeId");
-
-            if (fields == null) {
-                distinctBuilder.append(", r.");
-                vendor.appendIdentifier(distinctBuilder, "data");
-            } else if (!fields.isEmpty()) {
-                distinctBuilder.append(", ");
-                vendor.appendSelectFields(distinctBuilder, fields);
-            }
-
-            if (!query.getExtraSourceColumns().isEmpty()) {
-                for (String extraSourceColumn : query.getExtraSourceColumns().keySet()) {
-                    distinctBuilder.append(", ");
-                    vendor.appendIdentifier(distinctBuilder, "d0");
-                    distinctBuilder.append('.');
-                    vendor.appendIdentifier(distinctBuilder, extraSourceColumn);
-                }
-            }
-
-            distinctBuilder.append(" FROM ");
-            vendor.appendIdentifier(distinctBuilder, SqlDatabase.RECORD_TABLE);
-            distinctBuilder.append(" r INNER JOIN (");
-            distinctBuilder.append(statementBuilder.toString());
-            distinctBuilder.append(") d0 ON (r.id = d0.id)");
-
-            statementBuilder = distinctBuilder;
-        }
-
-        return statementBuilder.toString();
+        return renderContext.render(select);
     }
 
     /**
