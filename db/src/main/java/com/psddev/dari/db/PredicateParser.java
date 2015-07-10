@@ -11,9 +11,11 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 
 import com.psddev.dari.util.CollectionUtils;
 import com.psddev.dari.util.ObjectUtils;
+import com.psddev.dari.util.UuidUtils;
 
 /**
  * Parser for translating a predicate string into a {@linkplain Predicate
@@ -587,6 +589,8 @@ public class PredicateParser {
 
     private static class EqualsAnyEvaluator extends ComparisonEvaluator {
 
+        private static final Pattern UUID_PATTERN = Pattern.compile("([A-Fa-f0-9]{8})-([A-Fa-f0-9]{4})-([A-Fa-f0-9]{4})-([A-Fa-f0-9]{4})-([A-Fa-f0-9]{12})");
+
         @Override
         protected boolean compare(State state, Object keyValue, List<Object> values) {
             if (keyValue instanceof String) {
@@ -615,6 +619,10 @@ public class PredicateParser {
 
             } else if (object instanceof State) {
                 return ((State) object).getId();
+
+            } else if (object instanceof String
+                    && UUID_PATTERN.matcher(((String) object).trim()).matches()) {
+                return UuidUtils.fromString((String) object);
 
             } else {
                 return object;
