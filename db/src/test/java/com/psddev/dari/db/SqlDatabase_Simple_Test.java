@@ -37,8 +37,6 @@ public class SqlDatabase_Simple_Test {
     @Rule
     public TestName name = new TestName();
 
-    static ConcreteOneInstance concreteOneInstance;
-    static ConcreteMultipleInstances concreteMultipleInstances_1, concreteMultipleInstances_2;
 
     @BeforeClass
     public static void beforeClass() {}
@@ -55,7 +53,22 @@ public class SqlDatabase_Simple_Test {
     public void after() {}
 
 
+    /** NO INSTANCES **/
+    public static class ConcreteNoInstances extends Record {}
+
+    @Test
+    public void simple_concrete_no_instances() {
+        List<ConcreteNoInstances> result = Query.from(ConcreteNoInstances.class).selectAll();
+
+        assertEquals(Collections.<ConcreteNoInstances>emptyList(), result);
+    }
+
+
     /** SINGLE INSTANCE **/
+    public static class ConcreteOneInstance extends Record {}
+
+    static ConcreteOneInstance concreteOneInstance;
+
     @BeforeClass
     public static void beforeClass_single_instance() {
         concreteOneInstance = new ConcreteOneInstance();
@@ -69,15 +82,12 @@ public class SqlDatabase_Simple_Test {
         assertEquals(Arrays.asList(concreteOneInstance), result);
     }
 
-    @Test
-    public void simple_concrete_no_instances() {
-        List<ConcreteNoInstances> result = Query.from(ConcreteNoInstances.class).selectAll();
-
-        assertEquals(Collections.<ConcreteNoInstances>emptyList(), result);
-    }
-
 
     /** MULTIPLE INSTANCES **/
+    public static class ConcreteMultipleInstances extends Record {}
+
+    static ConcreteMultipleInstances concreteMultipleInstances_1, concreteMultipleInstances_2;
+
     @BeforeClass
     public static void beforeClass_multiple_instance() {
         concreteMultipleInstances_1 = new ConcreteMultipleInstances();
@@ -94,8 +104,49 @@ public class SqlDatabase_Simple_Test {
     }
 
 
-    /** CLASSES FOR TESTING **/
-    public static class ConcreteOneInstance extends Record {}
-    public static class ConcreteMultipleInstances extends Record {}
-    public static class ConcreteNoInstances extends Record {}
+    /** ABSTRACT **/
+    public static abstract class AbstractParent extends Record {}
+    public static class ConcreteChildOne extends AbstractParent {}
+    public static class ConcreteChildTwo extends AbstractParent {}
+    public static class ConcreteChildThree extends ConcreteChildTwo {}
+
+    static ConcreteChildOne concreteChildOne;
+    static ConcreteChildTwo concreteChildTwo;
+    static ConcreteChildThree concreteChildThree;
+
+    @BeforeClass
+    public static void beforeClass_abstract_instance() {
+        concreteChildOne = new ConcreteChildOne();
+        concreteChildOne.save();
+        concreteChildTwo = new ConcreteChildTwo();
+        concreteChildTwo.save();
+        concreteChildThree = new ConcreteChildThree();
+        concreteChildThree.save();
+    }
+
+    @Test
+    public void simple_abstract_all() {
+        List<AbstractParent> result = Query.from(AbstractParent.class).selectAll();
+
+        assertEqualsUnordered(Arrays.asList(concreteChildOne, concreteChildTwo, concreteChildThree), result);
+    }
+
+    @Test
+    public void simple_abstract_child() {
+        List<ConcreteChildOne> result = Query.from(ConcreteChildOne.class).selectAll();
+
+        assertEqualsUnordered(Arrays.asList(concreteChildOne), result);
+    }
+
+    @Test
+    public void simple_abstract_multi_child() {
+        List<ConcreteChildTwo> result = Query.from(ConcreteChildTwo.class).selectAll();
+
+        assertEqualsUnordered(Arrays.asList(concreteChildTwo, concreteChildThree), result);
+    }
+
+    /** INTERFACE **/
+
+
+    /** EXTENDS CONCRETE **/
 }
