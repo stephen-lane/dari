@@ -1,20 +1,29 @@
 package com.psddev.dari.db;
 
+import com.psddev.dari.util.ObjectUtils;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
+import static com.psddev.dari.db.AssertUtils.assertEqualsUnordered;
 
 /**
  * Created by rhseeger on 7/8/15.
@@ -23,50 +32,41 @@ import static org.junit.Assert.assertEquals;
 public class SqlDatabase_Simple_Test {
     private static final Logger LOGGER = LoggerFactory.getLogger(SqlDatabase_Simple_Test.class);
 
-    static UUID uuid_ConcreteOneInstance,
-            uuid_ConcreteMultipleInstances_1, uuid_ConcreteMultipleInstances_2;
-    static TestDatabase testDb;
+    @ClassRule
+    public static final SqlDatabaseRule res = new SqlDatabaseRule();
+    @Rule
+    public TestName name = new TestName();
+
+    static ConcreteOneInstance concreteOneInstance;
+    static ConcreteMultipleInstances concreteMultipleInstances_1, concreteMultipleInstances_2;
 
     @BeforeClass
-    public static void beforeClass() {
-        testDb = DatabaseTestUtils.getMySQLTestDatabase();
-        Database db = testDb.get();
-        Database.Static.overrideDefault(db);
-        LOGGER.info("Running tests against [" + db.getClass() + " / " + db.getName() + "] database.");
-
-        ConcreteOneInstance concreteOneInstance = new ConcreteOneInstance();
-        concreteOneInstance.save();
-        uuid_ConcreteOneInstance = concreteOneInstance.getId();
-
-        ConcreteMultipleInstances concreteMultipleInstances;
-        concreteMultipleInstances = new ConcreteMultipleInstances();
-        concreteMultipleInstances.save();
-        uuid_ConcreteMultipleInstances_1 = concreteMultipleInstances.getId();
-        concreteMultipleInstances = new ConcreteMultipleInstances();
-        concreteMultipleInstances.save();
-        uuid_ConcreteMultipleInstances_2 = concreteMultipleInstances.getId();
-
-    }
+    public static void beforeClass() {}
 
     @AfterClass
-    public static void afterClass() {
-        Database.Static.restoreDefault();
-        testDb.close();
-    }
+    public static void afterClass() {}
 
     @Before
     public void before() {
+        LOGGER.info("Running test [{}]", name.getMethodName());
     }
 
     @After
-    public void after() {
+    public void after() {}
+
+
+    /** SINGLE INSTANCE **/
+    @BeforeClass
+    public static void beforeClass_single_instance() {
+        concreteOneInstance = new ConcreteOneInstance();
+        concreteOneInstance.save();
     }
 
     @Test
     public void simple_concrete_one_instance() {
         List<ConcreteOneInstance> result = Query.from(ConcreteOneInstance.class).selectAll();
 
-        assertEquals(Arrays.asList(new UUID[]{uuid_ConcreteOneInstance}), result.stream().map(instance -> instance.getId()).collect(Collectors.toList()));
+        assertEquals(Arrays.asList(concreteOneInstance), result);
     }
 
     @Test
@@ -76,16 +76,21 @@ public class SqlDatabase_Simple_Test {
         assertEquals(Collections.<ConcreteNoInstances>emptyList(), result);
     }
 
+
+    /** MULTIPLE INSTANCES **/
+    @BeforeClass
+    public static void beforeClass_multiple_instance() {
+        concreteMultipleInstances_1 = new ConcreteMultipleInstances();
+        concreteMultipleInstances_1.save();
+        concreteMultipleInstances_2 = new ConcreteMultipleInstances();
+        concreteMultipleInstances_2.save();
+    }
+
     @Test
     public void simple_concrete_multiple_instance() {
         List<ConcreteMultipleInstances> result = Query.from(ConcreteMultipleInstances.class).selectAll();
 
-        List<UUID> expect = Arrays.asList(new UUID[]{
-                uuid_ConcreteMultipleInstances_1,
-                uuid_ConcreteMultipleInstances_2
-        });
-        assertEquals(expect, result.stream().map(instance -> instance.getId()).collect(Collectors.toList()));
-
+        assertEqualsUnordered(Arrays.asList(concreteMultipleInstances_1, concreteMultipleInstances_2), result);
     }
 
 
