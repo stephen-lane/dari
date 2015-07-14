@@ -1,5 +1,7 @@
 package com.psddev.dari.db;
 
+import com.mysql.jdbc.exceptions.jdbc4.MySQLSyntaxErrorException;
+import com.psddev.dari.util.PaginatedResult;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -64,7 +66,7 @@ public class SqlDatabase_Window_Test {
     static private FirstTestMultiple firstTestMultiple_1, firstTestMultiple_2;
 
     @BeforeClass
-    public static void beforeClass_abstract_instance() {
+    public static void beforeClass_first() {
         firstTestOne = new FirstTestOne();
         firstTestOne.save();
 
@@ -96,6 +98,123 @@ public class SqlDatabase_Window_Test {
 
         assertEquals(firstTestMultiple_1, result);
     }
+
+
+    /*** PaginatedResult ***/
+    /*** Note that we're not testing PaginatedResult here.
+       * Rather, we're testing that it's setup correctly by the database query
+       * And that the results are correct ***/
+
+    public static class PaginatedNone extends Record {}
+    public static class PaginatedItems extends Record {
+        @Indexed public int order;
+        public PaginatedItems setOrder(int order) { this.order = order; return this; }
+    }
+
+    static PaginatedItems paginatedItems_1, paginatedItems_2, paginatedItems_3, paginatedItems_4, paginatedItems_5;
+
+    @BeforeClass
+    public static void beforeClass_paginated() {
+        paginatedItems_1 = new PaginatedItems().setOrder(1);
+        paginatedItems_1.save();
+        paginatedItems_2 = new PaginatedItems().setOrder(2);
+        paginatedItems_2.save();
+        paginatedItems_3 = new PaginatedItems().setOrder(2);
+        paginatedItems_3.save();
+        paginatedItems_4 = new PaginatedItems().setOrder(2);
+        paginatedItems_4.save();
+        paginatedItems_5 = new PaginatedItems().setOrder(2);
+        paginatedItems_5.save();
+    }
+
+
+    /** .select(long offset, int limit) **/
+    @Test
+    public void select_no_results() {
+        PaginatedResult<PaginatedNone> result = Query.from(PaginatedNone.class).select(0,10);
+
+        assertEquals(Collections.<PaginatedNone>emptyList(), result.getItems());
+    }
+
+    @Test
+    public void select_subset() {
+        PaginatedResult<PaginatedItems> result = Query.from(PaginatedItems.class).sortAscending("order").select(0,2);
+
+        assertEquals(Arrays.asList(paginatedItems_1, paginatedItems_2), result.getItems());
+    }
+
+    @Test
+    public void select_none() {
+        PaginatedResult<PaginatedItems> result = Query.from(PaginatedItems.class).sortAscending("order").select(0,0);
+
+        assertEquals(Collections.<PaginatedNone>emptyList(), result.getItems());
+    }
+
+    @Test
+    public void select_all() {
+        PaginatedResult<PaginatedItems> result = Query.from(PaginatedItems.class).sortAscending("order").select(0,5);
+
+        assertEquals(Arrays.asList(paginatedItems_1, paginatedItems_2, paginatedItems_3, paginatedItems_4, paginatedItems_5), result.getItems());
+    }
+
+    @Test
+    public void select_limit_over_number() {
+        PaginatedResult<PaginatedItems> result = Query.from(PaginatedItems.class).sortAscending("order").select(0,10);
+
+        assertEquals(Arrays.asList(paginatedItems_1, paginatedItems_2, paginatedItems_3, paginatedItems_4, paginatedItems_5), result.getItems());
+    }
+
+    @Test
+    public void select_subset_middle() {
+        PaginatedResult<PaginatedItems> result = Query.from(PaginatedItems.class).sortAscending("order").select(1,2);
+
+        assertEquals(Arrays.asList(paginatedItems_2, paginatedItems_3), result.getItems());
+    }
+
+    @Test
+    public void select_offset_over_number() {
+        PaginatedResult<PaginatedItems> result = Query.from(PaginatedItems.class).sortAscending("order").select(10,2);
+
+        assertEquals(Collections.<PaginatedNone>emptyList(), result.getItems());
+    }
+
+    /* error cases */
+
+    // TODO: This should really be caught as an error before hitting the database
+    @Test (expected = SqlDatabaseException.class)
+    public void select_offset_negative() {
+        Query.from(PaginatedItems.class).select(-10,2);
+    }
+
+    // TODO: This should really be caught as an error before hitting the database
+    @Test (expected = SqlDatabaseException.class)
+    public void select_limit_negative() {
+        Query.from(PaginatedItems.class).select(2,-10);
+    }
+
+    /** result.getCount() **/
+
+    /** result.getFirstOffset() **/
+    /** result.getFirstItemIndex() **/
+
+    /** result.hasPrevious() **/
+    /** result.getHasPrevious() **/
+    /** result.getPreviousOffset() **/
+
+    /** result.hasNext() **/
+    /** result.getHasNext() **/
+    /** result.getNextOffset() **/
+
+    /** result.getLastItemIndex() **/
+    /** result.getLastOffset() **/
+
+    /** result.hasPages() **/
+    /** result.getHasPages() **/
+    /** result.getPageCount() **/
+    /** result.getPageIndex() **/
+
+    /** result.getLimit() **/
+    /** result.getOffset() **/
 
 
 }
