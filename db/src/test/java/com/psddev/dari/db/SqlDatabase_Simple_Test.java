@@ -1,6 +1,5 @@
 package com.psddev.dari.db;
 
-import com.psddev.dari.util.ObjectUtils;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -12,22 +11,15 @@ import org.junit.rules.TestName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
-import java.util.UUID;
-import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 import static com.psddev.dari.db.AssertUtils.assertEqualsUnordered;
 
 /**
  * Created by rhseeger on 7/8/15.
- * TODO: Make creating instances and saving their IDs easier
  */
 public class SqlDatabase_Simple_Test {
     private static final Logger LOGGER = LoggerFactory.getLogger(SqlDatabase_Simple_Test.class);
@@ -146,7 +138,9 @@ public class SqlDatabase_Simple_Test {
     }
 
     /** INTERFACE **/
+    // TODO: these
 
 
     /** EXTENDS CONCRETE **/
+    // TODO: these
 }

@@ -12,7 +12,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 import static com.psddev.dari.db.AssertUtils.assertEqualsUnordered;
@@ -135,6 +134,7 @@ public class SqlDatabase_Visibility_Test {
     }
 
     @Test // You have to specify visibilty values explicitly; "!= missing" does not work
+    // TODO: the [visibiltyField != missing] syntax should really throw an unsupported exception
     public void visibility_notmissing() {
         List<VisibilityExample> result = Query.from(VisibilityExample.class)
                 .where("vfield = missing OR vfield != missing")

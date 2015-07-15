@@ -1,6 +1,5 @@
 package com.psddev.dari.db;
 
-import com.mysql.jdbc.exceptions.jdbc4.MySQLSyntaxErrorException;
 import com.psddev.dari.util.PaginatedResult;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -15,9 +14,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 
-import static com.psddev.dari.db.AssertUtils.assertEqualsUnordered;
 import static org.junit.Assert.assertEquals;
 
 /**
@@ -178,7 +175,7 @@ public class SqlDatabase_Window_Test {
         assertEquals(Collections.<PaginatedNone>emptyList(), result.getItems());
     }
 
-    /* error cases */
+    /* ERROR CASES */
 
     // TODO: This should really be caught as an error before hitting the database
     @Test (expected = SqlDatabaseException.class)
@@ -192,6 +189,7 @@ public class SqlDatabase_Window_Test {
         Query.from(PaginatedItems.class).select(2,-10);
     }
 
+    // TODO: these
     /** result.getCount() **/
 
     /** result.getFirstOffset() **/
