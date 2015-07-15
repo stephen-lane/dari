@@ -161,12 +161,14 @@ public class SqlDatabase_Visibility_Test {
         assertTrue(result.isEmpty());
     }
 
-    
+
     /** .resolveInvisible() **/
     /**
      * Some fields are marked as visibility fields and, by having a value, they indicate that the object they belong to
      * is "invisible" as far as normal interactions are concerned. The underlying lazy-load database code automatically
      * converts their objects to null.
+     *
+     * Note that Query.resolveInvisible doesn't modify the query, it just sets resolveInvisible on all the results returned
      *
      * class Bar extends Record {
      *     @Indexed(visibility = true)
@@ -197,5 +199,58 @@ public class SqlDatabase_Visibility_Test {
      * Query.from(Foo.class).where("id = ?", foo1.getId()).first().getBar(); -> null
      * Query.from(Foo.class).where("id = ?", foo2.getId()).first().getBar(); -> bar2
      */
+    public static class ResolveChild extends Record {
+        @Recordable.Indexed(visibility = true)
+        private String vfield;
+        public ResolveChild setVfield(String vfield) { this.vfield = vfield; return this; }
+    }
+    public static class ResolveParent extends Record {
+        private ResolveChild child;
+        public ResolveParent setChild(ResolveChild child) { this.child = child; return this; }
+        public ResolveChild getChild() { return child; }
+    }
+
+    static ResolveChild resolveChild_1, resolveChild_2;
+    static ResolveParent resolveParent_1, resolveParent_2;
+
+    @BeforeClass
+    public static void beforeClass_resolveInvisible() {
+        resolveChild_1 = new ResolveChild().setVfield(null);
+        resolveChild_1.save();
+        resolveParent_1 = new ResolveParent().setChild(resolveChild_1);
+        resolveParent_1.save();
+        resolveChild_2 = new ResolveChild().setVfield("hidden");
+        resolveChild_2.save();
+        resolveParent_2 = new ResolveParent().setChild(resolveChild_2);
+        resolveParent_2.save();
+    }
+
+    @Test
+    public void resolve_visible_noResolve() {
+        ResolveParent parent = Query.from(ResolveParent.class).where("id = ?", resolveParent_1.getId()).first();
+
+        assertEquals(resolveChild_1, parent.getChild());
+    }
+
+    @Test
+    public void resolve_visible_resolve() {
+        ResolveParent parent = Query.from(ResolveParent.class).resolveInvisible().where("id = ?", resolveParent_1.getId()).first();
+
+        assertEquals(resolveChild_1, parent.getChild());
+    }
+
+    @Test
+    public void resolve_invisible_noResolve() {
+        ResolveParent parent = Query.from(ResolveParent.class).where("id = ?", resolveParent_2.getId()).first();
+
+        assertEquals(null, parent.getChild());
+    }
+
+    @Test
+    public void resolve_invisible_resolve() {
+        ResolveParent parent = Query.from(ResolveParent.class).resolveInvisible().where("id = ?", resolveParent_2.getId()).first();
+
+        assertEquals(resolveChild_2, parent.getChild());
+    }
 
 }
