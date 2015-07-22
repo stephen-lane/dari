@@ -778,6 +778,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
             Query<?> strippedQuery = query.clone();
             // Remove any possibility that multiple CachingDatabases will be cached in the sqlQueryCache.
             strippedQuery.setDatabase(this);
+            strippedQuery.getOptions().remove(State.REFERENCE_RESOLVING_QUERY_OPTION);
             return sqlQueryCache.getUnchecked(strippedQuery);
         } catch (UncheckedExecutionException e) {
             Throwable cause = e.getCause();

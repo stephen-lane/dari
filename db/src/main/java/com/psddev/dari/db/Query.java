@@ -1412,6 +1412,7 @@ public class Query<E> extends Record {
                     && ObjectUtils.equals(getSorters(), otherQuery.getSorters())
                     && ObjectUtils.equals(getDatabase(), otherQuery.getDatabase())
                     && ObjectUtils.equals(getFields(), otherQuery.getFields())
+                    && ObjectUtils.equals(getOptions(), otherQuery.getOptions())
                     && isResolveToReferenceOnly == otherQuery.isResolveToReferenceOnly
                     && ObjectUtils.equals(timeout, otherQuery.timeout);
 
@@ -1429,6 +1430,7 @@ public class Query<E> extends Record {
                 getSorters(),
                 getDatabase(),
                 getFields(),
+                getOptions(),
                 isResolveToReferenceOnly(),
                 getTimeout());
     }
