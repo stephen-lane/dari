@@ -3,6 +3,7 @@ package com.psddev.dari.util;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Modifier;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -21,7 +22,6 @@ import javax.tools.JavaFileObject;
 import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
@@ -221,7 +221,7 @@ public class ClassFinder {
                 loader = ObjectUtils.getCurrentClassLoader();
             }
 
-            return (Set<Class<? extends T>>) CLASSES_BY_BASE_CLASS_BY_LOADER.getUnchecked(loader).getUnchecked(baseClass);
+            return new HashSet<>((Set<Class<? extends T>>) CLASSES_BY_BASE_CLASS_BY_LOADER.getUnchecked(loader).getUnchecked(baseClass));
         }
 
         /**
@@ -233,6 +233,19 @@ public class ClassFinder {
          */
         public static <T> Set<Class<? extends T>> findClasses(Class<T> baseClass) {
             return findClassesFromLoader(null, baseClass);
+        }
+
+        /**
+         * Finds all concrete classes that are compatible with the given {@code baseClass}
+         * within the current class loader.
+         *
+         * @param baseClass Can't be {@code null}.
+         * @return Never {@code null}.
+         */
+        public static <T> Set<Class<? extends T>> findConcreteClasses(Class<T> baseClass) {
+            Set<Class<? extends T>> concreteClasses = findClasses(baseClass);
+            concreteClasses.removeIf(c -> c.isInterface() || Modifier.isAbstract(c.getModifiers()));
+            return concreteClasses;
         }
     }
 }
