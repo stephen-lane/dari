@@ -32,10 +32,12 @@
     <modules>
         <module>app-archetype</module>
         <module>db</module>
+        <module>db-test</module>
         <module>grandparent</module>
         <module>parent</module>
         <module>reloader/tomcat6</module>
         <module>util</module>
+        <module>test</module>
     </modules>
 
     <dependencyManagement>
@@ -133,6 +135,12 @@
             <dependency>
                 <groupId>com.psddev</groupId>
                 <artifactId>dari-util</artifactId>
+                <version>3.1-SNAPSHOT</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.psddev</groupId>
+                <artifactId>dari-test</artifactId>
                 <version>3.1-SNAPSHOT</version>
             </dependency>
 
