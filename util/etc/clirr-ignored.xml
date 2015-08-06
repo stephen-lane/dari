@@ -1,6 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <differences>
 
+    <difference>
+        <className>com/psddev/dari/util/Ping</className>
+        <differenceType>7012</differenceType>
+        <method>java.util.Map pingAll()</method>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/Ping</className>
+        <differenceType>7012</differenceType>
+        <method>java.lang.Throwable pingOne(java.lang.Class)</method>
+    </difference>
+
     <!-- Temporary while this is reworked to accommodate shading ASM. -->
     <difference>
         <className>com/psddev/dari/util/ClassEnhancer</className>

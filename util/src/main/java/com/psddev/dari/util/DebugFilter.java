@@ -78,7 +78,7 @@ public class DebugFilter extends AbstractFilter {
         protected Map<String, ServletWrapper> create() {
             Map<String, ServletWrapper> wrappers = new TreeMap<String, ServletWrapper>();
 
-            for (Class<? extends Servlet> servletClass : ClassFinder.Static.findClasses(Servlet.class)) {
+            for (Class<? extends Servlet> servletClass : ClassFinder.findClasses(Servlet.class)) {
                 try {
                     if (Modifier.isAbstract(servletClass.getModifiers())) {
                         continue;
@@ -332,7 +332,7 @@ public class DebugFilter extends AbstractFilter {
                                 writeEnd();
                             writeEnd();
                             writeStart("tbody");
-                                for (Map.Entry<Class<?>, Throwable> entry : Ping.Static.pingAll().entrySet()) {
+                                for (Map.Entry<Class<?>, Throwable> entry : Ping.pingAll().entrySet()) {
                                     String name = entry.getKey().getName();
                                     Throwable error = entry.getValue();
 

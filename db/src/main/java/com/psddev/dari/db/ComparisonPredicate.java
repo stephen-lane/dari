@@ -8,7 +8,6 @@ import java.util.Locale;
 
 import org.joda.time.DateTime;
 
-import com.psddev.dari.util.LocaleUtils;
 import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.Settings;
 import com.psddev.dari.util.StringUtils;
@@ -68,7 +67,7 @@ public final class ComparisonPredicate extends Predicate {
                 mutableValues.add(((Enum<?>) value).name());
 
             } else if (value instanceof Locale) {
-                mutableValues.add(LocaleUtils.toLanguageTag((Locale) value));
+                mutableValues.add(((Locale) value).toLanguageTag());
 
             } else if (value instanceof Class) {
                 mutableValues.add(ObjectType.getInstance((Class<?>) value).getId());

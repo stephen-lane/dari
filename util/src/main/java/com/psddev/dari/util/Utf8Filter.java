@@ -43,9 +43,8 @@ public class Utf8Filter extends AbstractFilter {
                 private final Map<String, String[]> reEncoded;
 
                 {
-                    @SuppressWarnings("unchecked")
-                    Map<String, String[]> oldMap = (Map<String, String[]>) getRequest().getParameterMap();
-                    Map<String, String[]> newMap  = new CompactMap<String, String[]>();
+                    Map<String, String[]> oldMap = getRequest().getParameterMap();
+                    Map<String, String[]> newMap  = new CompactMap<>();
 
                     for (Map.Entry<String, String[]> entry : oldMap.entrySet()) {
                         String[] values = entry.getValue();
@@ -73,14 +72,12 @@ public class Utf8Filter extends AbstractFilter {
                 }
 
                 @Override
-                @SuppressWarnings("rawtypes")
-                public Map getParameterMap() {
+                public Map<String, String[]> getParameterMap() {
                     return reEncoded;
                 }
 
                 @Override
-                @SuppressWarnings("rawtypes")
-                public Enumeration getParameterNames() {
+                public Enumeration<String> getParameterNames() {
                     return Collections.enumeration(reEncoded.keySet());
                 }
 

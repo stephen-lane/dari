@@ -719,12 +719,24 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
         }
     }
 
+    private String addComment(String sql, Query<?> query) {
+        if (query != null) {
+            String comment = query.getComment();
+
+            if (!ObjectUtils.isBlank(comment)) {
+                return "/*" + comment + "*/ " + sql;
+            }
+        }
+
+        return sql;
+    }
+
     /**
      * Builds an SQL statement that can be used to get a count of all
      * objects matching the given {@code query}.
      */
     public String buildCountStatement(Query<?> query) {
-        return new SqlQuery(this, query).countStatement();
+        return addComment(new SqlQuery(this, query).countStatement(), query);
     }
 
     /**
@@ -732,7 +744,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
      * matching the given {@code query}.
      */
     public String buildDeleteStatement(Query<?> query) {
-        return new SqlQuery(this, query).deleteStatement();
+        return addComment(new SqlQuery(this, query).deleteStatement(), query);
     }
 
     /**
@@ -740,11 +752,11 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
      * grouped by the values of the given {@code groupFields}.
      */
     public String buildGroupStatement(Query<?> query, String... groupFields) {
-        return new SqlQuery(this, query).groupStatement(groupFields);
+        return addComment(new SqlQuery(this, query).groupStatement(groupFields), query);
     }
 
     public String buildGroupedMetricStatement(Query<?> query, String metricFieldName, String... groupFields) {
-        return new SqlQuery(this, query).groupedMetricSql(metricFieldName, groupFields);
+        return addComment(new SqlQuery(this, query).groupedMetricSql(metricFieldName, groupFields), query);
     }
 
     /**
@@ -752,7 +764,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
      * matching the given {@code query} were last updated.
      */
     public String buildLastUpdateStatement(Query<?> query) {
-        return new SqlQuery(this, query).lastUpdateStatement();
+        return addComment(new SqlQuery(this, query).lastUpdateStatement(), query);
     }
 
     /**
@@ -779,7 +791,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
             // Remove any possibility that multiple CachingDatabases will be cached in the sqlQueryCache.
             strippedQuery.setDatabase(this);
             strippedQuery.getOptions().remove(State.REFERENCE_RESOLVING_QUERY_OPTION);
-            return sqlQueryCache.getUnchecked(strippedQuery);
+            return addComment(sqlQueryCache.getUnchecked(strippedQuery), query);
         } catch (UncheckedExecutionException e) {
             Throwable cause = e.getCause();
             if (cause instanceof RuntimeException) {
@@ -3252,14 +3264,24 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
                     return affected;
                 } catch (SQLException sqlEx) {
                     if (savePoint != null) {
-                        connection.rollback(savePoint);
+                        try {
+                            connection.rollback(savePoint);
+
+                        } catch (SQLException error) {
+                            // Safe to ignore?
+                        }
                     }
 
                     throw sqlEx;
 
                 } finally {
                     if (savePoint != null) {
-                        connection.releaseSavepoint(savePoint);
+                        try {
+                            connection.releaseSavepoint(savePoint);
+
+                        } catch (SQLException error) {
+                            // Safe to ignore?
+                        }
                     }
 
                     double time = timer.stop(UPDATE_STATS_OPERATION);

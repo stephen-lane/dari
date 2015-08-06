@@ -20,6 +20,10 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpServletResponseWrapper;
 
+/**
+ * @deprecated 2015-07-23 - No replacement.
+ */
+@Deprecated
 public class FrameFilter extends AbstractFilter {
 
     private static final String PARAMETER_PREFIX = "_frame.";
