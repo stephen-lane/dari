@@ -77,7 +77,7 @@ public class QueryUsagesDebugServlet extends HttpServlet {
 
         List<Class<?>> allClasses = new ArrayList<Class<?>>();
 
-        for (Class<?> c : ClassFinder.Static.findClasses(Object.class)) {
+        for (Class<?> c : ClassFinder.findClasses(Object.class)) {
             String cn = c.getName();
 
             if (!cn.startsWith("com.psddev.")) {

@@ -8,6 +8,10 @@ import javax.servlet.jsp.JspException;
 import javax.servlet.jsp.tagext.BodyTagSupport;
 import javax.servlet.jsp.tagext.DynamicAttributes;
 
+/**
+ * @deprecated 2015-07-23 - No replacement.
+ */
+@Deprecated
 @SuppressWarnings("serial")
 public class FrameTag extends BodyTagSupport implements DynamicAttributes {
 

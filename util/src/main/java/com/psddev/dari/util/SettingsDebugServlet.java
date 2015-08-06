@@ -88,7 +88,7 @@ public class SettingsDebugServlet extends HttpServlet {
 
             List<Usage> usages = new ArrayList<Usage>();
 
-            for (Class<?> objectClass : ClassFinder.Static.findClasses(Object.class)) {
+            for (Class<?> objectClass : ClassFinder.findClasses(Object.class)) {
                 if (Settings.class.isAssignableFrom(objectClass)) {
                     continue;
                 }

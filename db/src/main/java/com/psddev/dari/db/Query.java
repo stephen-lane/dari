@@ -157,6 +157,8 @@ public class Query<E> extends Record {
 
     private final transient Map<String, Object> facetedRanges = new HashMap<String, Object>();
 
+    private transient String comment;
+
     /**
      * Queries over objects of types that are compatible with the given
      * {@code objectClass}.
@@ -382,6 +384,24 @@ public class Query<E> extends Record {
      */
     public void setOptions(Map<String, Object> options) {
         this.options = options;
+    }
+
+    /**
+     * Returns the informational comment.
+     *
+     * @return May be {@code null}.
+     */
+    public String getComment() {
+        return comment;
+    }
+
+    /**
+     * Sets the given informational {@code comment}.
+     *
+     * @param comment May be {@code null}.
+     */
+    public void setComment(String comment) {
+        this.comment = comment;
     }
 
     /**
@@ -648,6 +668,14 @@ public class Query<E> extends Record {
     /** Adds a custom option with the given {@code key} and {@code value}. */
     public Query<E> option(String key, Object value) {
         getOptions().put(key, value);
+        return this;
+    }
+
+    /**
+     * Fluent method for {@link #setComment(String)}.
+     */
+    public Query<E> comment(String comment) {
+        setComment(comment);
         return this;
     }
 
