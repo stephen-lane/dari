@@ -564,7 +564,7 @@ public class Converter {
                 return (Locale) object;
 
             } else {
-                return LocaleUtils.forLanguageTag(object.toString().trim());
+                return Locale.forLanguageTag(object.toString().trim());
             }
         }
     }

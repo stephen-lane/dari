@@ -17,7 +17,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-import com.psddev.dari.util.LocaleUtils;
 import com.psddev.dari.util.ObjectToIterable;
 import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.StringUtils;
@@ -1159,7 +1158,7 @@ public enum SqlIndex {
                 values.add(((Enum<?>) value).name());
 
             } else if (value instanceof Locale) {
-                values.add(LocaleUtils.toLanguageTag((Locale) value));
+                values.add(((Locale) value).toLanguageTag());
 
             } else {
                 values.add(value);

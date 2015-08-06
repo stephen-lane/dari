@@ -39,7 +39,7 @@ public class PingFilter extends AbstractFilter {
             return;
         }
 
-        Map<Class<?>, Throwable> errors = Ping.Static.pingAll();
+        Map<Class<?>, Throwable> errors = Ping.pingAll();
 
         for (Throwable error : errors.values()) {
             if (error == null) {

@@ -305,7 +305,7 @@ public class DatabaseEnvironment implements ObjectStruct {
                         temporaryTypes.changed.add(rootTypeId);
                     }
 
-                    Set<Class<? extends Recordable>> objectClasses = ClassFinder.Static.findClasses(Recordable.class);
+                    Set<Class<? extends Recordable>> objectClasses = ClassFinder.findClasses(Recordable.class);
 
                     for (Iterator<Class<? extends Recordable>> i = objectClasses.iterator(); i.hasNext();) {
                         Class<? extends Recordable> objectClass = i.next();

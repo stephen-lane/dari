@@ -11,4 +11,10 @@
         <differenceType>7012</differenceType>
         <method>void removeUpdateNotifier(com.psddev.dari.db.UpdateNotifier)</method>
     </difference>
+
+    <difference>
+        <className>com/psddev/dari/db/ObjectStruct</className>
+        <differenceType>7012</differenceType>
+        <method>java.util.List findIndexedFields(com.psddev.dari.db.ObjectStruct)</method>
+    </difference>
 </differences>

@@ -793,7 +793,7 @@ public class SourceFilter extends AbstractFilter {
                 } else {
                     javaSourceFileModifieds.putAll(newSourceFiles);
 
-                    Set<Class<? extends ClassEnhancer>> enhancerClasses = ClassFinder.Static.findClasses(ClassEnhancer.class);
+                    Set<Class<? extends ClassEnhancer>> enhancerClasses = ClassFinder.findClasses(ClassEnhancer.class);
 
                     // Process any class files that's changed.
                     for (JavaFileObject outputFile : fileManager.list(
