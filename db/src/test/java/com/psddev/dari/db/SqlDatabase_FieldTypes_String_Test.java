@@ -136,11 +136,19 @@ public class SqlDatabase_FieldTypes_String_Test {
 
         assertEquals("AAA", result.getValue());
     }
+
     @Test
     public void test_value_null_correct() {
         StringExample result = Query.from(StringExample.class).where("id = ?", instanceNull).first();
 
         assertEquals(null, result.getValue());
+    }
+
+    /** startsWith **/
+    @Test
+    public void test_startsWith() {
+        assertEquals(Arrays.asList(instanceBBB),
+                Query.from(StringExample.class).where("value startsWith ?", "b").selectAll());
     }
 
 
