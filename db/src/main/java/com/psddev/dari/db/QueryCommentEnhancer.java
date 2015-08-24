@@ -48,6 +48,8 @@ public class QueryCommentEnhancer extends ClassEnhancer {
 
     @Override
     public void visitSource(String source, String debug) {
+        super.visitSource(source, debug);
+
         currentSource = StringUtils.removeEnd(source, ".java");
     }
 

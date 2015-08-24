@@ -83,6 +83,7 @@ public abstract class AbstractFilter implements Filter {
     private static final String DEPENDENCY_EXCLUDES_ATTRIBUTE = ATTRIBUTE_PREFIX + "dependencyExcludes";
     private static final String FILTERS_ATTRIBUTE = ATTRIBUTE_PREFIX + "filters";
 
+    private boolean disabled;
     private FilterConfig filterConfig;
     private ServletContext servletContext;
     private final List<Filter> initialized = new ArrayList<>();
@@ -128,6 +129,7 @@ public abstract class AbstractFilter implements Filter {
     public final void init(FilterConfig config) throws ServletException {
         Preconditions.checkNotNull(config);
 
+        disabled = Settings.get(boolean.class, DISABLE_FILTER_SETTING_PREFIX + getClass().getName());
         filterConfig = config;
         servletContext = config.getServletContext();
 
@@ -167,6 +169,7 @@ public abstract class AbstractFilter implements Filter {
             throw Throwables.propagate(error);
         }
 
+        disabled = false;
         filterConfig = null;
         servletContext = null;
         initialized.clear();
@@ -198,7 +201,7 @@ public abstract class AbstractFilter implements Filter {
             FilterChain chain)
             throws IOException, ServletException {
 
-        if (Settings.get(boolean.class, DISABLE_FILTER_SETTING_PREFIX + getClass().getName())) {
+        if (disabled) {
             chain.doFilter(request, response);
             return;
         }

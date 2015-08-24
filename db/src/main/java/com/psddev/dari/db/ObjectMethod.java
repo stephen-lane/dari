@@ -23,11 +23,10 @@ public class ObjectMethod extends ObjectField {
 
     public static final String JAVA_METHOD_NAME_KEY = "java.method";
 
+    private static final String HAS_SINGLE_OBJECT_METHOD_PARAMETER_EXTRA = "dari.objectMethod.hasSingleParam";
+
     @InternalName(JAVA_METHOD_NAME_KEY)
     private String javaMethodName;
-
-    private transient List<String> javaParameterTypeNames;
-    private transient Boolean hasSingleObjectMethodParameter;
 
     public ObjectMethod(ObjectMethod method) {
         super(method);
@@ -51,25 +50,25 @@ public class ObjectMethod extends ObjectField {
     }
 
     public List<String> getJavaParameterTypeNames() {
-        if (javaParameterTypeNames == null) {
-            Method method = getJavaMethod(ObjectUtils.getClassByName(getJavaDeclaringClassName()));
-            if (method != null) {
-                javaParameterTypeNames = new ArrayList<String>();
-                for (Class<?> cls : method.getParameterTypes()) {
-                    javaParameterTypeNames.add(cls.getName());
-                }
+        List<String> javaParameterTypeNames = new ArrayList<>();
+        Method method = getJavaMethod(ObjectUtils.getClassByName(getJavaDeclaringClassName()));
+        if (method != null) {
+            for (Class<?> cls : method.getParameterTypes()) {
+                javaParameterTypeNames.add(cls.getName());
             }
-            hasSingleObjectMethodParameter = null;
         }
-        return javaParameterTypeNames != null ? Collections.unmodifiableList(javaParameterTypeNames) : Collections.<String>emptyList();
+        return Collections.unmodifiableList(javaParameterTypeNames);
     }
 
     public boolean hasSingleObjectMethodParameter() {
-        if (hasSingleObjectMethodParameter == null) {
-            hasSingleObjectMethodParameter = getJavaParameterTypeNames().size() == 1
-                    && ObjectMethod.class.getName().equals(getJavaParameterTypeNames().get(0));
+        Object hasSingleParam = getState().getExtra(HAS_SINGLE_OBJECT_METHOD_PARAMETER_EXTRA);
+        if (!(hasSingleParam instanceof Boolean)) {
+            List<String> params = getJavaParameterTypeNames();
+            hasSingleParam = params.size() == 1
+                        && ObjectMethod.class.getName().equals(params.get(0));
+            getState().getExtras().put(HAS_SINGLE_OBJECT_METHOD_PARAMETER_EXTRA, hasSingleParam);
         }
-        return hasSingleObjectMethodParameter;
+        return (Boolean) hasSingleParam;
     }
 
     public Method getJavaMethod(Class<?> objectClass) {
