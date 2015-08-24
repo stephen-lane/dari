@@ -154,8 +154,14 @@ try {
         }
     }
 
-    if (env.BUILD_NUMBER) {
-        properties['buildNumber'] = env.BUILD_NUMBER
+    def buildNumber = env.BUILD_NUMBER
+
+    if (!buildNumber) {
+        buildNumber = env.TRAVIS_BUILD_NUMBER
+    }
+
+    if (buildNumber) {
+        properties['buildNumber'] = buildNumber
 
         try {
             def git = 'git'

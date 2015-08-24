@@ -315,10 +315,7 @@ public class JavaImageEditor extends AbstractImageEditor {
 
         newStorageItem.setContentType(contentType);
 
-        Map<String, Object> metadata = storageItem.getMetadata();
-        if (metadata == null) {
-            metadata = new HashMap<String, Object>();
-        }
+        Map<String, Object> metadata = new HashMap<String, Object>();
 
         // store the new width and height in the metadata map
         if (outputDimension != null && outputDimension.width != null) {

@@ -43,20 +43,66 @@ public interface Database extends SettingsBackedObject {
     /** Sets the environment. */
     public void setEnvironment(DatabaseEnvironment environment);
 
-    /** Returns a list of all objects matching the given {@code query}. */
-    public <T> List<T> readAll(Query<T> query);
+    /**
+     * Returns a list of all objects matching the given {@code query}.
+     *
+     * <p>The default implementation uses {@link #readPartial(Query, long, int)}.
+     * </p>
+     *
+     * @param query
+     *        Can't be {@code null}.
+     *
+     * @return Never {@code null}.
+     */
+    default <T> List<T> readAll(Query<T> query) {
+        return readPartial(query, 0L, MAXIMUM_LIMIT).getItems();
+    }
 
     /**
      * Returns all objects matching the given {@code query} grouped by the
      * values of the given {@code fields}.
+     *
+     * @param query
+     *        Can't be {@code null}.
+     *
+     * @param fields
+     *        Can't be blank.
+     *
+     * @return Never {@code null}.
      */
-    public <T> List<Grouping<T>> readAllGrouped(Query<T> query, String... fields);
+    default <T> List<Grouping<T>> readAllGrouped(Query<T> query, String... fields) {
+        return readPartialGrouped(query, 0L, MAXIMUM_LIMIT, fields).getItems();
+    }
 
-    /** Returns a count of all objects matching the given {@code query}. */
-    public long readCount(Query<?> query);
+    /**
+     * Returns a count of all objects matching the given {@code query}.
+     *
+     * <p>The default implementation uses {@link #readPartial(Query, long, int)}.
+     * </p>
+     *
+     * @param query
+     *        Can't be {@code null}.
+     */
+    default long readCount(Query<?> query) {
+        return readPartial(query, 0L, 1).getCount();
+    }
 
-    /** Returns the first object matching the given {@code query}. */
-    public <T> T readFirst(Query<T> query);
+    /**
+     * Returns the first object matching the given {@code query}.
+     *
+     * <p>The default implementation uses {@link #readPartial(Query, long, int)}.
+     * </p>
+     *
+     * @param query
+     *        Can't be {@code null}.
+     *
+     * @return May be {@code null}.
+     */
+    default <T> T readFirst(Query<T> query) {
+        List<T> items = readPartial(query, 0L, 1).getItems();
+
+        return items.isEmpty() ? null : items.get(0);
+    }
 
     /**
      * Returns an iterable of all objects matching the given {@code query}

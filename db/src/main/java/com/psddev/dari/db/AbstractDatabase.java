@@ -72,6 +72,7 @@ public abstract class AbstractDatabase<C> implements Database {
     public static final String GROUPS_SUB_SETTING = "groups";
     public static final String READ_TIMEOUT_SUB_SETTING = "readTimeout";
     public static final String TRIGGER_EXTRA_PREFIX = "db.trigger.";
+    public static final String SAVING_UNSAFELY_EXTRA = "db.savingUnsafely";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AbstractDatabase.class);
 
@@ -203,7 +204,11 @@ public abstract class AbstractDatabase<C> implements Database {
 
                                 if (save) {
                                     if (!saves.contains(itemState)) {
-                                        itemState.save();
+                                        if (Boolean.TRUE.equals(itemState.getExtra(SAVING_UNSAFELY_EXTRA))) {
+                                            itemState.saveUnsafely();
+                                        } else {
+                                            itemState.save();
+                                        }
                                     }
                                 }
                             }
@@ -215,7 +220,11 @@ public abstract class AbstractDatabase<C> implements Database {
 
                         itemState.remove(junctionField);
                         if (!saves.contains(itemState)) {
-                            itemState.save();
+                            if (Boolean.TRUE.equals(itemState.getExtra(SAVING_UNSAFELY_EXTRA))) {
+                                itemState.saveUnsafely();
+                            } else {
+                                itemState.save();
+                            }
                         }
                     }
                 }
@@ -407,29 +416,6 @@ public abstract class AbstractDatabase<C> implements Database {
     @Override
     public void setEnvironment(DatabaseEnvironment environment) {
         this.environment = environment;
-    }
-
-    @Override
-    public <T> List<T> readAll(Query<T> query) {
-        return readPartial(query, 0L, MAXIMUM_LIMIT).getItems();
-    }
-
-    @Override
-    public <T> List<Grouping<T>> readAllGrouped(Query<T> query, String... fields) {
-        return readPartialGrouped(query, 0L, MAXIMUM_LIMIT, fields).getItems();
-    }
-
-    @Override
-    public long readCount(Query<?> query) {
-        return readPartial(query, 0L, 1).getCount();
-    }
-
-    @Override
-    public <T> T readFirst(Query<T> query) {
-        for (T item : readPartial(query, 0L, 1).getItems()) {
-            return item;
-        }
-        return null;
     }
 
     @Override
@@ -853,6 +839,7 @@ public abstract class AbstractDatabase<C> implements Database {
     public final void saveUnsafely(State state) {
         checkState(state);
 
+        state.getExtras().put(SAVING_UNSAFELY_EXTRA, true);
         Writes writes = getCurrentWrites();
         if (writes != null) {
             writes.addToSaves(state);
@@ -860,6 +847,7 @@ public abstract class AbstractDatabase<C> implements Database {
         } else {
             write(null, Arrays.asList(state), null, null, null, true);
         }
+        state.getExtras().remove(SAVING_UNSAFELY_EXTRA);
     }
 
     @Override
