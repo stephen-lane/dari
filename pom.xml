@@ -33,6 +33,7 @@
         <module>app-archetype</module>
         <module>db</module>
         <module>db-test</module>
+        <module>elasticsearch</module>
         <module>grandparent</module>
         <module>parent</module>
         <module>reloader/tomcat6</module>
@@ -232,6 +233,12 @@
                 <groupId>org.codehaus.jackson</groupId>
                 <artifactId>jackson-core-asl</artifactId>
                 <version>1.6.1</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.elasticsearch</groupId>
+                <artifactId>elasticsearch</artifactId>
+                <version>1.7.1</version>
             </dependency>
 
             <dependency>
