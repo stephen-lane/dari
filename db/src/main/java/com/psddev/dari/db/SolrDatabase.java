@@ -61,6 +61,7 @@ public class SolrDatabase extends AbstractDatabase<SolrServer> {
     public static final String COMMIT_WITHIN_SUB_SETTING = "commitWithin";
     public static final String VERSION_SUB_SETTING = "version";
     public static final String SAVE_DATA_SUB_SETTING = "saveData";
+    public static final String AUTO_COMMIT_SUB_SETTING = "autoCommit";
 
     public static final double DEFAULT_COMMIT_WITHIN = 0.0;
 
@@ -91,7 +92,7 @@ public class SolrDatabase extends AbstractDatabase<SolrServer> {
     private static final String COMMIT_PROFILER_EVENT = SHORT_NAME + " " + COMMIT_STATS_OPERATION;
     private static final String DELETE_PROFILER_EVENT = SHORT_NAME + " " + DELETE_STATS_OPERATION;
     private static final String QUERY_PROFILER_EVENT = SHORT_NAME + " " + QUERY_STATS_OPERATION;
-    private static final int MAX_BINARY_FIELD_LENGTH = 32766;
+    private static final int MAX_BINARY_FIELD_LENGTH = 500;
     private static final Set<String> TRUNCATE_FIELD_PREFIXES = new HashSet<>();
 
     static {
@@ -105,6 +106,7 @@ public class SolrDatabase extends AbstractDatabase<SolrServer> {
     private volatile Double commitWithin;
     private volatile String version;
     private volatile boolean saveData = true;
+    private volatile boolean autoCommit;
 
     /** Returns the underlying Solr server. */
     public SolrServer getServer() {
@@ -169,6 +171,14 @@ public class SolrDatabase extends AbstractDatabase<SolrServer> {
 
     public void setSaveData(boolean saveData) {
         this.saveData = saveData;
+    }
+
+    public boolean isAutoCommit() {
+        return autoCommit;
+    }
+
+    public void setAutoCommit(boolean autoCommit) {
+        this.autoCommit = autoCommit;
     }
 
     private static class SolrSchema {
@@ -1149,6 +1159,10 @@ public class SolrDatabase extends AbstractDatabase<SolrServer> {
     }
 
     private void doCommit(SolrServer server) {
+        if (isAutoCommit()) {
+            return;
+        }
+
         Throwable error = null;
 
         try {
@@ -1208,6 +1222,12 @@ public class SolrDatabase extends AbstractDatabase<SolrServer> {
         Boolean saveData = ObjectUtils.to(Boolean.class, settings.get(SAVE_DATA_SUB_SETTING));
         if (saveData != null) {
             setSaveData(saveData);
+        }
+
+        Boolean autoCommit = ObjectUtils.to(Boolean.class, settings.get(AUTO_COMMIT_SUB_SETTING));
+
+        if (autoCommit != null) {
+            setAutoCommit(autoCommit);
         }
     }
 

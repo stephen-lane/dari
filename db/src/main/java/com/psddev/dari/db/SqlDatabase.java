@@ -864,6 +864,28 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
         return dataBytes;
     }
 
+    private static byte[] decodeData(byte[] dataBytes) {
+        char format;
+
+        while (true) {
+            format = (char) dataBytes[0];
+
+            if (format == 's') {
+                dataBytes = Snappy.uncompress(dataBytes, 1, dataBytes.length - 1);
+
+            } else if (format == '{') {
+                return dataBytes;
+
+            } else {
+                break;
+            }
+        }
+
+        throw new IllegalStateException(String.format(
+                "Unknown format! ([%s])",
+                format));
+    }
+
     @SuppressWarnings("unchecked")
     protected static Map<String, Object> unserializeData(byte[] dataBytes) {
         char format = '\0';
@@ -928,7 +950,12 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
             byte[] data = resultSet.getBytes(3);
 
             if (data != null) {
-                objectState.setValues(unserializeData(data));
+                byte[] decodedData = decodeData(data);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> unserializedData = (Map<String, Object>) ObjectUtils.fromJson(decodedData);
+
+                objectState.setValues(unserializedData);
+                objectState.getExtras().put(DATA_LENGTH_EXTRA, decodedData.length);
                 Boolean returnOriginal = ObjectUtils.to(Boolean.class, query.getOptions().get(RETURN_ORIGINAL_DATA_QUERY_OPTION));
                 if (returnOriginal == null) {
                     returnOriginal = Boolean.FALSE;

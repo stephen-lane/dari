@@ -73,6 +73,7 @@ public abstract class AbstractDatabase<C> implements Database {
     public static final String READ_TIMEOUT_SUB_SETTING = "readTimeout";
     public static final String TRIGGER_EXTRA_PREFIX = "db.trigger.";
     public static final String SAVING_UNSAFELY_EXTRA = "db.savingUnsafely";
+    public static final String DATA_LENGTH_EXTRA = "dari.dataLength";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AbstractDatabase.class);
 
@@ -95,9 +96,7 @@ public abstract class AbstractDatabase<C> implements Database {
         public void addToValidates(State state) {
             validates.remove(state);
             validates.add(state);
-        }
 
-        public void addToSaves(State state) {
             saveJunctions(state, state.getDatabase().getEnvironment());
 
             ObjectType type = state.getType();
@@ -105,7 +104,9 @@ public abstract class AbstractDatabase<C> implements Database {
             if (type != null) {
                 saveJunctions(state, type);
             }
+        }
 
+        public void addToSaves(State state) {
             for (Iterator<State> i = saves.iterator(); i.hasNext();) {
                 State s = i.next();
 
