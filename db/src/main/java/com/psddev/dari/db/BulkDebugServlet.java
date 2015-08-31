@@ -3,7 +3,9 @@ package com.psddev.dari.db;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import javax.servlet.ServletException;
@@ -86,6 +88,25 @@ public class BulkDebugServlet extends HttpServlet {
                         .fromType(selectedType)
                         .resolveToReferenceOnly();
 
+                if (destination instanceof AbstractDatabase) {
+                    Set<String> destinationGroups = ((AbstractDatabase<?>) destination).getGroups();
+
+                    if (!destinationGroups.contains(UUID.randomUUID().toString())) {
+                        Set<UUID> savableTypeIds = new HashSet<>();
+
+                        for (ObjectType type : source.getEnvironment().getTypes()) {
+                            for (String typeGroup : type.getGroups()) {
+                                if (destinationGroups.contains(typeGroup)) {
+                                    savableTypeIds.add(type.getId());
+                                    break;
+                                }
+                            }
+                        }
+
+                        query.and("_type = ?", savableTypeIds);
+                    }
+                }
+
                 query.getOptions().put(SqlDatabase.USE_JDBC_FETCH_SIZE_QUERY_OPTION, false);
 
                 if (wp.param(boolean.class, "isResumable") && source instanceof SqlDatabase) {
@@ -115,11 +136,19 @@ public class BulkDebugServlet extends HttpServlet {
                 }).submit();
 
                 queue.closeAutomatically();
+                System.gc();
+
+                long maximumDataLength = Runtime.getRuntime().freeMemory() / 10 / writersCount / commitSize;
+
+                System.out.println("maximum data length: " + maximumDataLength);
 
                 for (int i = 0; i < writersCount; ++ i) {
-                    new AsyncDatabaseWriter<Object>(
-                            executor, queue, destination, WriteOperation.SAVE_UNSAFELY, commitSize, true)
-                            .submit();
+                    AsyncDatabaseWriter<Object> writer = new AsyncDatabaseWriter<>(
+                            executor, queue, destination, WriteOperation.SAVE_UNSAFELY, commitSize, true);
+
+                    writer.setCommitSizeJitter(0.2);
+                    writer.setMaximumDataLength(maximumDataLength);
+                    writer.submit();
                 }
             }
 

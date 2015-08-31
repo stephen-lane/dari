@@ -154,7 +154,7 @@ public interface Recordable {
     @ObjectField.AnnotationProcessorClass(EmbeddedProcessor.class)
     @ObjectType.AnnotationProcessorClass(EmbeddedProcessor.class)
     @Retention(RetentionPolicy.RUNTIME)
-    @Target({ ElementType.FIELD, ElementType.TYPE })
+    @Target({ ElementType.FIELD, ElementType.TYPE, ElementType.METHOD })
     public @interface Embedded {
         boolean value() default true;
     }
