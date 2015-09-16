@@ -30,7 +30,7 @@
     </scm>
 
     <modules>
-        <module>app-archetype</module>
+        <module>aws</module>
         <module>db</module>
         <module>db-test</module>
         <module>elasticsearch</module>
