@@ -383,7 +383,6 @@ try {
                                             </module>
 
                                             <module name="SuppressionCommentFilter"/>
-                                            <module name="Translation"/>
 
                                             <module name="TreeWalker">
                                                 <module name="ArrayTypeStyle"/>

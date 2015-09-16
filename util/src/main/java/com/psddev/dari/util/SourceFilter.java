@@ -27,6 +27,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.ResourceBundle;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
@@ -670,6 +671,8 @@ public class SourceFilter extends AbstractFilter {
                     }
                 }
             }
+
+            ResourceBundle.clearCache();
 
             return null;
         }
