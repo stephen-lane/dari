@@ -1,13 +1,11 @@
 package com.psddev.dari.util;
 
-import javax.servlet.Filter;
 import javax.servlet.http.HttpServletRequest;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
