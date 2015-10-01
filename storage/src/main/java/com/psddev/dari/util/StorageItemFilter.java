@@ -8,7 +8,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -250,14 +249,5 @@ public class StorageItemFilter extends AbstractFilter {
                 }
             }
         }
-    }
-
-    @Override
-    protected Iterable<Class<? extends Filter>> dependencies() {
-        List<Class<? extends Filter>> dependencies = new ArrayList<>();
-
-        dependencies.add(StandardFilter.class);
-
-        return dependencies;
     }
 }
