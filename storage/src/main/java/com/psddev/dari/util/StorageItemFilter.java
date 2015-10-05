@@ -7,7 +7,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Map;
-import java.util.UUID;
 
 import javax.servlet.FilterChain;
 import javax.servlet.ServletContext;
@@ -67,7 +66,6 @@ public class StorageItemFilter extends AbstractFilter {
 
         StorageItem storageItem = null;
 
-        //TODO: improve parameter type detection of file parameter
         if (storageItemJson != null && !storageItemJson.equals("file")) {
             storageItem = createStorageItem(storageItemJson);
         } else {
@@ -99,7 +97,7 @@ public class StorageItemFilter extends AbstractFilter {
             file = File.createTempFile("cms.", ".tmp");
             fileItem.write(file);
         } catch (Exception e) {
-            throw new IOException("Unable to write [fileItem] to [file]", e);
+            throw new IOException("Unable to write [" + (fileItem != null ? fileItem.getName() : "fileItem") + "] to temporary file.", e);
         }
 
         String fileName = Preconditions.checkNotNull(fileItem.getName());
@@ -113,6 +111,7 @@ public class StorageItemFilter extends AbstractFilter {
         ClassFinder.findConcreteClasses(StorageItemValidator.class)
                 .forEach(c -> {
                     try {
+                        //TODO: dynamically determine if validator should be used for this storage item
                         TypeDefinition.getInstance(c).newInstance().validate(file, fileContentType);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
@@ -122,7 +121,16 @@ public class StorageItemFilter extends AbstractFilter {
         StorageItem storageItem = StorageItem.Static.createIn(storageSetting);
         storageItem.setData(new FileInputStream(file));
         storageItem.setContentType(fileContentType);
-        storageItem.setPath(createStorageItemPath(fileName));
+
+        StorageItemPathGenerator pathGenerator = new StorageItemPathGenerator() {};
+        for (Class<? extends StorageItemPathGenerator> generatorClass : ClassFinder.findConcreteClasses(StorageItemPathGenerator.class)) {
+            StorageItemPathGenerator candidate = TypeDefinition.getInstance(generatorClass).newInstance();
+            if (candidate.isSupported(storageName)) {
+                pathGenerator = candidate;
+            }
+        }
+
+        storageItem.setPath(pathGenerator.createPath(fileName));
 
         return storageItem;
     }
@@ -141,8 +149,7 @@ public class StorageItemFilter extends AbstractFilter {
         Map<String, Object> metadata = null;
         if (!ObjectUtils.isBlank(json.get("metadata"))) {
             metadata = ObjectUtils.to(
-                    new TypeReference<Map<String, Object>>() {
-                    },
+                    new TypeReference<Map<String, Object>>() { },
                     json.get("metadata"));
         }
 
@@ -152,43 +159,5 @@ public class StorageItemFilter extends AbstractFilter {
         storageItem.setMetadata(metadata);
 
         return storageItem;
-    }
-
-    private static String createStorageItemPath(String fullFileName) {
-        Preconditions.checkArgument(!StringUtils.isBlank(fullFileName));
-
-        String extension = "";
-        String fileName = "";
-        String path = createStoragePathPrefix();
-
-        int lastDotAt = fullFileName.indexOf('.');
-
-        if (lastDotAt > -1) {
-            extension = fullFileName.substring(lastDotAt);
-            fileName = fullFileName.substring(0, lastDotAt);
-        }
-
-        if (ObjectUtils.isBlank(fileName)) {
-            fileName = UUID.randomUUID().toString().replace("-", "");
-        }
-
-        path += StringUtils.toNormalized(fileName);
-        path += extension;
-
-        return path;
-    }
-
-    private static String createStoragePathPrefix() {
-        String idString = UUID.randomUUID().toString().replace("-", "");
-        StringBuilder pathBuilder = new StringBuilder();
-
-        pathBuilder.append(idString.substring(0, 2));
-        pathBuilder.append('/');
-        pathBuilder.append(idString.substring(2, 4));
-        pathBuilder.append('/');
-        pathBuilder.append(idString.substring(4));
-        pathBuilder.append('/');
-
-        return pathBuilder.toString();
     }
 }
