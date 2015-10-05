@@ -5,10 +5,8 @@ import javax.servlet.http.HttpServletRequest;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.util.Locale;
+import java.io.UncheckedIOException;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 import javax.servlet.FilterChain;
@@ -58,7 +56,7 @@ public class StorageItemFilter extends AbstractFilter {
      *
      * @param request     Can't be {@code null}.
      * @param paramName   The parameter name for the file input. Can't be {@code null} or blank.
-     * @param storageName Optionally accepts a storageName. will default to using {@code StorageItem.DEFAULT_STORAGE_SETTING}
+     * @param storageName Optionally accepts a storageName, will default to using {@code StorageItem.DEFAULT_STORAGE_SETTING}
      * @return the created {@link StorageItem}
      */
     public static StorageItem getParameter(HttpServletRequest request, String paramName, String storageName) throws IOException {
@@ -72,9 +70,8 @@ public class StorageItemFilter extends AbstractFilter {
         //TODO: improve parameter type detection of file parameter
         if (storageItemJson != null && !storageItemJson.equals("file")) {
             storageItem = createStorageItem(storageItemJson);
-        }
+        } else {
 
-        if (storageItem == null) {
             MultipartRequest mpRequest = MultipartRequestFilter.Static.getInstance(request);
 
             if (mpRequest != null) {
@@ -113,7 +110,14 @@ public class StorageItemFilter extends AbstractFilter {
         Preconditions.checkState(fileSize > 0,
                 "File [" + fileName + "] is empty");
 
-        checkContentType(file, fileContentType);
+        ClassFinder.findConcreteClasses(StorageItemValidator.class)
+                .forEach(c -> {
+                    try {
+                        TypeDefinition.getInstance(c).newInstance().validate(file, fileContentType);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                });
 
         StorageItem storageItem = StorageItem.Static.createIn(storageSetting);
         storageItem.setData(new FileInputStream(file));
@@ -186,66 +190,5 @@ public class StorageItemFilter extends AbstractFilter {
         pathBuilder.append('/');
 
         return pathBuilder.toString();
-    }
-
-    private static void checkContentType(File file, String fileContentType) throws IOException {
-        Preconditions.checkNotNull(file);
-
-        if (fileContentType == null) {
-            return;
-        }
-
-        String groupsPattern = Settings.get(String.class, "cms/tool/fileContentTypeGroups");
-        Set<String> contentTypeGroups = new SparseSet(ObjectUtils.isBlank(groupsPattern) ? "+/" : groupsPattern);
-
-        Preconditions.checkState(contentTypeGroups.contains(fileContentType),
-                "Invalid content type " + fileContentType + ". Must match the pattern " + contentTypeGroups + ".");
-
-        // Disallow HTML disguising as other content types per:
-        // http://www.adambarth.com/papers/2009/barth-caballero-song.pdf
-        if (!contentTypeGroups.contains("text/html")) {
-            try (InputStream input = new FileInputStream(file)) {
-                byte[] buffer = new byte[1024];
-                String data = new String(buffer, 0, input.read(buffer)).toLowerCase(Locale.ENGLISH);
-                String ptr = data.trim();
-
-                if (ptr.startsWith("<!")
-                        || ptr.startsWith("<?")
-                        || data.startsWith("<html")
-                        || data.startsWith("<script")
-                        || data.startsWith("<title")
-                        || data.startsWith("<body")
-                        || data.startsWith("<head")
-                        || data.startsWith("<plaintext")
-                        || data.startsWith("<table")
-                        || data.startsWith("<img")
-                        || data.startsWith("<pre")
-                        || data.startsWith("text/html")
-                        || data.startsWith("<a")
-                        || ptr.startsWith("<frameset")
-                        || ptr.startsWith("<iframe")
-                        || ptr.startsWith("<link")
-                        || ptr.startsWith("<base")
-                        || ptr.startsWith("<style")
-                        || ptr.startsWith("<div")
-                        || ptr.startsWith("<p")
-                        || ptr.startsWith("<font")
-                        || ptr.startsWith("<applet")
-                        || ptr.startsWith("<meta")
-                        || ptr.startsWith("<center")
-                        || ptr.startsWith("<form")
-                        || ptr.startsWith("<isindex")
-                        || ptr.startsWith("<h1")
-                        || ptr.startsWith("<h2")
-                        || ptr.startsWith("<h3")
-                        || ptr.startsWith("<h4")
-                        || ptr.startsWith("<h5")
-                        || ptr.startsWith("<h6")
-                        || ptr.startsWith("<b")
-                        || ptr.startsWith("<br")) {
-                    throw new IOException("Can't upload [" + fileContentType + "] file disguising as HTML!");
-                }
-            }
-        }
     }
 }
