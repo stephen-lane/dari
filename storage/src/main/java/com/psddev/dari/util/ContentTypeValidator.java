@@ -10,7 +10,10 @@ import java.util.Set;
 import com.google.common.base.Preconditions;
 
 /**
- * Validates the content type of
+ * Validates the content type of a file. Throws an error
+ * if the content type is not accepted per the Application's
+ * {@link Settings}, and also throws an error if the file is
+ * an HTML file disguised as another content type.
  */
 public class ContentTypeValidator implements StorageItemValidator {
 
