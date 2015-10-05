@@ -122,7 +122,7 @@ public class StorageItemFilter extends AbstractFilter {
         storageItem.setData(new FileInputStream(file));
         storageItem.setContentType(fileContentType);
 
-        StorageItemPathGenerator pathGenerator = new StorageItemPathGenerator() {};
+        StorageItemPathGenerator pathGenerator = new StorageItemPathGenerator() { };
         for (Class<? extends StorageItemPathGenerator> generatorClass : ClassFinder.findConcreteClasses(StorageItemPathGenerator.class)) {
             StorageItemPathGenerator candidate = TypeDefinition.getInstance(generatorClass).newInstance();
             if (candidate.isSupported(storageName)) {
@@ -138,8 +138,7 @@ public class StorageItemFilter extends AbstractFilter {
     private static StorageItem createStorageItem(String jsonString) {
         Preconditions.checkNotNull(jsonString);
         Map<String, Object> json = Preconditions.checkNotNull(
-                ObjectUtils.to(new TypeReference<Map<String, Object>>() {
-                }, ObjectUtils.fromJson(jsonString)));
+                ObjectUtils.to(new TypeReference<Map<String, Object>>() { }, ObjectUtils.fromJson(jsonString)));
         Object path = Preconditions.checkNotNull(json.get("path"));
         String storage = ObjectUtils
                 .firstNonBlank(json.get("storage"), Settings.get(StorageItem.DEFAULT_STORAGE_SETTING))
