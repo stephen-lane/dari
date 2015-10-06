@@ -70,7 +70,7 @@ public class StorageItemFilter extends AbstractFilter {
 
         StorageItem storageItem = null;
 
-        if (storageItemJson != null && !storageItemJson.equals("file")) {
+        if (storageItemJson != null && !storageItemJson.equals(paramName)) {
             storageItem = createStorageItem(storageItemJson);
         } else {
 
