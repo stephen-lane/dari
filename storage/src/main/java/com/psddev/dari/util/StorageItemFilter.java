@@ -85,12 +85,15 @@ public class StorageItemFilter extends AbstractFilter {
 
     private static StorageItem createStorageItem(FileItem fileItem, String storageName) throws IOException {
 
+        final String finalStorageName;
         if (StringUtils.isBlank(storageName)) {
-            storageName = StorageItem.DEFAULT_STORAGE_SETTING;
+            finalStorageName = StorageItem.DEFAULT_STORAGE_SETTING;
+        } else {
+            finalStorageName = storageName;
         }
 
-        String storageSetting = Preconditions.checkNotNull(Settings.get(String.class, storageName),
-                "Storage setting with key [" + storageName + "] not found in application settings.");
+        String storageSetting = Preconditions.checkNotNull(Settings.get(String.class, finalStorageName),
+                "Storage setting with key [" + finalStorageName + "] not found in application settings.");
 
         File file;
         try {
@@ -111,8 +114,10 @@ public class StorageItemFilter extends AbstractFilter {
         ClassFinder.findConcreteClasses(StorageItemValidator.class)
                 .forEach(c -> {
                     try {
-                        //TODO: dynamically determine if validator should be used for this storage item
-                        TypeDefinition.getInstance(c).newInstance().validate(file, fileContentType);
+                        StorageItemValidator validator = TypeDefinition.getInstance(c).newInstance();
+                        if (validator.isSupported(finalStorageName)) {
+                            validator.validate(file, fileContentType);
+                        }
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }

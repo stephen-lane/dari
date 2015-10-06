@@ -9,5 +9,10 @@ import java.io.IOException;
  * is performed by {@link StorageItemFilter}.
  */
 public interface StorageItemValidator {
+
+    default boolean isSupported(String storage) {
+        return true;
+    }
+
     void validate(File file, String fileContentType) throws IOException;
 }
