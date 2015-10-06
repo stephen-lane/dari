@@ -1,6 +1,7 @@
 package com.psddev.dari.util;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -142,7 +143,7 @@ public class StorageItemFilterTest {
         private void setSettingsOverrides(String storage) {
             Settings.setOverride(StorageItem.DEFAULT_STORAGE_SETTING, storage);
             Settings.setOverride(StorageItem.SETTING_PREFIX + "/" + storage, ImmutableMap.of(
-                    "class", "com.psddev.dari.util.LocalStorageItem",
+                    "class", TestStorageItem.class.getName(),
                     "rootPath", "/webapps/media-files",
                     "baseUrl", "http://localhost:8080/media-files"
             ));
@@ -153,8 +154,10 @@ public class StorageItemFilterTest {
             StringWriter writer = new StringWriter();
             when(response.getWriter()).thenReturn(new PrintWriter(writer));
             filter.doFilter(request, response, chain);
-            return ObjectUtils.to(new TypeReference<Map<String, Object>>() {
-            }, ObjectUtils.fromJson(writer.toString()));
+
+            return ObjectUtils.to(
+                    new TypeReference<Map<String, Object>>() { },
+                    ObjectUtils.fromJson(writer.toString()));
         }
 
         private HttpServletRequest getUploadRequest() {
@@ -162,6 +165,13 @@ public class StorageItemFilterTest {
             when(request.getRequestURI()).thenReturn("/_dari/upload");
             when(request.getParameter("fileParam")).thenReturn("file");
             return request;
+        }
+
+        public static final class TestStorageItem extends LocalStorageItem {
+
+            @Override
+            protected void saveData(InputStream data) throws IOException {
+            }
         }
     }
 }

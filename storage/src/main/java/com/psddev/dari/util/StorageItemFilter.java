@@ -10,7 +10,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import javax.servlet.FilterChain;
 import javax.servlet.ServletContext;
@@ -146,6 +145,7 @@ public class StorageItemFilter extends AbstractFilter {
         metadata.put("http.headers", httpHeaders);
 
         storageItem.setMetadata(metadata);
+        storageItem.save();
 
         // TODO: Post upload hooks (metadata extraction etc.)
 
