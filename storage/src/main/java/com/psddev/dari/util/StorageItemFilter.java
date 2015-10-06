@@ -83,67 +83,12 @@ public class StorageItemFilter extends AbstractFilter {
         return storageItem;
     }
 
-    private static StorageItem createStorageItem(FileItem fileItem, String storageName) throws IOException {
-
-        final String finalStorageName;
-        if (StringUtils.isBlank(storageName)) {
-            finalStorageName = StorageItem.DEFAULT_STORAGE_SETTING;
-        } else {
-            finalStorageName = storageName;
-        }
-
-        String storageSetting = Preconditions.checkNotNull(Settings.get(String.class, finalStorageName),
-                "Storage setting with key [" + finalStorageName + "] not found in application settings.");
-
-        File file;
-        try {
-            file = File.createTempFile("cms.", ".tmp");
-            fileItem.write(file);
-        } catch (Exception e) {
-            throw new IOException("Unable to write [" + (fileItem != null ? fileItem.getName() : "fileItem") + "] to temporary file.", e);
-        }
-
-        String fileName = Preconditions.checkNotNull(fileItem.getName());
-
-        String fileContentType = fileItem.getContentType();
-        long fileSize = fileItem.getSize();
-
-        Preconditions.checkState(fileSize > 0,
-                "File [" + fileName + "] is empty");
-
-        ClassFinder.findConcreteClasses(StorageItemValidator.class)
-                .forEach(c -> {
-                    try {
-                        StorageItemValidator validator = TypeDefinition.getInstance(c).newInstance();
-                        if (validator.isSupported(finalStorageName)) {
-                            validator.validate(file, fileContentType);
-                        }
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                });
-
-        StorageItem storageItem = StorageItem.Static.createIn(storageSetting);
-        storageItem.setData(new FileInputStream(file));
-        storageItem.setContentType(fileContentType);
-
-        StorageItemPathGenerator pathGenerator = new StorageItemPathGenerator() { };
-        for (Class<? extends StorageItemPathGenerator> generatorClass : ClassFinder.findConcreteClasses(StorageItemPathGenerator.class)) {
-            StorageItemPathGenerator candidate = TypeDefinition.getInstance(generatorClass).newInstance();
-            if (candidate.isSupported(storageName)) {
-                pathGenerator = candidate;
-            }
-        }
-
-        storageItem.setPath(pathGenerator.createPath(fileName));
-
-        return storageItem;
-    }
-
     private static StorageItem createStorageItem(String jsonString) {
         Preconditions.checkNotNull(jsonString);
         Map<String, Object> json = Preconditions.checkNotNull(
-                ObjectUtils.to(new TypeReference<Map<String, Object>>() { }, ObjectUtils.fromJson(jsonString)));
+                ObjectUtils.to(
+                        new TypeReference<Map<String, Object>>() { },
+                        ObjectUtils.fromJson(jsonString)));
         Object path = Preconditions.checkNotNull(json.get("path"));
         String storage = ObjectUtils
                 .firstNonBlank(json.get("storage"), Settings.get(StorageItem.DEFAULT_STORAGE_SETTING))
@@ -163,5 +108,73 @@ public class StorageItemFilter extends AbstractFilter {
         storageItem.setMetadata(metadata);
 
         return storageItem;
+    }
+
+    private static StorageItem createStorageItem(FileItem fileItem, String storageName) throws IOException {
+
+        storageName = StringUtils.isBlank(storageName) ? StorageItem.DEFAULT_STORAGE_SETTING : storageName;
+
+        String storageSetting = Preconditions.checkNotNull(Settings.get(String.class, storageName),
+                "Storage setting with key [" + storageName + "] not found in application settings.");
+
+        File file;
+        try {
+            file = File.createTempFile("cms.", ".tmp");
+            fileItem.write(file);
+        } catch (Exception e) {
+            throw new IOException("Unable to write [" + (fileItem != null ? fileItem.getName() : "fileItem") + "] to temporary file.", e);
+        }
+
+        validateStorageItem(storageName, fileItem, file);
+
+        StorageItem storageItem = StorageItem.Static.createIn(storageSetting);
+        storageItem.setData(new FileInputStream(file));
+        storageItem.setContentType(fileItem.getContentType());
+        storageItem.setPath(getPathGenerator(storageName).createPath(fileItem.getName()));
+        return storageItem;
+    }
+
+    private static void validateStorageItem(final String storageName, FileItem fileItem, File file) {
+
+        String fileName = Preconditions.checkNotNull(fileItem.getName());
+
+        Preconditions.checkState(fileItem.getSize() > 0,
+                "File [" + fileName + "] is empty");
+
+        ClassFinder.findConcreteClasses(StorageItemValidator.class)
+                .forEach(c -> {
+                    try {
+                        StorageItemValidator validator = TypeDefinition.getInstance(c).newInstance();
+                        if (validator.isSupported(storageName)) {
+                            validator.validate(file, fileItem.getContentType());
+                        }
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                });
+    }
+
+    private static StorageItemPathGenerator getPathGenerator(final String storageName) {
+
+        StorageItemPathGenerator pathGenerator = new StorageItemPathGenerator() { };
+        for (Class<? extends StorageItemPathGenerator> generatorClass : ClassFinder.findConcreteClasses(StorageItemPathGenerator.class)) {
+
+            if (generatorClass.getCanonicalName() == null) {
+                continue;
+            }
+
+            StorageItemPathGenerator candidate = TypeDefinition.getInstance(generatorClass).newInstance();
+            double candidatePriority = candidate.getPriority(storageName);
+            double highestPriority = pathGenerator.getPriority(storageName);
+
+            Preconditions.checkState(candidatePriority != highestPriority,
+                    "Priorities of [" + candidate.getClass().getSimpleName() + "] and [" + pathGenerator.getClass().getSimpleName() + "] are ambiguous. Priorities should not be the same.");
+
+            if (candidatePriority  > highestPriority) {
+                pathGenerator = candidate;
+            }
+        }
+
+        return pathGenerator;
     }
 }

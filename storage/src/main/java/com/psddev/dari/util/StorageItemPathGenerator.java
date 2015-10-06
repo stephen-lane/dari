@@ -10,8 +10,17 @@ import com.google.common.base.Preconditions;
  */
 public interface StorageItemPathGenerator {
 
-    default boolean isSupported(String storageName) {
-        return true;
+    /**
+     * Returns {@code double} as a priority rating for
+     * this StorageItemPathGenerator. The highest priority will be used
+     * by {@code StorageItemFilter}. Return a value less
+     * than zero if StorageItemPathGenerator should not be supported.
+     *
+     * @param storageName name of the storage Settings key
+     */
+
+    default double getPriority(String storageName) {
+        return 0;
     }
 
     default String createPath(String fullFileName) {
