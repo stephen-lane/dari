@@ -116,10 +116,7 @@ public class StorageItemFilter extends AbstractFilter {
 
     private static StorageItem createStorageItem(FileItem fileItem, String storageName) throws IOException {
 
-        storageName = StringUtils.isBlank(storageName) ? StorageItem.DEFAULT_STORAGE_SETTING : storageName;
-
-        String storageSetting = Preconditions.checkNotNull(Settings.get(String.class, storageName),
-                "Storage setting with key [" + storageName + "] not found in application settings.");
+        storageName = StringUtils.isBlank(storageName) ? Settings.get(String.class, StorageItem.DEFAULT_STORAGE_SETTING) : storageName;
 
         File file;
         try {
@@ -134,7 +131,7 @@ public class StorageItemFilter extends AbstractFilter {
         String fileName = fileItem.getName();
         String fileContentType = fileItem.getContentType();
 
-        StorageItem storageItem = StorageItem.Static.createIn(storageSetting);
+        StorageItem storageItem = StorageItem.Static.createIn(storageName);
         storageItem.setContentType(fileContentType);
         storageItem.setPath(getPathGenerator(storageName).createPath(fileName));
         storageItem.setData(new FileInputStream(file));
@@ -142,7 +139,7 @@ public class StorageItemFilter extends AbstractFilter {
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("originalFileName", fileName);
 
-        Map<String, List<String>> httpHeaders = new LinkedHashMap<String, List<String>>();
+        Map<String, List<String>> httpHeaders = new LinkedHashMap<>();
         httpHeaders.put("Cache-Control", Collections.singletonList("public, max-age=31536000"));
         httpHeaders.put("Content-Length", Collections.singletonList(String.valueOf(fileItem.getSize())));
         httpHeaders.put("Content-Type", Collections.singletonList(fileContentType));
