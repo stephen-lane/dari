@@ -129,8 +129,14 @@ public class StorageItemFilterTest {
 
             assertEquals(jsonResponse.get(STORAGE_KEY), storageValue);
             assertEquals(jsonResponse.get(CONTENT_TYPE_KEY), contentType);
-            assertEquals(jsonResponse.get(METADATA_KEY), null);
             assertTrue(jsonResponse.get(PATH_KEY).toString().endsWith(fileName));
+
+            Map<String, Object> metadata = (Map<String, Object>) jsonResponse.get(METADATA_KEY);
+            Map<String, Object> httpHeaders = (Map<String, Object>) metadata.get("http.headers");
+            assertTrue(httpHeaders != null);
+            assertTrue(httpHeaders.containsKey("Cache-Control"));
+            assertTrue(httpHeaders.containsKey("Content-Length"));
+            assertTrue(httpHeaders.containsKey("Content-Type"));
         }
 
         private void setSettingsOverrides(String storage) {

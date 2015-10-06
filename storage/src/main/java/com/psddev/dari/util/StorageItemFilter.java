@@ -6,7 +6,11 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import javax.servlet.FilterChain;
 import javax.servlet.ServletContext;
@@ -127,10 +131,27 @@ public class StorageItemFilter extends AbstractFilter {
 
         validateStorageItem(storageName, fileItem, file);
 
+        String fileName = fileItem.getName();
+        String fileContentType = fileItem.getContentType();
+
         StorageItem storageItem = StorageItem.Static.createIn(storageSetting);
+        storageItem.setContentType(fileContentType);
+        storageItem.setPath(getPathGenerator(storageName).createPath(fileName));
         storageItem.setData(new FileInputStream(file));
-        storageItem.setContentType(fileItem.getContentType());
-        storageItem.setPath(getPathGenerator(storageName).createPath(fileItem.getName()));
+
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("originalFileName", fileName);
+
+        Map<String, List<String>> httpHeaders = new LinkedHashMap<String, List<String>>();
+        httpHeaders.put("Cache-Control", Collections.singletonList("public, max-age=31536000"));
+        httpHeaders.put("Content-Length", Collections.singletonList(String.valueOf(fileItem.getSize())));
+        httpHeaders.put("Content-Type", Collections.singletonList(fileContentType));
+        metadata.put("http.headers", httpHeaders);
+
+        storageItem.setMetadata(metadata);
+
+        // TODO: Post upload hooks (metadata extraction etc.)
+
         return storageItem;
     }
 
