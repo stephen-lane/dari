@@ -6,9 +6,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 import javax.servlet.FilterChain;
@@ -135,16 +132,8 @@ public class StorageItemFilter extends AbstractFilter {
         storageItem.setPath(getPathGenerator(storageName).createPath(fileName));
         storageItem.setData(new FileInputStream(file));
 
-        Map<String, Object> metadata = new LinkedHashMap<>();
-        metadata.put("originalFileName", fileName);
+        preprocessStorageItem(storageItem, fileItem);
 
-        Map<String, List<String>> httpHeaders = new LinkedHashMap<>();
-        httpHeaders.put("Cache-Control", Collections.singletonList("public, max-age=31536000"));
-        httpHeaders.put("Content-Length", Collections.singletonList(String.valueOf(fileItem.getSize())));
-        httpHeaders.put("Content-Type", Collections.singletonList(fileContentType));
-        metadata.put("http.headers", httpHeaders);
-
-        storageItem.setMetadata(metadata);
         storageItem.save();
 
         // TODO: Post upload hooks (metadata extraction etc.)
@@ -170,6 +159,11 @@ public class StorageItemFilter extends AbstractFilter {
                         throw new UncheckedIOException(e);
                     }
                 });
+    }
+
+    private static void preprocessStorageItem(StorageItem storageItem, FileItem fileItem) {
+        ClassFinder.findConcreteClasses(StorageItemPreprocessor.class)
+                .forEach(c -> TypeDefinition.getInstance(c).newInstance().process(storageItem, fileItem));
     }
 
     private static StorageItemPathGenerator getPathGenerator(final String storageName) {
