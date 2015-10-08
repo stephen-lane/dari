@@ -122,6 +122,7 @@ public class StorageItemFilter extends AbstractFilter {
             throw new IOException("Unable to write [" + (fileItem != null ? fileItem.getName() : "fileItem") + "] to temporary file.", e);
         }
 
+        // Add additional validation by creating StorageItemValidators
         validateStorageItem(storageName, fileItem, file);
 
         String fileName = fileItem.getName();
@@ -132,11 +133,13 @@ public class StorageItemFilter extends AbstractFilter {
         storageItem.setPath(getPathGenerator(storageName).createPath(fileName));
         storageItem.setData(new FileInputStream(file));
 
+        // Add additional preprocessing by creating StorageItemPreprocessors
         preprocessStorageItem(storageItem, fileItem);
 
-        storageItem.save();
+        // Add postprocessing by creating StorageItemPostprocessors
+        addPostprocessingListener(storageItem);
 
-        // TODO: Post upload hooks (metadata extraction etc.)
+        storageItem.save();
 
         return storageItem;
     }
@@ -164,6 +167,18 @@ public class StorageItemFilter extends AbstractFilter {
     private static void preprocessStorageItem(StorageItem storageItem, FileItem fileItem) {
         ClassFinder.findConcreteClasses(StorageItemPreprocessor.class)
                 .forEach(c -> TypeDefinition.getInstance(c).newInstance().process(storageItem, fileItem));
+    }
+
+    private static void addPostprocessingListener(StorageItem storageItem) {
+        if (storageItem instanceof AbstractStorageItem) {
+            AbstractStorageItem abstractStorageItem = (AbstractStorageItem) storageItem;
+            abstractStorageItem.registerListener((listener) -> {
+                // TODO: offload this to background task here or in StorageItemListener?
+                // TODO: handle execution ordering?
+                ClassFinder.findConcreteClasses(StorageItemPostprocessor.class)
+                        .forEach(c -> TypeDefinition.getInstance(c).newInstance().process(storageItem));
+            });
+        }
     }
 
     private static StorageItemPathGenerator getPathGenerator(final String storageName) {
