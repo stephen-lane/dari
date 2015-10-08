@@ -2,15 +2,173 @@
 <differences>
 
     <difference>
-        <className>com/psddev/dari/util/Ping</className>
-        <differenceType>7012</differenceType>
-        <method>java.util.Map pingAll()</method>
+        <className>com/psddev/dari/util/AbstractImageEditor</className>
+        <differenceType>8001</differenceType>
     </difference>
 
     <difference>
-        <className>com/psddev/dari/util/Ping</className>
-        <differenceType>7012</differenceType>
-        <method>java.lang.Throwable pingOne(java.lang.Class)</method>
+        <className>com/psddev/dari/util/AbstractMailProvider</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/AbstractStorageItem</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/AbstractStorageItemHash</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/AmazonStorageItem</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/CloudStorageItem</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/DimsImageEditor</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/HuslColorSpace</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/HuslColorSpace$Static</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/ImageEditor</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/ImageEditor$Static</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/ImageMetadataMap</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/ImageResizeStorageItemListener</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/JavaImageDirectoryWatch</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/JavaImageEditor</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/JavaImageEditor$Dimension</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/JavaImageServlet</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/JavaImageTiffReader</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/LocalStorageFilter</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/LocalStorageItem</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/MailMessage</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/MailProvider</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/MailProvider$Static</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/SmsProvider</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/SmsProvider$Static</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/SmtpMailProvider</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/StorageItem</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/StorageItem$Static</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/StorageItemHash</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/StorageItemHash$Static</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/StorageItemListener</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/StorageItemPathHash</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/TwilioSmsProvider</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/UrlStorageItem</className>
+        <differenceType>8001</differenceType>
     </difference>
 
     <!-- Temporary while this is reworked to accommodate shading ASM. -->

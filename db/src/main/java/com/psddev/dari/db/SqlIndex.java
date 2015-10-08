@@ -159,6 +159,10 @@ public enum SqlIndex {
     public List<Table> getWriteTables(SqlDatabase database, ObjectIndex index) {
         List<Table> writeTables = new ArrayList<Table>();
 
+        if (!database.isIndexSpatial() && (LOCATION.equals(this) || REGION.equals(this))) {
+            return writeTables;
+        }
+
         for (Table table : tables) {
             if (database.hasTable(table.getName(database, index)) && !table.isReadOnly(index)) {
                 writeTables.add(table);
@@ -761,7 +765,7 @@ public enum SqlIndex {
                             deleteBuilder.append(" = ");
                             deleteBuilder.append(database.getSymbolId(onlyIndex.getUniqueName()));
                         }
-                        SqlDatabase.Static.executeUpdateWithArray(connection, deleteBuilder.toString());
+                        SqlDatabase.Static.executeUpdateWithArray(vendor, connection, deleteBuilder.toString());
                     }
                 }
             }
@@ -783,7 +787,7 @@ public enum SqlIndex {
                         deleteBuilder.append(" = ");
                         deleteBuilder.append(database.getSymbolId(onlyIndex.getUniqueName()));
                     }
-                    SqlDatabase.Static.executeUpdateWithArray(connection, deleteBuilder.toString());
+                    SqlDatabase.Static.executeUpdateWithArray(vendor, connection, deleteBuilder.toString());
                 }
             }
         }

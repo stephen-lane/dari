@@ -204,10 +204,10 @@ public class DimsImageEditor extends AbstractImageEditor {
             LOGGER.error(e.getMessage(), e);
         }
         if (dimsUrl != null) {
-            Object resizeOption = options != null ? options.get(ImageEditor.RESIZE_OPTION) : null;
-            Object cropOption = options != null ? options.get(ImageEditor.CROP_OPTION) : null;
+            Object resizeOption = options != null ? options.get(RESIZE_OPTION) : null;
+            Object cropOption = options != null ? options.get(CROP_OPTION) : null;
 
-            if (ImageEditor.CROP_COMMAND.equals(command)) {
+            if (CROP_COMMAND.equals(command)) {
                 Object x = arguments[0];
                 Object y = arguments[1];
                 Object width = arguments[2];
@@ -222,10 +222,10 @@ public class DimsImageEditor extends AbstractImageEditor {
                  * are present then an "Automatic" crop (thumbnail command) would be done in its place.
                  */
 
-                if (ImageEditor.CROP_OPTION_AUTOMATIC.equals(cropOption) || (cropOption == null && x == null && y == null)) {
+                if (CROP_OPTION_AUTOMATIC.equals(cropOption) || (cropOption == null && x == null && y == null)) {
                     dimsUrl.thumbnail(width, height, resizeOption);
 
-                } else if (ImageEditor.CROP_OPTION_NONE.equals(cropOption)) {
+                } else if (CROP_OPTION_NONE.equals(cropOption)) {
                     // don't do any cropping, just return the image.
                     return image;
 
@@ -238,7 +238,7 @@ public class DimsImageEditor extends AbstractImageEditor {
                         return image;
                     }
                 }
-            } else if (ImageEditor.RESIZE_COMMAND.equals(command)) {
+            } else if (RESIZE_COMMAND.equals(command)) {
 
                 Integer width = ObjectUtils.to(Integer.class, arguments[0]);
                 Integer height = ObjectUtils.to(Integer.class, arguments[1]);
@@ -253,7 +253,7 @@ public class DimsImageEditor extends AbstractImageEditor {
                  * due to backward compatibility. See the block comment above.
                  */
 
-                if (ImageEditor.CROP_OPTION_AUTOMATIC.equals(cropOption) || cropOption == null) {
+                if (CROP_OPTION_AUTOMATIC.equals(cropOption) || cropOption == null) {
 
                     Command lastResizeCommand = dimsUrl.getLastResizeCommand();
                     if (lastResizeCommand instanceof ThumbnailCommand) {
@@ -764,13 +764,13 @@ public class DimsImageEditor extends AbstractImageEditor {
         }
 
         protected String parseResizeOption(String option) {
-            if (ImageEditor.RESIZE_OPTION_IGNORE_ASPECT_RATIO.equals(option)) {
+            if (RESIZE_OPTION_IGNORE_ASPECT_RATIO.equals(option)) {
                 return "!";
-            } else if (ImageEditor.RESIZE_OPTION_ONLY_SHRINK_LARGER.equals(option)) {
+            } else if (RESIZE_OPTION_ONLY_SHRINK_LARGER.equals(option)) {
                 return ">";
-            } else if (ImageEditor.RESIZE_OPTION_ONLY_ENLARGE_SMALLER.equals(option)) {
+            } else if (RESIZE_OPTION_ONLY_ENLARGE_SMALLER.equals(option)) {
                 return "<";
-            } else if (ImageEditor.RESIZE_OPTION_FILL_AREA.equals(option)) {
+            } else if (RESIZE_OPTION_FILL_AREA.equals(option)) {
                 return "^";
             } else {
                 return null;

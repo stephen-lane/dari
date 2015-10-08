@@ -2,10 +2,9 @@ package com.psddev.dari.util.sa;
 
 import java.util.Map;
 
-import org.objectweb.asm.Type;
-
 import com.psddev.dari.util.CompactMap;
 import com.psddev.dari.util.ObjectUtils;
+import com.psddev.dari.util.asm.Type;
 
 public class JvmObjectArray extends JvmObject {
 

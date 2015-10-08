@@ -142,7 +142,7 @@ public class JavaImageEditor extends AbstractImageEditor {
 
         if (imageUrl.startsWith(this.getBaseUrl()) && imageUrl.contains("?url=")) {
             String[] imageComponents = imageUrl.split("\\?url=");
-            imageUrl = imageComponents[1];
+            imageUrl = StringUtils.decodeUri(imageComponents[1]);
 
             String path = imageComponents[0].substring(this.getBaseUrl().length());
             for (String parameter : path.split("/")) {
@@ -305,7 +305,7 @@ public class JavaImageEditor extends AbstractImageEditor {
         }
 
         storageItemUrlBuilder.append("?url=")
-                .append(imageUrl);
+                .append(StringUtils.encodeUri(imageUrl));
 
         UrlStorageItem newStorageItem = StorageItem.Static.createUrl(storageItemUrlBuilder.toString());
         String contentType = DEFAULT_IMAGE_CONTENT_TYPE;

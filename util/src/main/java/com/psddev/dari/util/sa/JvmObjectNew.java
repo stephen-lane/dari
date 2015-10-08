@@ -4,10 +4,9 @@ import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Constructor;
 import java.util.List;
 
-import org.objectweb.asm.Type;
-
 import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.TypeDefinition;
+import com.psddev.dari.util.asm.Type;
 
 public class JvmObjectNew extends JvmObject {
 
