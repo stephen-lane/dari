@@ -23,7 +23,6 @@ import javax.servlet.Filter;
  * <li>{@link SessionIdFilter}</li>
  * <li>{@link JspBufferFilter}</li>
  * <li>{@link HtmlApiFilter}</li>
- * <li>{@link LocalStorageFilter}</li>
  * <li>{@link PingFilter}</li>
  * <li>{@link ResourceFilter}</li>
  * <li>{@link TaskFilter}</li>
@@ -49,7 +48,6 @@ public class StandardFilter extends AbstractFilter {
         dependencies.add(SessionIdFilter.class);
         dependencies.add(JspBufferFilter.class);
         dependencies.add(HtmlApiFilter.class);
-        dependencies.add(LocalStorageFilter.class);
 
         dependencies.add(PingFilter.class);
         dependencies.add(ResourceFilter.class);

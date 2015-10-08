@@ -4,8 +4,11 @@ import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
+import javax.servlet.Filter;
 import javax.servlet.FilterChain;
 import javax.servlet.ServletException;
 import javax.servlet.ServletOutputStream;
@@ -22,6 +25,16 @@ public class LocalStorageFilter extends AbstractFilter {
 
     private String localStorageRootPath;
 
+    @Override
+    protected Iterable<Class<? extends Filter>> dependencies() {
+        List<Class<? extends Filter>> dependencies = new ArrayList<>();
+
+        dependencies.add(StandardFilter.class);
+
+        return dependencies;
+    }
+
+    @Override
     protected void doInit() {
         Map<String, Object> settings = Settings.asMap();
 
@@ -33,8 +46,7 @@ public class LocalStorageFilter extends AbstractFilter {
         }
     }
 
-    // --- AbstractFilter support ---
-
+    @Override
     protected void doRequest(
                HttpServletRequest request,
                HttpServletResponse response,

@@ -944,6 +944,7 @@ class MetricAccess {
         // methods that actually touch the database
 
         private static void doIncrementUpdateOrInsert(SqlDatabase db, UUID id, UUID typeId, int symbolId, UUID dimensionId, double incrementAmount, long eventDate, boolean isImplicitEventDate) throws SQLException {
+            SqlVendor vendor = db.getVendor();
             Connection connection = db.openConnection();
             try {
 
@@ -956,7 +957,7 @@ class MetricAccess {
 
                     // Try to do an update. This is the best case scenario, and does not require any reads.
                     String updateSql = getUpdateSql(db, updateParameters, id, typeId, symbolId, dimensionId, incrementAmount, eventDate, true, false);
-                    int rowsAffected = SqlDatabase.Static.executeUpdateWithList(connection, updateSql, updateParameters);
+                    int rowsAffected = SqlDatabase.Static.executeUpdateWithList(vendor, connection, updateSql, updateParameters);
                     if (0 == rowsAffected) {
                         // There is no data for the current date. Now we have to read
                         // the previous cumulative amount so we can insert a new row.
@@ -994,7 +995,7 @@ class MetricAccess {
                         // There is data for this eventDate; update it.
                         List<Object> updateParameters = new ArrayList<Object>();
                         String updateSql = getUpdateSql(db, updateParameters, id, typeId, symbolId, dimensionId, incrementAmount, eventDate, true, false);
-                        SqlDatabase.Static.executeUpdateWithList(connection, updateSql, updateParameters);
+                        SqlDatabase.Static.executeUpdateWithList(vendor, connection, updateSql, updateParameters);
                     } else { // if (timestampFromBytes(data) > eventDate)
                         // The max(eventDate) in the table is greater than our
                         // event date. If there exists a row in the past, UPDATE it
@@ -1015,7 +1016,7 @@ class MetricAccess {
                         // Now update all the future rows.
                         List<Object> updateParameters = new ArrayList<Object>();
                         String updateSql = getUpdateSql(db, updateParameters, id, typeId, symbolId, dimensionId, incrementAmount, eventDate, true, true);
-                        SqlDatabase.Static.executeUpdateWithList(connection, updateSql, updateParameters);
+                        SqlDatabase.Static.executeUpdateWithList(vendor, connection, updateSql, updateParameters);
                     }
                 }
 
@@ -1023,7 +1024,7 @@ class MetricAccess {
                 // There is an existing row that has the wrong type ID (bad data). Repair it and try again.
                 List<Object> repairParameters = new ArrayList<Object>();
                 String repairSql = getRepairTypeIdSql(db, repairParameters, id, typeId, dimensionId, symbolId, eventDate);
-                SqlDatabase.Static.executeUpdateWithList(connection, repairSql, repairParameters);
+                SqlDatabase.Static.executeUpdateWithList(vendor, connection, repairSql, repairParameters);
                 doIncrementUpdateOrInsert(db, id, typeId, symbolId, dimensionId, incrementAmount, eventDate, isImplicitEventDate);
             } finally {
                 db.closeConnection(connection);
@@ -1032,13 +1033,15 @@ class MetricAccess {
 
         // This is for the occasional race condition when we check for the existence of a row, it does not exist, then two threads try to insert at (almost) the same time.
         private static void tryInsertThenUpdate(SqlDatabase db, Connection connection, String insertSql, List<Object> insertParameters, String updateSql, List<Object> updateParameters) throws SQLException, UpdateFailedException {
+            SqlVendor vendor = db.getVendor();
+
             try {
-                SqlDatabase.Static.executeUpdateWithList(connection, insertSql, insertParameters);
+                SqlDatabase.Static.executeUpdateWithList(vendor, connection, insertSql, insertParameters);
             } catch (SQLException ex) {
                 if (db.getVendor().isDuplicateKeyException(ex)) {
                     // Try the update again, maybe we lost a race condition.
                     if (updateSql != null) {
-                        int rowsAffected = SqlDatabase.Static.executeUpdateWithList(connection, updateSql, updateParameters);
+                        int rowsAffected = SqlDatabase.Static.executeUpdateWithList(vendor, connection, updateSql, updateParameters);
                         if (0 == rowsAffected) {
                             // The only practical way this query updated 0 rows is if there is an existing row with the wrong typeId.
                             throw new UpdateFailedException();
@@ -1051,6 +1054,7 @@ class MetricAccess {
         }
 
         private static void doSetUpdateOrInsert(SqlDatabase db, UUID id, UUID typeId, int symbolId, UUID dimensionId, double amount, long eventDate) throws SQLException {
+            SqlVendor vendor = db.getVendor();
             Connection connection = db.openConnection();
             if (eventDate != 0L) {
                 throw new RuntimeException("MetricAccess.Static.doSetUpdateOrInsert() can only be used if EventDatePrecision is NONE; eventDate is " + eventDate + ", should be 0L.");
@@ -1058,7 +1062,7 @@ class MetricAccess {
             try {
                 List<Object> updateParameters = new ArrayList<Object>();
                 String updateSql = getUpdateSql(db, updateParameters, id, typeId, symbolId, dimensionId, amount, eventDate, false, false);
-                int rowsAffected = SqlDatabase.Static.executeUpdateWithList(connection, updateSql, updateParameters);
+                int rowsAffected = SqlDatabase.Static.executeUpdateWithList(vendor, connection, updateSql, updateParameters);
                 if (rowsAffected == 0) {
                     List<Object> insertParameters = new ArrayList<Object>();
                     String insertSql = getMetricInsertSql(db, insertParameters, id, typeId, symbolId, dimensionId, amount, amount, eventDate);
@@ -1068,7 +1072,7 @@ class MetricAccess {
                 // There is an existing row that has the wrong type ID (bad data). Repair it and try again.
                 List<Object> repairParameters = new ArrayList<Object>();
                 String repairSql = getRepairTypeIdSql(db, repairParameters, id, typeId, dimensionId, symbolId, eventDate);
-                SqlDatabase.Static.executeUpdateWithList(connection, repairSql, repairParameters);
+                SqlDatabase.Static.executeUpdateWithList(vendor, connection, repairSql, repairParameters);
                 doSetUpdateOrInsert(db, id, typeId, symbolId, dimensionId, amount, eventDate);
             } finally {
                 db.closeConnection(connection);
@@ -1080,7 +1084,7 @@ class MetricAccess {
             List<Object> parameters = new ArrayList<Object>();
             try {
                 String sql = getDeleteMetricSql(db, id, typeId, symbolId);
-                SqlDatabase.Static.executeUpdateWithList(connection, sql, parameters);
+                SqlDatabase.Static.executeUpdateWithList(db.getVendor(), connection, sql, parameters);
             } finally {
                 db.closeConnection(connection);
             }
@@ -1091,7 +1095,7 @@ class MetricAccess {
             List<Object> parameters = new ArrayList<Object>();
             try {
                 String sql = getInsertDimensionValueSql(db, parameters, dimensionId, dimensionValue);
-                SqlDatabase.Static.executeUpdateWithList(connection, sql, parameters);
+                SqlDatabase.Static.executeUpdateWithList(db.getVendor(), connection, sql, parameters);
             } finally {
                 db.closeConnection(connection);
             }
@@ -1102,7 +1106,7 @@ class MetricAccess {
             List<Object> parameters = new ArrayList<Object>();
             try {
                 String updateSql = getFixDataRowSql(db, parameters, id, typeId, symbolId, dimensionId, eventDate, cumulativeAmount, amount);
-                SqlDatabase.Static.executeUpdateWithList(connection, updateSql, parameters);
+                SqlDatabase.Static.executeUpdateWithList(db.getVendor(), connection, updateSql, parameters);
             } finally {
                 db.closeConnection(connection);
             }
@@ -1162,6 +1166,7 @@ class MetricAccess {
                 return;
             }
 
+            SqlVendor vendor = db.getVendor();
             Connection connection = db.openConnection();
 
             try {
@@ -1172,8 +1177,8 @@ class MetricAccess {
                 List<Object> insertParameters = new ArrayList<Object>();
                 String insertSql = getMetricInsertSql(db, insertParameters, id, typeId, symbolId, dimensionId, amount, cumulativeAmount, eventDate);
 
-                SqlDatabase.Static.executeUpdateWithList(connection, deleteSql, deleteParameters);
-                SqlDatabase.Static.executeUpdateWithList(connection, insertSql, insertParameters);
+                SqlDatabase.Static.executeUpdateWithList(vendor, connection, deleteSql, deleteParameters);
+                SqlDatabase.Static.executeUpdateWithList(vendor, connection, insertSql, insertParameters);
 
             } finally {
                 db.closeConnection(connection);

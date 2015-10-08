@@ -115,7 +115,11 @@ public interface StorageItem extends SettingsBackedObject {
 
                 if (item instanceof AbstractStorageItem) {
                     AbstractStorageItem base = (AbstractStorageItem) item;
-                    base.registerListener(new ImageResizeStorageItemListener());
+                    Class<?> listenerClass = ObjectUtils.getClassByName("com.psddev.dari.util.ImageResizeStorageItemListener");
+
+                    if (listenerClass != null && StorageItemListener.class.isAssignableFrom(listenerClass)) {
+                        base.registerListener((StorageItemListener) TypeDefinition.getInstance(listenerClass).newInstance());
+                    }
                 }
 
                 return item;

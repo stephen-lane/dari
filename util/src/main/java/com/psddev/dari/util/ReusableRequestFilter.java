@@ -7,7 +7,12 @@ import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-/** Automatically enables {@link ReusableRequest}. */
+/**
+ * Automatically enables {@link ReusableRequest}.
+ *
+ * @deprecated No replacement.
+ */
+@Deprecated
 public class ReusableRequestFilter extends AbstractFilter {
 
     // --- AbstractFilter support ---

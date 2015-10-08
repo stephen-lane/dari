@@ -1,6 +1,6 @@
 package com.psddev.dari.util.sa;
 
-import org.objectweb.asm.Opcodes;
+import com.psddev.dari.util.asm.Opcodes;
 
 public class JvmObjectUnary extends JvmObject {
 

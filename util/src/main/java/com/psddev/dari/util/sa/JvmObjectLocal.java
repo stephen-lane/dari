@@ -1,6 +1,6 @@
 package com.psddev.dari.util.sa;
 
-import org.objectweb.asm.Type;
+import com.psddev.dari.util.asm.Type;
 
 public class JvmObjectLocal extends JvmObject {
 

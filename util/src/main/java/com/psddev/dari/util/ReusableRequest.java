@@ -17,7 +17,10 @@ import javax.servlet.http.HttpServletRequestWrapper;
  *
  * <p>Note that the entire request is cached in memory, and no checks are
  * done to prevent misuse.</p>
+ *
+ * @deprecated No replacement.
  */
+@Deprecated
 public class ReusableRequest extends HttpServletRequestWrapper {
 
     private byte[] requestBytes;

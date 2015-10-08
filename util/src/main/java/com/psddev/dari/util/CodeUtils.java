@@ -59,10 +59,10 @@ import javax.tools.SimpleJavaFileObject;
 import javax.tools.StandardLocation;
 import javax.tools.ToolProvider;
 
-import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.ClassVisitor;
-import org.objectweb.asm.ClassWriter;
-import org.objectweb.asm.Opcodes;
+import com.psddev.dari.util.asm.ClassReader;
+import com.psddev.dari.util.asm.ClassVisitor;
+import com.psddev.dari.util.asm.ClassWriter;
+import com.psddev.dari.util.asm.Opcodes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
