@@ -1,7 +1,5 @@
 package com.psddev.dari.util;
 
-import java.io.InputStream;
-
 /**
  * StorageItemPostprocessors are executed after an AbstractStorageItem
  * has executed {@link AbstractStorageItem#saveData(InputStream)} if

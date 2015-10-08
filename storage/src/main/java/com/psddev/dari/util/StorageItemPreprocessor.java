@@ -1,7 +1,5 @@
 package com.psddev.dari.util;
 
-import java.io.InputStream;
-
 import org.apache.commons.fileupload.FileItem;
 
 /**
