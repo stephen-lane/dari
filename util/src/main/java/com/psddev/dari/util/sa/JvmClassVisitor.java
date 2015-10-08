@@ -3,13 +3,13 @@ package com.psddev.dari.util.sa;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.objectweb.asm.AnnotationVisitor;
-import org.objectweb.asm.Attribute;
-import org.objectweb.asm.ClassVisitor;
-import org.objectweb.asm.FieldVisitor;
-import org.objectweb.asm.MethodVisitor;
-import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.Type;
+import com.psddev.dari.util.asm.AnnotationVisitor;
+import com.psddev.dari.util.asm.Attribute;
+import com.psddev.dari.util.asm.ClassVisitor;
+import com.psddev.dari.util.asm.FieldVisitor;
+import com.psddev.dari.util.asm.MethodVisitor;
+import com.psddev.dari.util.asm.Opcodes;
+import com.psddev.dari.util.asm.Type;
 
 import com.psddev.dari.util.ObjectUtils;
 

@@ -621,7 +621,10 @@ public final class JspUtils {
      * allows re-reading the request content.
      *
      * @see ReusableRequestFilter
+     *
+     * @deprecated No replacement.
      */
+    @Deprecated
     public static void proxy(
             HttpServletRequest request,
             HttpServletResponse response,

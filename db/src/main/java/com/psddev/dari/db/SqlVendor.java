@@ -238,6 +238,10 @@ public class SqlVendor {
         return true;
     }
 
+    public boolean useSavepoint() {
+        return true;
+    }
+
     public void appendIdentifier(StringBuilder builder, String identifier) {
         builder.append('"');
         builder.append(identifier.replace("\"", "\"\""));
@@ -865,6 +869,11 @@ public class SqlVendor {
         @Override
         protected String getSetUpResourcePath() {
             return "mysql/schema-12.sql";
+        }
+
+        @Override
+        public boolean useSavepoint() {
+            return false;
         }
 
         @Override

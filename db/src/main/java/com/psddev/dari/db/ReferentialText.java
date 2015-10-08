@@ -214,8 +214,19 @@ public class ReferentialText extends AbstractList<Object> {
         body.getElementsByClass("rte").remove();
         body.select("code[data-annotations]").remove();
 
-        // Convert 'text<br><br>' to '<p>text</p>'.
         if (!inline) {
+            body.select(".cms-textAlign-left, .cms-textAlign-center, .cms-textAlign-right, ol, ul").forEach(element -> {
+                Element next = element.nextElementSibling();
+
+                if (next != null && BR_TAG.equals(next.tag())) {
+                    next.remove();
+                }
+            });
+
+            body.select(".cms-textAlign-left, .cms-textAlign-center, .cms-textAlign-right")
+                    .forEach(div -> div.tagName(P_TAG.getName()));
+
+            // Convert 'text<br><br>' to '<p>text</p>'.
             for (Element br : body.getElementsByTag("br")) {
                 Element previousBr = null;
 

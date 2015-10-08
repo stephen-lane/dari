@@ -8,7 +8,7 @@
 
     <groupId>com.psddev</groupId>
     <artifactId>dari-grandparent</artifactId>
-    <version>3.1-SNAPSHOT</version>
+    <version>3.2-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>Dari: Grandparent POM</name>
@@ -249,7 +249,8 @@ try {
     }
 
     def newVersion = project.version.toString().replace('-SNAPSHOT', '') +
-            '.' + ([ git, 'rev-list', '--count', 'HEAD' ].execute().in.text.trim())
+            '.' + ([ git, 'rev-list', '--count', 'HEAD' ].execute().in.text.trim()) +
+            '-' + ([ git, 'rev-parse', 'HEAD' ].execute().in.text.trim().substring(0, 6))
 
     project.properties['newVersion'] = newVersion
     project.properties['generateBackupPoms'] = 'false'
@@ -272,7 +273,7 @@ try {
                     <plugin>
                         <groupId>org.codehaus.mojo</groupId>
                         <artifactId>versions-maven-plugin</artifactId>
-                        <version>2.1</version>
+                        <version>2.2</version>
                         <executions>
                             <execution>
                                 <id>set-release-version</id>

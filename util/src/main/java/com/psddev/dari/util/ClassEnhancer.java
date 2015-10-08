@@ -8,10 +8,10 @@ import java.util.Set;
 
 import javax.tools.JavaFileObject;
 
-import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.ClassVisitor;
-import org.objectweb.asm.ClassWriter;
-import org.objectweb.asm.Opcodes;
+import com.psddev.dari.util.asm.ClassReader;
+import com.psddev.dari.util.asm.ClassVisitor;
+import com.psddev.dari.util.asm.ClassWriter;
+import com.psddev.dari.util.asm.Opcodes;
 
 /**
  * Enhances an existing class by manipulating the Java bytecode.

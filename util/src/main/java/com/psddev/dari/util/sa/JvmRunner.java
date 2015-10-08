@@ -9,12 +9,12 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 
-import org.objectweb.asm.AnnotationVisitor;
-import org.objectweb.asm.Attribute;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.MethodVisitor;
-import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.Type;
+import com.psddev.dari.util.asm.AnnotationVisitor;
+import com.psddev.dari.util.asm.Attribute;
+import com.psddev.dari.util.asm.Label;
+import com.psddev.dari.util.asm.MethodVisitor;
+import com.psddev.dari.util.asm.Opcodes;
+import com.psddev.dari.util.asm.Type;
 
 import com.psddev.dari.util.CompactMap;
 import com.psddev.dari.util.ObjectUtils;
@@ -566,7 +566,7 @@ class JvmRunner extends MethodVisitor {
     }
 
     @Override
-    public void visitMethodInsn(int opcode, String owner, String name, String desc) {
+    public void visitMethodInsn(int opcode, String owner, String name, String desc, boolean itf) {
         Type[] calledArgumentTypes = Type.getArgumentTypes(desc);
         List<Class<?>> calledArgumentClasses = new ArrayList<Class<?>>();
         List<JvmObject> calledArguments = new ArrayList<JvmObject>();

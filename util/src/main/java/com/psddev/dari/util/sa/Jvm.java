@@ -1,6 +1,5 @@
 package com.psddev.dari.util.sa;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Method;
@@ -9,10 +8,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import org.objectweb.asm.ClassReader;
-
 import com.google.common.base.Preconditions;
 import com.psddev.dari.util.CompactMap;
+import com.psddev.dari.util.asm.ClassReader;
 
 /**
  * JVM that's used to run static analysis.
@@ -50,7 +48,7 @@ public class Jvm {
     public void analyze(Class<?> objectClass) throws IOException {
         Preconditions.checkNotNull(objectClass, "objectClass");
 
-        URL classUrl = objectClass.getResource("/" + objectClass.getName().replace('.', File.separatorChar) + ".class");
+        URL classUrl = objectClass.getResource("/" + objectClass.getName().replace('.', '/') + ".class");
 
         if (classUrl != null) {
             InputStream classInput = classUrl.openStream();

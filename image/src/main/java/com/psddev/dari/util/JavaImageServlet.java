@@ -59,6 +59,11 @@ public class JavaImageServlet extends HttpServlet {
 
             JavaImageEditor javaImageEditor = ObjectUtils.to(JavaImageEditor.class, ImageEditor.Static.getInstance(ImageEditor.JAVA_IMAGE_EDITOR_NAME));
 
+            if (Settings.isProduction() && ObjectUtils.isBlank(javaImageEditor.getSharedSecret())) {
+                response.sendError(HttpServletResponse.SC_NOT_FOUND);
+                return;
+            }
+
             String[] parameters = null;
             if (!StringUtils.isBlank(javaImageEditor.getBaseUrl())) {
                 Integer parameterIndex = null;

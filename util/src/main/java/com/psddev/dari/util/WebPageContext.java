@@ -483,7 +483,12 @@ public class WebPageContext extends HtmlWriter {
         return JspUtils.isIncluded(getRequest());
     }
 
-    /** @see JspUtils#proxy */
+    /**
+     * @see JspUtils#proxy
+     *
+     * @deprecated No replacement.
+     */
+    @Deprecated
     public void proxy(Object url, Object... parameters) throws IOException {
         JspUtils.proxy(getRequest(), getResponse(), getWriter(), url, parameters);
     }
