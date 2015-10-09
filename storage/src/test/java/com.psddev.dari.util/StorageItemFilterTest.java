@@ -16,6 +16,7 @@ import org.apache.commons.fileupload.FileItem;
 import org.apache.commons.fileupload.FileItemFactory;
 import org.apache.commons.fileupload.disk.DiskFileItemFactory;
 import org.apache.commons.io.IOUtils;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.experimental.runners.Enclosed;
 import org.junit.runner.RunWith;
@@ -111,17 +112,11 @@ public class StorageItemFilterTest {
             String fileName = "image.png";
 
             setSettingsOverrides(storageValue);
-            FileItemFactory factory = new DiskFileItemFactory();
-            FileItem fileItem = factory.createItem(
-                    "file",
-                    "image/png",
-                    true,
-                    fileName
-            );
 
-            OutputStream os = fileItem.getOutputStream();
-            os.write(IOUtils.toByteArray(StorageItemFilterTest.class.getClassLoader().getResourceAsStream("com/psddev/dari/util/StorageItemFilter_Test/" + fileName)));
-            os.close();
+            FileItem fileItem = Utils.getFileItem(
+                    "image/png",
+                    fileName,
+                    "com/psddev/dari/util/StorageItemFilter_Test/" + fileName);
 
             when(mpRequest.getMethod()).thenReturn("POST");
             when(request.getAttribute(MultipartRequestFilter.class.getName() + ".instance")).thenReturn(mpRequest);
@@ -174,6 +169,27 @@ public class StorageItemFilterTest {
             public double getPriority(String storageName) {
                 return 1;
             }
+        }
+    }
+
+    @Ignore
+    public static class Utils {
+
+        @Ignore
+        public static FileItem getFileItem(String contentType, String fileName, String filePath) throws IOException {
+            FileItem fileItem = new DiskFileItemFactory().createItem(
+                    "file",
+                    contentType,
+                    true,
+                    fileName);
+
+            if (!StringUtils.isBlank(filePath)) {
+                OutputStream os = fileItem.getOutputStream();
+                os.write(IOUtils.toByteArray(StorageItemFilterTest.class.getClassLoader().getResourceAsStream(filePath)));
+                os.close();
+            }
+
+            return fileItem;
         }
     }
 }
