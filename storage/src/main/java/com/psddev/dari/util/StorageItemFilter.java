@@ -19,9 +19,8 @@ import com.google.common.base.Preconditions;
  * For creating {@link StorageItem}(s) from a {@link MultipartRequest}
  */
 public class StorageItemFilter extends AbstractFilter {
-
-    //TODO: make upload path configurable
-    private static final String UPLOAD_PATH = "/_dari/upload";
+    
+    private static final String DEFAULT_UPLOAD_PATH = "/_dari/upload";
     private static final String FILE_PARAM = "fileParam";
     private static final String STORAGE_PARAM = "storageName";
 
@@ -37,7 +36,7 @@ public class StorageItemFilter extends AbstractFilter {
     @Override
     protected void doRequest(HttpServletRequest request, HttpServletResponse response, FilterChain chain) throws Exception {
 
-        if (request.getServletPath().equals(UPLOAD_PATH)) {
+        if (request.getServletPath().equals(Settings.getOrDefault(String.class, StorageItem.SETTING_PREFIX + "/uploadPath", DEFAULT_UPLOAD_PATH))) {
             String fileParam = request.getParameter(FILE_PARAM);
             String storageName = request.getParameter(STORAGE_PARAM);
             StorageItem storageItem = StorageItemFilter.getParameter(request, fileParam, storageName);
