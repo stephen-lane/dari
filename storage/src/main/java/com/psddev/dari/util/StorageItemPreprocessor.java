@@ -1,7 +1,5 @@
 package com.psddev.dari.util;
 
-import org.apache.commons.fileupload.FileItem;
-
 /**
  * StorageItemPreprocessors are executed before a StorageItem
  * has executed {@link StorageItem#save()} in {@link StorageItemFilter}.
@@ -9,10 +7,9 @@ import org.apache.commons.fileupload.FileItem;
 public interface StorageItemPreprocessor {
 
     /**
-     * Invoked by StorageItemListener
+     * Invoked by {@link StorageItemListener}
      *
-     * @param storageItem StorageItem to be processed
-     * @param fileItem FileItem from the multipart request
+     * @param part StorageItemPart containing relevant data
      */
-    void process(StorageItem storageItem, FileItem fileItem);
+    void process(StorageItemPart part);
 }

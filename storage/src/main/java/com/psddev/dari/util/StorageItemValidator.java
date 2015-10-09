@@ -1,6 +1,5 @@
 package com.psddev.dari.util;
 
-import java.io.File;
 import java.io.IOException;
 
 /**
@@ -14,5 +13,11 @@ public interface StorageItemValidator {
         return true;
     }
 
-    void validate(File file, String fileContentType) throws IOException;
+    /**
+     * Invoked by {@link StorageItemFilter}
+     *
+     * @param part StorageItemPart containing relevant data
+     * @throws IOException
+     */
+    void validate(StorageItemPart part) throws IOException;
 }

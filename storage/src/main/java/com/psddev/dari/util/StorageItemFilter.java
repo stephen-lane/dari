@@ -76,7 +76,12 @@ public class StorageItemFilter extends AbstractFilter {
             if (mpRequest != null) {
                 FileItem fileItem = mpRequest.getFileItem(paramName);
                 if (fileItem != null) {
-                    storageItem = createStorageItem(fileItem, storageName);
+
+                    StorageItemPart part = new StorageItemPart();
+                    part.setFileItem(fileItem);
+                    part.setStorageName(storageName);
+
+                    storageItem = createStorageItem(part);
                 }
             }
         }
@@ -111,31 +116,30 @@ public class StorageItemFilter extends AbstractFilter {
         return storageItem;
     }
 
-    private static StorageItem createStorageItem(FileItem fileItem, String storageName) throws IOException {
+    private static StorageItem createStorageItem(StorageItemPart part) throws IOException {
 
-        storageName = StringUtils.isBlank(storageName) ? Settings.get(String.class, StorageItem.DEFAULT_STORAGE_SETTING) : storageName;
+        String storageName = StringUtils.isBlank(part.getStorageName()) ? Settings.get(String.class, StorageItem.DEFAULT_STORAGE_SETTING) : part.getStorageName();
 
         File file;
         try {
             file = File.createTempFile("cms.", ".tmp");
-            fileItem.write(file);
+            part.getFileItem().write(file);
         } catch (Exception e) {
-            throw new IOException("Unable to write [" + (fileItem != null ? fileItem.getName() : "fileItem") + "] to temporary file.", e);
+            throw new IOException("Unable to write [" + (StringUtils.isBlank(part.getName()) ? part.getName() : "fileItem") + "] to temporary file.", e);
         }
 
         // Add additional validation by creating StorageItemValidators
-        validateStorageItem(storageName, fileItem, file);
-
-        String fileName = fileItem.getName();
-        String fileContentType = fileItem.getContentType();
+        validateStorageItem(part);
 
         StorageItem storageItem = StorageItem.Static.createIn(storageName);
-        storageItem.setContentType(fileContentType);
-        storageItem.setPath(getPathGenerator(storageName).createPath(fileName));
+        storageItem.setContentType(part.getContentType());
+        storageItem.setPath(getPathGenerator(storageName).createPath(part.getName()));
         storageItem.setData(new FileInputStream(file));
 
+        part.setStorageItem(storageItem);
+
         // Add additional preprocessing by creating StorageItemPreprocessors
-        preprocessStorageItem(storageItem, fileItem);
+        preprocessStorageItem(part);
 
         // Add postprocessing by creating StorageItemPostprocessors
         addPostprocessingListener(storageItem);
@@ -145,8 +149,9 @@ public class StorageItemFilter extends AbstractFilter {
         return storageItem;
     }
 
-    private static void validateStorageItem(final String storageName, FileItem fileItem, File file) {
+    private static void validateStorageItem(final StorageItemPart part) {
 
+        FileItem fileItem = part.getFileItem();
         String fileName = Preconditions.checkNotNull(fileItem.getName());
 
         Preconditions.checkState(fileItem.getSize() > 0,
@@ -156,8 +161,8 @@ public class StorageItemFilter extends AbstractFilter {
                 .forEach(c -> {
                     try {
                         StorageItemValidator validator = TypeDefinition.getInstance(c).newInstance();
-                        if (validator.isSupported(storageName)) {
-                            validator.validate(file, fileItem.getContentType());
+                        if (validator.isSupported(part.getStorageName())) {
+                            validator.validate(part);
                         }
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
@@ -165,9 +170,9 @@ public class StorageItemFilter extends AbstractFilter {
                 });
     }
 
-    private static void preprocessStorageItem(StorageItem storageItem, FileItem fileItem) {
+    private static void preprocessStorageItem(final StorageItemPart part) {
         ClassFinder.findConcreteClasses(StorageItemPreprocessor.class)
-                .forEach(c -> TypeDefinition.getInstance(c).newInstance().process(storageItem, fileItem));
+                .forEach(c -> TypeDefinition.getInstance(c).newInstance().process(part));
     }
 
     private static void addPostprocessingListener(StorageItem storageItem) {
