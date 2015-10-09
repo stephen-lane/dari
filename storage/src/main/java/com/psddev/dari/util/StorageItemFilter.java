@@ -19,7 +19,7 @@ import com.google.common.base.Preconditions;
  * For creating {@link StorageItem}(s) from a {@link MultipartRequest}
  */
 public class StorageItemFilter extends AbstractFilter {
-    
+
     private static final String DEFAULT_UPLOAD_PATH = "/_dari/upload";
     private static final String FILE_PARAM = "fileParam";
     private static final String STORAGE_PARAM = "storageName";
