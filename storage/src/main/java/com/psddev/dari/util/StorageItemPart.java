@@ -1,5 +1,7 @@
 package com.psddev.dari.util;
 
+import java.io.File;
+
 import org.apache.commons.fileupload.FileItem;
 
 /**
@@ -8,8 +10,29 @@ import org.apache.commons.fileupload.FileItem;
 public class StorageItemPart {
 
     private FileItem fileItem;
+    private File file;
     private StorageItem storageItem;
     private String storageName;
+    private String contentType;
+
+    public String getContentType() {
+        if (contentType == null && getFileItem() != null) {
+            contentType = getFileItem().getContentType();
+        }
+        return contentType;
+    }
+
+    public void setContentType(String contentType) {
+        this.contentType = contentType;
+    }
+
+    public File getFile() {
+        return file;
+    }
+
+    public void setFile(File file) {
+        this.file = file;
+    }
 
     public FileItem getFileItem() {
         return fileItem;
@@ -33,10 +56,6 @@ public class StorageItemPart {
 
     public void setStorageName(String storageName) {
         this.storageName = storageName;
-    }
-
-    public String getContentType() {
-        return getFileItem() != null ? getFileItem().getContentType() : null;
     }
 
     public String getName() {

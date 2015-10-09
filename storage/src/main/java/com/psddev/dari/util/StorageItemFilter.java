@@ -128,6 +128,8 @@ public class StorageItemFilter extends AbstractFilter {
             throw new IOException("Unable to write [" + (StringUtils.isBlank(part.getName()) ? part.getName() : "fileItem") + "] to temporary file.", e);
         }
 
+        part.setFile(file);
+
         // Add additional validation by creating StorageItemValidators
         validateStorageItem(part);
 
