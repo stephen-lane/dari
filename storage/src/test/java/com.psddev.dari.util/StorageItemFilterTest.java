@@ -69,7 +69,7 @@ public class StorageItemFilterTest {
 
             StorageItemFilter filter = new StorageItemFilter();
 
-            when(request.getRequestURI()).thenReturn("/url");
+            when(request.getServletPath()).thenReturn("/url");
             filter.doFilter(request, response, chain);
             verify(chain).doFilter(request, response);
         }
@@ -83,7 +83,8 @@ public class StorageItemFilterTest {
             String storageValue = "testStorage";
             String pathValue = "5d/ca/f0b343b34d2783e91bc74c42e422/test.jpg";
             String contentTypeValue = "image/jpeg";
-            Object metadataValue = null;
+            Map<String, Object> metadataValue = new HashMap<>();
+            metadataValue.put("key", "value");
 
             setSettingsOverrides(storageValue);
 
@@ -155,7 +156,7 @@ public class StorageItemFilterTest {
 
         private HttpServletRequest getUploadRequest() {
             HttpServletRequest request = mock(HttpServletRequest.class);
-            when(request.getRequestURI()).thenReturn("/_dari/upload");
+            when(request.getServletPath()).thenReturn("/_dari/upload");
             when(request.getParameter("fileParam")).thenReturn("file");
             return request;
         }
@@ -164,6 +165,14 @@ public class StorageItemFilterTest {
 
             @Override
             protected void saveData(InputStream data) throws IOException {
+            }
+        }
+
+        public static final class StorageItemPathGeneratorTest implements StorageItemPathGenerator {
+
+            @Override
+            public double getPriority(String storageName) {
+                return 1;
             }
         }
     }
