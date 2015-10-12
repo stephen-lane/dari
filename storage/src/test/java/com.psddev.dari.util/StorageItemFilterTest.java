@@ -25,6 +25,7 @@ import com.google.common.collect.ImmutableMap;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -94,7 +95,7 @@ public class StorageItemFilterTest {
             map.put(CONTENT_TYPE_KEY, contentTypeValue);
             map.put(METADATA_KEY, metadataValue);
 
-            when(request.getParameter("file")).thenReturn(ObjectUtils.toJson(map));
+            when(request.getParameterValues("file")).thenReturn(new String[] { ObjectUtils.toJson(map) });
             assertEquals(getJsonResponse(request, response, chain), map);
         }
 
@@ -112,14 +113,15 @@ public class StorageItemFilterTest {
 
             setSettingsOverrides(storageValue);
 
-            FileItem fileItem = Utils.getFileItem(
+            FileItem fileItem = spy(Utils.getFileItem(
                     "image/png",
                     fileName,
-                    "com/psddev/dari/util/StorageItemFilter_Test/" + fileName);
+                    "com/psddev/dari/util/StorageItemFilter_Test/" + fileName));
 
+            when(fileItem.isFormField()).thenReturn(false);
             when(mpRequest.getMethod()).thenReturn("POST");
             when(request.getAttribute(MultipartRequestFilter.class.getName() + ".instance")).thenReturn(mpRequest);
-            when(mpRequest.getFileItem("file")).thenReturn(fileItem);
+            when(mpRequest.getFileItems("file")).thenReturn(new FileItem[] { fileItem });
 
             Map<String, Object> jsonResponse = getJsonResponse(request, response, chain);
 
