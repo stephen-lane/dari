@@ -25,6 +25,7 @@ import com.google.common.collect.ImmutableMap;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -112,11 +113,12 @@ public class StorageItemFilterTest {
 
             setSettingsOverrides(storageValue);
 
-            FileItem fileItem = Utils.getFileItem(
+            FileItem fileItem = spy(Utils.getFileItem(
                     "image/png",
                     fileName,
-                    "com/psddev/dari/util/StorageItemFilter_Test/" + fileName);
+                    "com/psddev/dari/util/StorageItemFilter_Test/" + fileName));
 
+            when(fileItem.isFormField()).thenReturn(false);
             when(mpRequest.getMethod()).thenReturn("POST");
             when(request.getAttribute(MultipartRequestFilter.class.getName() + ".instance")).thenReturn(mpRequest);
             when(mpRequest.getFileItem("file")).thenReturn(fileItem);

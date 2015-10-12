@@ -37,13 +37,15 @@ public class StorageItemFilter extends AbstractFilter {
     protected void doRequest(HttpServletRequest request, HttpServletResponse response, FilterChain chain) throws Exception {
 
         if (request.getServletPath().equals(Settings.getOrDefault(String.class, StorageItem.SETTING_PREFIX + "/uploadPath", DEFAULT_UPLOAD_PATH))) {
-            String fileParam = request.getParameter(FILE_PARAM);
-            String storageName = request.getParameter(STORAGE_PARAM);
-            StorageItem storageItem = StorageItemFilter.getParameter(request, fileParam, storageName);
-
             WebPageContext page = new WebPageContext((ServletContext) null, request, response);
+
+            String fileParam = page.param(String.class, FILE_PARAM);
+            String storageName = page.param(String.class, STORAGE_PARAM);
+
+            Object responseObject = StorageItemFilter.getParameter(request, fileParam, storageName);
+
             response.setContentType("application/json");
-            page.write(ObjectUtils.toJson(storageItem));
+            page.write(ObjectUtils.toJson(responseObject));
             return;
         }
 
@@ -62,27 +64,26 @@ public class StorageItemFilter extends AbstractFilter {
         Preconditions.checkNotNull(request);
         Preconditions.checkArgument(!StringUtils.isBlank(paramName));
 
-        String storageItemJson = request.getParameter(paramName);
-
         StorageItem storageItem = null;
 
-        if (storageItemJson != null && !storageItemJson.equals(paramName)) {
-            storageItem = createStorageItem(storageItemJson);
-        } else {
+        MultipartRequest mpRequest = MultipartRequestFilter.Static.getInstance(request);
 
-            MultipartRequest mpRequest = MultipartRequestFilter.Static.getInstance(request);
+        if (mpRequest != null) {
+            FileItem item = mpRequest.getFileItem(paramName);
 
-            if (mpRequest != null) {
-                FileItem fileItem = mpRequest.getFileItem(paramName);
-                if (fileItem != null) {
-
+            if (item != null) {
+                if (item.isFormField()) {
+                    storageItem = createStorageItem(mpRequest.getParameter(paramName));
+                } else {
                     StorageItemPart part = new StorageItemPart();
-                    part.setFileItem(fileItem);
+                    part.setFileItem(item);
                     part.setStorageName(storageName);
 
                     storageItem = createStorageItem(part);
                 }
             }
+        } else {
+            storageItem = createStorageItem(request.getParameter(paramName));
         }
 
         return storageItem;
