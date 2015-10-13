@@ -11,7 +11,7 @@ public interface StorageItemPostprocessor {
      * Invoked from StorageItemFilter to handle additional
      * processing of a StorageItem.
      *
-     * @param item StorageItem that has been saved to storage.
+     * @param part StorageItemPart with a StorageItem that has been saved to storage.
      */
-    void process(StorageItem item);
+    void process(StorageItemPart part);
 }
