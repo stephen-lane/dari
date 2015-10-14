@@ -176,7 +176,7 @@ public class StorageItemFilter extends AbstractFilter {
         preprocessStorageItem(part);
 
         // Add postprocessing by creating StorageItemPostprocessors
-        addPostprocessingListener(storageItem);
+        addPostprocessingListener(part);
 
         storageItem.save();
 
@@ -209,14 +209,15 @@ public class StorageItemFilter extends AbstractFilter {
                 .forEach(c -> TypeDefinition.getInstance(c).newInstance().process(part));
     }
 
-    private static void addPostprocessingListener(StorageItem storageItem) {
+    private static void addPostprocessingListener(StorageItemPart part) {
+        StorageItem storageItem = part.getStorageItem();
         if (storageItem instanceof AbstractStorageItem) {
             AbstractStorageItem abstractStorageItem = (AbstractStorageItem) storageItem;
             abstractStorageItem.registerListener((listener) -> {
                 // TODO: offload this to background task here or in StorageItemListener?
                 // TODO: handle execution ordering?
                 ClassFinder.findConcreteClasses(StorageItemPostprocessor.class)
-                        .forEach(c -> TypeDefinition.getInstance(c).newInstance().process(storageItem));
+                        .forEach(c -> TypeDefinition.getInstance(c).newInstance().process(part));
             });
         }
     }

@@ -5,7 +5,8 @@ import java.io.File;
 import org.apache.commons.fileupload.FileItem;
 
 /**
- * Common wrapper class for {@link StorageItemFilter}.
+ * Common wrapper class used by {@link StorageItemFilter}
+ * processors and validators.
  */
 public class StorageItemPart {
 
