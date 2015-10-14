@@ -95,22 +95,24 @@ public class StorageItemFilter extends AbstractFilter {
 
             FileItem[] items = mpRequest.getFileItems(paramName);
 
-            for (int i = 0; i < items.length; i++) {
-                FileItem item = items[i];
-                if (item == null) {
-                    continue;
+            if (!ObjectUtils.isBlank(items)) {
+                for (int i = 0; i < items.length; i++) {
+                    FileItem item = items[i];
+                    if (item == null) {
+                        continue;
+                    }
+
+                    if (item.isFormField()) {
+                        storageItems.add(createStorageItem(request.getParameterValues(paramName)[i]));
+                        continue;
+                    }
+
+                    StorageItemPart part = new StorageItemPart();
+                    part.setFileItem(item);
+                    part.setStorageName(storageName);
+
+                    storageItems.add(createStorageItem(part));
                 }
-
-                if (item.isFormField()) {
-                    storageItems.add(createStorageItem(request.getParameterValues(paramName)[i]));
-                    continue;
-                }
-
-                StorageItemPart part = new StorageItemPart();
-                part.setFileItem(item);
-                part.setStorageName(storageName);
-
-                storageItems.add(createStorageItem(part));
             }
         } else {
             for (String json : request.getParameterValues(paramName)) {
