@@ -149,10 +149,10 @@ public class StorageItemFilter extends AbstractFilter {
         // Add additional preprocessing by creating StorageItemBeforeSave implementations
         beforeSave(part);
 
-        // Add processing after save by creating StorageItemAfterSave implementations
-        addPostprocessingListener(part);
-
         storageItem.save();
+
+        // Add processing after save by creating StorageItemAfterSave implementations
+        afterSave(part);
 
         return storageItem;
     }
@@ -180,17 +180,9 @@ public class StorageItemFilter extends AbstractFilter {
                 .forEach(c -> TypeDefinition.getInstance(c).newInstance().beforeSave(part));
     }
 
-    private static void addPostprocessingListener(StorageItemPart part) {
-        StorageItem storageItem = part.getStorageItem();
-        if (storageItem instanceof AbstractStorageItem) {
-            AbstractStorageItem abstractStorageItem = (AbstractStorageItem) storageItem;
-            abstractStorageItem.registerListener((listener) -> {
-                // TODO: offload this to background task here or in StorageItemListener?
-                // TODO: handle execution ordering?
-                ClassFinder.findConcreteClasses(StorageItemAfterSave.class)
-                        .forEach(c -> TypeDefinition.getInstance(c).newInstance().afterSave(part));
-            });
-        }
+    private static void afterSave(StorageItemPart part) {
+        ClassFinder.findConcreteClasses(StorageItemAfterSave.class)
+                .forEach(c -> TypeDefinition.getInstance(c).newInstance().afterSave(part));
     }
 
     private static StorageItemPathGenerator getPathGenerator(final String storageName) {
