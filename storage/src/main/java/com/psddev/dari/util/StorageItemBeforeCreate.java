@@ -12,7 +12,8 @@ public interface StorageItemBeforeCreate {
     /**
      * Invoked by {@link StorageItemFilter}
      *
-     * @param part StorageItemPart containing relevant data
+     * @param part
+     *        StorageItemPart containing relevant data
      * @throws IOException
      */
     void beforeCreate(StorageItemPart part) throws IOException;
