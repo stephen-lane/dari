@@ -153,7 +153,7 @@ public class StorageItemFilterTest {
         private HttpServletRequest getUploadRequest() {
             HttpServletRequest request = mock(HttpServletRequest.class);
             when(request.getServletPath()).thenReturn("/_dari/upload");
-            when(request.getParameter("fileParam")).thenReturn("file");
+            when(request.getParameter("fileParameter")).thenReturn("file");
             return request;
         }
 

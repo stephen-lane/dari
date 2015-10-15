@@ -137,7 +137,7 @@ public class StorageItemFilter extends AbstractFilter {
         part.setFile(file);
 
         // Add additional validation by creating StorageItemValidators
-        validateStorageItem(part);
+        beforeCreate(part);
 
         StorageItem storageItem = StorageItem.Static.createIn(storageName);
         storageItem.setContentType(part.getContentType());
@@ -157,7 +157,7 @@ public class StorageItemFilter extends AbstractFilter {
         return storageItem;
     }
 
-    private static void validateStorageItem(final StorageItemPart part) {
+    private static void beforeCreate(final StorageItemPart part) {
 
         FileItem fileItem = part.getFileItem();
         String fileName = Preconditions.checkNotNull(fileItem.getName());
@@ -165,13 +165,10 @@ public class StorageItemFilter extends AbstractFilter {
         Preconditions.checkState(fileItem.getSize() > 0,
                 "File [" + fileName + "] is empty");
 
-        ClassFinder.findConcreteClasses(StorageItemValidator.class)
+        ClassFinder.findConcreteClasses(StorageItemBeforeCreate.class)
                 .forEach(c -> {
                     try {
-                        StorageItemValidator validator = TypeDefinition.getInstance(c).newInstance();
-                        if (validator.isSupported(part.getStorageName())) {
-                            validator.validate(part);
-                        }
+                        TypeDefinition.getInstance(c).newInstance().beforeCreate(part);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
