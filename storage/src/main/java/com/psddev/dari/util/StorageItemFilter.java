@@ -28,9 +28,12 @@ public class StorageItemFilter extends AbstractFilter {
      * Intercepts requests to {@code UPLOAD_PATH},
      * creates a {@link StorageItem} and returns the StorageItem as json.
      *
-     * @param request  Can't be {@code null}.
-     * @param response Can't be {@code null}.
-     * @param chain    Can't be {@code null}.
+     * @param request
+     *        Can't be {@code null}.
+     * @param response
+     *        Can't be {@code null}.
+     * @param chain
+     *        Can't be {@code null}.
      * @throws Exception
      */
     @Override
@@ -55,9 +58,12 @@ public class StorageItemFilter extends AbstractFilter {
     /**
      * Creates {@link StorageItem} from a request and request parameter.
      *
-     * @param request     Can't be {@code null}.
-     * @param paramName   The parameter name for the file input. Can't be {@code null} or blank.
-     * @param storageName Optionally accepts a storageName, will default to using {@code StorageItem.DEFAULT_STORAGE_SETTING}
+     * @param request
+     *        Can't be {@code null}.
+     * @param paramName
+     *        The parameter name for the file input. Can't be {@code null} or blank.
+     * @param storageName
+     *        Optionally accepts a storageName, will default to using {@code StorageItem.DEFAULT_STORAGE_SETTING}
      * @return the created {@link StorageItem}
      */
     public static StorageItem getParameter(HttpServletRequest request, String paramName, String storageName) throws IOException {

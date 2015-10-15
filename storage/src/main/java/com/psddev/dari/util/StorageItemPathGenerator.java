@@ -16,7 +16,8 @@ public interface StorageItemPathGenerator {
      * by {@code StorageItemFilter}. Return a value less
      * than zero if StorageItemPathGenerator should not be supported.
      *
-     * @param storageName name of the storage Settings key
+     * @param storageName
+     *        Name of the storage Settings key.
      */
 
     default double getPriority(String storageName) {
