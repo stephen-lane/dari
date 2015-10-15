@@ -23,6 +23,7 @@ public class StorageItemFilter extends AbstractFilter {
     private static final String DEFAULT_UPLOAD_PATH = "/_dari/upload";
     private static final String FILE_PARAM = "fileParameter";
     private static final String STORAGE_PARAM = "storageName";
+    private static final String SETTING_PREFIX = "dari/upload";
 
     /**
      * Intercepts requests to {@code UPLOAD_PATH},
@@ -39,7 +40,7 @@ public class StorageItemFilter extends AbstractFilter {
     @Override
     protected void doRequest(HttpServletRequest request, HttpServletResponse response, FilterChain chain) throws Exception {
 
-        if (request.getServletPath().equals(Settings.getOrDefault(String.class, StorageItem.SETTING_PREFIX + "/uploadPath", DEFAULT_UPLOAD_PATH))) {
+        if (request.getServletPath().equals(Settings.getOrDefault(String.class, SETTING_PREFIX + "/path", DEFAULT_UPLOAD_PATH))) {
             WebPageContext page = new WebPageContext((ServletContext) null, request, response);
 
             String fileParam = page.param(String.class, FILE_PARAM);
