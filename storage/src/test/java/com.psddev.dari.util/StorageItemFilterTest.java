@@ -163,14 +163,6 @@ public class StorageItemFilterTest {
             protected void saveData(InputStream data) throws IOException {
             }
         }
-
-        public static final class StorageItemPathGeneratorTest implements StorageItemPathGenerator {
-
-            @Override
-            public double getPriority(String storageName) {
-                return 1;
-            }
-        }
     }
 
     @Ignore

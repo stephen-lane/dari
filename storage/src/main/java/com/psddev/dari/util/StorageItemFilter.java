@@ -1,7 +1,5 @@
 package com.psddev.dari.util;
 
-import javax.servlet.http.HttpServletRequest;
-
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -10,6 +8,7 @@ import java.util.Map;
 
 import javax.servlet.FilterChain;
 import javax.servlet.ServletContext;
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.fileupload.FileItem;
@@ -84,7 +83,9 @@ public class StorageItemFilter extends AbstractFilter {
                 } else {
                     StorageItemPart part = new StorageItemPart();
                     part.setFileItem(item);
-                    part.setStorageName(storageName);
+                    part.setStorageName(StringUtils.isBlank(storageName)
+                            ? Settings.get(String.class, StorageItem.DEFAULT_STORAGE_SETTING)
+                            : storageName);
 
                     storageItem = createStorageItem(part);
                 }
@@ -125,8 +126,6 @@ public class StorageItemFilter extends AbstractFilter {
 
     private static StorageItem createStorageItem(StorageItemPart part) throws IOException {
 
-        String storageName = StringUtils.isBlank(part.getStorageName()) ? Settings.get(String.class, StorageItem.DEFAULT_STORAGE_SETTING) : part.getStorageName();
-
         File file;
         try {
             file = File.createTempFile("cms.", ".tmp");
@@ -140,9 +139,9 @@ public class StorageItemFilter extends AbstractFilter {
         // Add additional validation by creating StorageItemBeforeCreate implementations
         beforeCreate(part);
 
-        StorageItem storageItem = StorageItem.Static.createIn(storageName);
+        StorageItem storageItem = StorageItem.Static.createIn(part.getStorageName());
         storageItem.setContentType(part.getContentType());
-        storageItem.setPath(getPathGenerator(storageName).createPath(part.getName()));
+        storageItem.setPath(createPath(part));
         storageItem.setData(new FileInputStream(file));
 
         part.setStorageItem(storageItem);
@@ -186,27 +185,28 @@ public class StorageItemFilter extends AbstractFilter {
                 .forEach(c -> TypeDefinition.getInstance(c).newInstance().afterSave(part));
     }
 
-    private static StorageItemPathGenerator getPathGenerator(final String storageName) {
+    private static String createPath(StorageItemPart part) {
 
-        StorageItemPathGenerator pathGenerator = new StorageItemPathGenerator() { };
-        for (Class<? extends StorageItemPathGenerator> generatorClass : ClassFinder.findConcreteClasses(StorageItemPathGenerator.class)) {
+        String pathGeneratorClassName = Settings.get(String.class, SETTING_PREFIX + "/" + part.getStorageName() + "/pathGenerator");
 
-            if (generatorClass.getCanonicalName() == null) {
-                continue;
-            }
+        Class<?> pathGeneratorClass = null;
 
-            StorageItemPathGenerator candidate = TypeDefinition.getInstance(generatorClass).newInstance();
-            double candidatePriority = candidate.getPriority(storageName);
-            double highestPriority = pathGenerator.getPriority(storageName);
-
-            Preconditions.checkState(candidatePriority != highestPriority,
-                    "Priorities of [" + candidate.getClass().getSimpleName() + "] and [" + pathGenerator.getClass().getSimpleName() + "] are ambiguous. Priorities should not be the same.");
-
-            if (candidatePriority  > highestPriority) {
-                pathGenerator = candidate;
-            }
+        if (!StringUtils.isBlank(pathGeneratorClassName)) {
+            pathGeneratorClass = ObjectUtils.getClassByName(pathGeneratorClassName);
         }
 
-        return pathGenerator;
+        StorageItemPathGenerator pathGenerator;
+
+        if (pathGeneratorClass != null) {
+            Object instance = TypeDefinition.getInstance(pathGeneratorClass).newInstance();
+            Preconditions.checkState(
+                    instance instanceof StorageItemPathGenerator,
+                    "Class [" + pathGeneratorClass.getName() + "] does not implement StorageItemPathGenerator.");
+            pathGenerator = (StorageItemPathGenerator) instance;
+        } else {
+            pathGenerator = TypeDefinition.getInstance(RandomUuidStorageItemPathGenerator.class).newInstance();
+        }
+
+        return pathGenerator.createPath(part.getName());
     }
 }
