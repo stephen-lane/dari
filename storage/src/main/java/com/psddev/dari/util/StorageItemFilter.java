@@ -21,7 +21,7 @@ import com.google.common.base.Preconditions;
 public class StorageItemFilter extends AbstractFilter {
 
     private static final String DEFAULT_UPLOAD_PATH = "/_dari/upload";
-    private static final String FILE_PARAM = "fileParam";
+    private static final String FILE_PARAM = "fileParameter";
     private static final String STORAGE_PARAM = "storageName";
 
     /**
@@ -60,26 +60,26 @@ public class StorageItemFilter extends AbstractFilter {
      *
      * @param request
      *        Can't be {@code null}.
-     * @param paramName
+     * @param parameterName
      *        The parameter name for the file input. Can't be {@code null} or blank.
      * @param storageName
      *        Optionally accepts a storageName, will default to using {@code StorageItem.DEFAULT_STORAGE_SETTING}
      * @return the created {@link StorageItem}
      */
-    public static StorageItem getParameter(HttpServletRequest request, String paramName, String storageName) throws IOException {
+    public static StorageItem getParameter(HttpServletRequest request, String parameterName, String storageName) throws IOException {
         Preconditions.checkNotNull(request);
-        Preconditions.checkArgument(!StringUtils.isBlank(paramName));
+        Preconditions.checkArgument(!StringUtils.isBlank(parameterName));
 
         StorageItem storageItem = null;
 
         MultipartRequest mpRequest = MultipartRequestFilter.Static.getInstance(request);
 
         if (mpRequest != null) {
-            FileItem item = mpRequest.getFileItem(paramName);
+            FileItem item = mpRequest.getFileItem(parameterName);
 
             if (item != null) {
                 if (item.isFormField()) {
-                    storageItem = createStorageItem(mpRequest.getParameter(paramName));
+                    storageItem = createStorageItem(mpRequest.getParameter(parameterName));
                 } else {
                     StorageItemPart part = new StorageItemPart();
                     part.setFileItem(item);
@@ -89,7 +89,7 @@ public class StorageItemFilter extends AbstractFilter {
                 }
             }
         } else {
-            storageItem = createStorageItem(request.getParameter(paramName));
+            storageItem = createStorageItem(request.getParameter(parameterName));
         }
 
         return storageItem;
