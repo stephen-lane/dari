@@ -136,7 +136,7 @@ public class StorageItemFilter extends AbstractFilter {
 
         part.setFile(file);
 
-        // Add additional validation by creating StorageItemValidators
+        // Add additional validation by creating StorageItemBeforeCreate implementations
         beforeCreate(part);
 
         StorageItem storageItem = StorageItem.Static.createIn(storageName);
@@ -146,10 +146,10 @@ public class StorageItemFilter extends AbstractFilter {
 
         part.setStorageItem(storageItem);
 
-        // Add additional preprocessing by creating StorageItemPreprocessors
-        preprocessStorageItem(part);
+        // Add additional preprocessing by creating StorageItemBeforeSave implementations
+        beforeSave(part);
 
-        // Add postprocessing by creating StorageItemPostprocessors
+        // Add processing after save by creating StorageItemAfterSave implementations
         addPostprocessingListener(part);
 
         storageItem.save();
@@ -175,9 +175,9 @@ public class StorageItemFilter extends AbstractFilter {
                 });
     }
 
-    private static void preprocessStorageItem(final StorageItemPart part) {
-        ClassFinder.findConcreteClasses(StorageItemPreprocessor.class)
-                .forEach(c -> TypeDefinition.getInstance(c).newInstance().process(part));
+    private static void beforeSave(final StorageItemPart part) {
+        ClassFinder.findConcreteClasses(StorageItemBeforeSave.class)
+                .forEach(c -> TypeDefinition.getInstance(c).newInstance().beforeSave(part));
     }
 
     private static void addPostprocessingListener(StorageItemPart part) {
@@ -187,8 +187,8 @@ public class StorageItemFilter extends AbstractFilter {
             abstractStorageItem.registerListener((listener) -> {
                 // TODO: offload this to background task here or in StorageItemListener?
                 // TODO: handle execution ordering?
-                ClassFinder.findConcreteClasses(StorageItemPostprocessor.class)
-                        .forEach(c -> TypeDefinition.getInstance(c).newInstance().process(part));
+                ClassFinder.findConcreteClasses(StorageItemAfterSave.class)
+                        .forEach(c -> TypeDefinition.getInstance(c).newInstance().afterSave(part));
             });
         }
     }
