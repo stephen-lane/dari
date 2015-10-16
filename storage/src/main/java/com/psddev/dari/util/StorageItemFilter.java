@@ -81,13 +81,9 @@ public class StorageItemFilter extends AbstractFilter {
                 if (item.isFormField()) {
                     storageItem = createStorageItem(mpRequest.getParameter(parameterName));
                 } else {
-                    StorageItemPart part = new StorageItemPart();
-                    part.setFileItem(item);
-                    part.setStorageName(StringUtils.isBlank(storageName)
+                    storageItem = createStorageItem(item, StringUtils.isBlank(storageName)
                             ? Settings.get(String.class, StorageItem.DEFAULT_STORAGE_SETTING)
                             : storageName);
-
-                    storageItem = createStorageItem(part);
                 }
             }
         } else {
@@ -124,17 +120,21 @@ public class StorageItemFilter extends AbstractFilter {
         return storageItem;
     }
 
-    private static StorageItem createStorageItem(StorageItemPart part) throws IOException {
+    private static StorageItem createStorageItem(FileItem fileItem, String storageName) throws IOException {
 
         File file;
         try {
             file = File.createTempFile("cms.", ".tmp");
-            part.getFileItem().write(file);
+            fileItem.write(file);
         } catch (Exception e) {
-            throw new IOException("Unable to write [" + (StringUtils.isBlank(part.getName()) ? part.getName() : "fileItem") + "] to temporary file.", e);
+            throw new IOException("Unable to write [" + (StringUtils.isBlank(fileItem.getName()) ? fileItem.getName() : "fileItem") + "] to temporary file.", e);
         }
 
+        StorageItemPart part = new StorageItemPart();
+        part.setContentType(fileItem.getContentType());
+        part.setName(fileItem.getName());
         part.setFile(file);
+        part.setStorageName(storageName);
 
         // Add additional beforeCreate logic by creating StorageItemBeforeCreate implementations
         beforeCreate(part);
@@ -144,7 +144,11 @@ public class StorageItemFilter extends AbstractFilter {
         storageItem.setPath(createPath(part));
         storageItem.setData(new FileInputStream(file));
 
-        part.setStorageItem(storageItem);
+        if (storageItem instanceof AbstractStorageItem) {
+            AbstractStorageItem abstractStorageItem = (AbstractStorageItem) storageItem;
+            abstractStorageItem.setSize(part.getSize());
+            abstractStorageItem.setFileName(part.getName());
+        }
 
         storageItem.save();
 
@@ -152,11 +156,9 @@ public class StorageItemFilter extends AbstractFilter {
     }
 
     private static void beforeCreate(final StorageItemPart part) {
+        String fileName = Preconditions.checkNotNull(part.getName());
 
-        FileItem fileItem = part.getFileItem();
-        String fileName = Preconditions.checkNotNull(fileItem.getName());
-
-        Preconditions.checkState(fileItem.getSize() > 0,
+        Preconditions.checkState(part.getSize() > 0,
                 "File [" + fileName + "] is empty");
 
         ClassFinder.findConcreteClasses(StorageItemBeforeCreate.class)

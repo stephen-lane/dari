@@ -72,6 +72,8 @@ public abstract class AbstractStorageItem implements StorageItem {
     private transient InputStream data;
     private transient List<StorageItemListener> listeners;
     private transient StorageItemHash hashAlgorithm;
+    private transient String fileName;
+    private transient long size;
 
     /**
      * Returns the base URL that's used to construct the
@@ -192,6 +194,22 @@ public abstract class AbstractStorageItem implements StorageItem {
 
         return baseUrlFromHash;
 
+    }
+
+    public String getFileName() {
+        return fileName;
+    }
+
+    public void setFileName(String fileName) {
+        this.fileName = fileName;
+    }
+
+    public long getSize() {
+        return size;
+    }
+
+    public void setSize(long size) {
+        this.size = size;
     }
 
     // --- StorageItem support ---
