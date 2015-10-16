@@ -3,8 +3,8 @@ package com.psddev.dari.util;
 import java.io.File;
 
 /**
- * Common wrapper class used by {@link StorageItemFilter}
- * processors and validators.
+ * Wraps values needed to create and validating StorageItems
+ * in {@link StorageItemFilter}.
  */
 public class StorageItemUploadPart {
 

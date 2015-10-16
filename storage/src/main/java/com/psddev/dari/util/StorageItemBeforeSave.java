@@ -4,12 +4,12 @@ import java.io.IOException;
 
 /**
  * StorageItemBeforeSaves are executed before a StorageItem
- * has executed {@link StorageItem#save()} in {@link StorageItemFilter}.
+ * has executed {@code saveData()} in {@link AbstractStorageItem#save()}.
  */
 public interface StorageItemBeforeSave {
 
     /**
-     * Invoked by {@link StorageItemFilter}
+     * Invoked by {@link AbstractStorageItem#save()}
      *
      * @param storageItem
      *        A StorageItem not yet saved to storage.
