@@ -145,9 +145,7 @@ public class StorageItemFilter extends AbstractFilter {
         storageItem.setData(new FileInputStream(file));
 
         if (storageItem instanceof AbstractStorageItem) {
-            AbstractStorageItem abstractStorageItem = (AbstractStorageItem) storageItem;
-            abstractStorageItem.setSize(part.getSize());
-            abstractStorageItem.setFileName(part.getName());
+            ((AbstractStorageItem) storageItem).setPart(part);
         }
 
         storageItem.save();

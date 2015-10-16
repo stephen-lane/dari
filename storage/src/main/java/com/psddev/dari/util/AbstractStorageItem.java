@@ -2,6 +2,7 @@ package com.psddev.dari.util;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -72,8 +73,7 @@ public abstract class AbstractStorageItem implements StorageItem {
     private transient InputStream data;
     private transient List<StorageItemListener> listeners;
     private transient StorageItemHash hashAlgorithm;
-    private transient String fileName;
-    private transient long size;
+    private transient StorageItemUploadPart part;
 
     /**
      * Returns the base URL that's used to construct the
@@ -196,20 +196,12 @@ public abstract class AbstractStorageItem implements StorageItem {
 
     }
 
-    public String getFileName() {
-        return fileName;
+    public StorageItemUploadPart getPart() {
+        return part;
     }
 
-    public void setFileName(String fileName) {
-        this.fileName = fileName;
-    }
-
-    public long getSize() {
-        return size;
-    }
-
-    public void setSize(long size) {
-        this.size = size;
+    public void setPart(StorageItemUploadPart part) {
+        this.part = part;
     }
 
     // --- StorageItem support ---
@@ -358,7 +350,13 @@ public abstract class AbstractStorageItem implements StorageItem {
 
         // Add additional beforeSave functionality through StorageItemBeforeSave implementations
         ClassFinder.findConcreteClasses(StorageItemBeforeSave.class)
-                .forEach(c -> TypeDefinition.getInstance(c).newInstance().beforeSave(this));
+                .forEach(c -> {
+                    try {
+                        TypeDefinition.getInstance(c).newInstance().beforeSave(this);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                });
 
         InputStream data = getData();
         try {
@@ -370,7 +368,13 @@ public abstract class AbstractStorageItem implements StorageItem {
 
         // Add additional afterSave functionality through StorageItemAfterSave implementations
         ClassFinder.findConcreteClasses(StorageItemAfterSave.class)
-                .forEach(c -> TypeDefinition.getInstance(c).newInstance().afterSave(this));
+                .forEach(c -> {
+                    try {
+                        TypeDefinition.getInstance(c).newInstance().afterSave(this);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                });
 
         if (listeners != null) {
             for (StorageItemListener listener : listeners) {
