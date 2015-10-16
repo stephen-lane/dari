@@ -9,8 +9,8 @@ public interface StorageItemBeforeSave {
     /**
      * Invoked by {@link StorageItemFilter}
      *
-     * @param part
-     *        StorageItemPart containing relevant data
+     * @param storageItem
+     *        A StorageItem not yet saved to storage.
      */
-    void beforeSave(StorageItemPart part);
+    void beforeSave(StorageItem storageItem);
 }

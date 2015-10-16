@@ -9,8 +9,8 @@ public interface StorageItemAfterSave {
     /**
      * Invoked from {@link StorageItemFilter}
      *
-     * @param part
-     *        StorageItemPart with a StorageItem that has been saved to storage.
+     * @param storageItem
+     *        A StorageItem after it has been saved to storage.
      */
-    void afterSave(StorageItemPart part);
+    void afterSave(StorageItem storageItem);
 }
