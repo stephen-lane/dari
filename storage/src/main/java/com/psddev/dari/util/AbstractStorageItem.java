@@ -337,6 +337,11 @@ public abstract class AbstractStorageItem implements StorageItem {
 
     @Override
     public void save() throws IOException {
+
+        // Add additional beforeSave functionality through StorageItemBeforeSave implementations
+        ClassFinder.findConcreteClasses(StorageItemBeforeSave.class)
+                .forEach(c -> TypeDefinition.getInstance(c).newInstance().beforeSave(this));
+
         InputStream data = getData();
         try {
             saveData(data);
@@ -344,6 +349,10 @@ public abstract class AbstractStorageItem implements StorageItem {
         } finally {
             data.close();
         }
+
+        // Add additional afterSave functionality through StorageItemAfterSave implementations
+        ClassFinder.findConcreteClasses(StorageItemAfterSave.class)
+                .forEach(c -> TypeDefinition.getInstance(c).newInstance().afterSave(this));
 
         if (listeners != null) {
             for (StorageItemListener listener : listeners) {

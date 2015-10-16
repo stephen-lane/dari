@@ -136,7 +136,7 @@ public class StorageItemFilter extends AbstractFilter {
 
         part.setFile(file);
 
-        // Add additional validation by creating StorageItemBeforeCreate implementations
+        // Add additional beforeCreate logic by creating StorageItemBeforeCreate implementations
         beforeCreate(part);
 
         StorageItem storageItem = StorageItem.Static.createIn(part.getStorageName());
@@ -146,13 +146,7 @@ public class StorageItemFilter extends AbstractFilter {
 
         part.setStorageItem(storageItem);
 
-        // Add additional preprocessing by creating StorageItemBeforeSave implementations
-        beforeSave(part);
-
         storageItem.save();
-
-        // Add processing after save by creating StorageItemAfterSave implementations
-        afterSave(part);
 
         return storageItem;
     }
@@ -173,16 +167,6 @@ public class StorageItemFilter extends AbstractFilter {
                         throw new UncheckedIOException(e);
                     }
                 });
-    }
-
-    private static void beforeSave(final StorageItemPart part) {
-        ClassFinder.findConcreteClasses(StorageItemBeforeSave.class)
-                .forEach(c -> TypeDefinition.getInstance(c).newInstance().beforeSave(part));
-    }
-
-    private static void afterSave(StorageItemPart part) {
-        ClassFinder.findConcreteClasses(StorageItemAfterSave.class)
-                .forEach(c -> TypeDefinition.getInstance(c).newInstance().afterSave(part));
     }
 
     private static String createPath(StorageItemPart part) {
