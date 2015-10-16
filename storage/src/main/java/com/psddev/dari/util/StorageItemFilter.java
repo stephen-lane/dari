@@ -130,7 +130,7 @@ public class StorageItemFilter extends AbstractFilter {
             throw new IOException("Unable to write [" + (StringUtils.isBlank(fileItem.getName()) ? fileItem.getName() : "fileItem") + "] to temporary file.", e);
         }
 
-        StorageItemPart part = new StorageItemPart();
+        StorageItemUploadPart part = new StorageItemUploadPart();
         part.setContentType(fileItem.getContentType());
         part.setName(fileItem.getName());
         part.setFile(file);
@@ -155,7 +155,7 @@ public class StorageItemFilter extends AbstractFilter {
         return storageItem;
     }
 
-    private static void beforeCreate(final StorageItemPart part) {
+    private static void beforeCreate(final StorageItemUploadPart part) {
         String fileName = Preconditions.checkNotNull(part.getName());
 
         Preconditions.checkState(part.getSize() > 0,
@@ -171,7 +171,7 @@ public class StorageItemFilter extends AbstractFilter {
                 });
     }
 
-    private static String createPath(StorageItemPart part) {
+    private static String createPath(StorageItemUploadPart part) {
 
         String pathGeneratorClassName = Settings.get(String.class, SETTING_PREFIX + "/" + part.getStorageName() + "/pathGenerator");
 

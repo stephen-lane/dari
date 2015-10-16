@@ -16,5 +16,5 @@ public interface StorageItemBeforeCreate {
      *        StorageItemPart containing relevant data
      * @throws IOException
      */
-    void beforeCreate(StorageItemPart part) throws IOException;
+    void beforeCreate(StorageItemUploadPart part) throws IOException;
 }

@@ -6,7 +6,7 @@ import java.io.File;
  * Common wrapper class used by {@link StorageItemFilter}
  * processors and validators.
  */
-public class StorageItemPart {
+public class StorageItemUploadPart {
 
     private String name;
     private String contentType;
