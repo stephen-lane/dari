@@ -1,21 +1,26 @@
 package com.psddev.dari.db;
 
-import org.junit.Test;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
-import static org.hamcrest.Matchers.*;
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.*;
+import org.junit.Test;
+import com.google.common.base.Preconditions;
+import java8.util.stream.Collectors;
+import java8.util.stream.StreamSupport;
+
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.junit.Assert.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ObjectStructTest {
 
     @Test(expected = NullPointerException.class)
     public void findIndexedFieldsNull() {
-        ObjectStruct.findIndexedFields(null);
+        findIndexedFields(null);
     }
 
     @Test
@@ -44,7 +49,7 @@ public class ObjectStructTest {
         struct.setIndexes(Collections.singletonList(index));
 
         assertThat(
-                ObjectStruct.findIndexedFields(struct),
+                findIndexedFields(struct),
                 containsInAnyOrder(field0, field1));
     }
 
@@ -66,7 +71,7 @@ public class ObjectStructTest {
 
         @Override
         public ObjectField getField(String name) {
-            return fields.stream()
+            return StreamSupport.stream(fields)
                     .filter(field -> field.getInternalName().equals(name))
                     .findFirst()
                     .orElse(null);
@@ -84,7 +89,7 @@ public class ObjectStructTest {
 
         @Override
         public ObjectIndex getIndex(String name) {
-            return indexes.stream()
+            return StreamSupport.stream(indexes)
                     .filter(index -> index.getUniqueName().equals(name))
                     .findFirst()
                     .orElse(null);
@@ -94,5 +99,19 @@ public class ObjectStructTest {
         public void setIndexes(List<ObjectIndex> indexes) {
             this.indexes = indexes != null ? indexes : new ArrayList<>();
         }
+    }
+
+    private List<ObjectField> findIndexedFields(ObjectStruct struct) {
+        Preconditions.checkNotNull(struct);
+
+        Set<String> indexed = StreamSupport.stream(struct.getIndexes())
+                .flatMap(index -> StreamSupport.stream(index.getFields()))
+                .collect(Collectors.toSet());
+
+        List<ObjectField> fields = struct.getFields();
+
+        fields.removeIf(field -> !indexed.contains(field.getInternalName()));
+
+        return fields;
     }
 }

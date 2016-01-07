@@ -1,5 +1,14 @@
 package com.psddev.dari.db;
 
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.Collections;
+import java.util.Map;
+import java.util.UUID;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
 import com.google.common.collect.ImmutableMap;
 import com.psddev.dari.util.CompactMap;
 import org.hamcrest.Matcher;
@@ -10,19 +19,20 @@ import org.junit.runner.RunWith;
 import org.mockito.internal.stubbing.defaultanswers.ReturnsMocks;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
+import java8.util.stream.StreamSupport;
 
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.util.Collections;
-import java.util.Map;
-import java.util.UUID;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.Supplier;
-
-import static org.hamcrest.Matchers.*;
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.*;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assert.assertThat;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @RunWith(Enclosed.class)
 public class AggregateDatabaseTest {
@@ -227,7 +237,7 @@ public class AggregateDatabaseTest {
         @Before
         @SuppressWarnings("unchecked")
         public void beforeRead() {
-            goodDelegate = goodDelegates.values().stream().findFirst().get();
+            goodDelegate = StreamSupport.stream(goodDelegates.values()).findFirst().get();
 
             Map<String, Database> readDelegates = new CompactMap<>();
 
@@ -318,7 +328,7 @@ public class AggregateDatabaseTest {
 
         @Before
         public void before() {
-            database.setDefaultDelegate(badDelegates.values().stream().findFirst().get());
+            database.setDefaultDelegate(StreamSupport.stream(badDelegates.values()).findFirst().get());
         }
     }
 
@@ -327,7 +337,7 @@ public class AggregateDatabaseTest {
 
         @Before
         public void before() {
-            database.setDefaultDelegate(goodDelegates.values().stream().findFirst().get());
+            database.setDefaultDelegate(StreamSupport.stream(goodDelegates.values()).findFirst().get());
             database.setDelegates(goodDelegates);
         }
 
@@ -374,7 +384,7 @@ public class AggregateDatabaseTest {
 
         @Before
         public void before() {
-            defaultDelegate = goodDelegates.values().stream().findFirst().get();
+            defaultDelegate = StreamSupport.stream(goodDelegates.values()).findFirst().get();
 
             database.setDefaultDelegate(defaultDelegate);
 
@@ -395,7 +405,7 @@ public class AggregateDatabaseTest {
 
             verify(defaultDelegate).save(state);
 
-            delegates.values().stream()
+            StreamSupport.stream(delegates.values())
                     .filter(delegate -> !delegate.equals(defaultDelegate))
                     .forEach(delegate -> {
                         verify(delegate, never()).save(state);

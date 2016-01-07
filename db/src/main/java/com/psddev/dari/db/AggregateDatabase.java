@@ -9,26 +9,27 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import javax.annotation.ParametersAreNonnullByDefault;
 
+import com.google.common.base.Function;
+import com.google.common.base.Preconditions;
+import com.google.common.base.Predicate;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+import com.google.common.collect.ImmutableMap;
 import com.psddev.dari.util.AggregateException;
 import com.psddev.dari.util.CompactMap;
 import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.PaginatedResult;
 import com.psddev.dari.util.SettingsException;
 import com.psddev.dari.util.SparseSet;
-
-import javax.annotation.ParametersAreNonnullByDefault;
+import java8.util.function.Consumer;
+import java8.util.stream.Collectors;
+import java8.util.stream.StreamSupport;
 
 /**
  * Database implementation that aggregates multiple databases so that they
@@ -157,7 +158,7 @@ public class AggregateDatabase implements Database, Iterable<Database> {
     public <T extends Database> List<T> getDelegatesByClass(Class<T> databaseClass) {
         Preconditions.checkNotNull(databaseClass);
 
-        return (List<T>) getDelegates().values().stream()
+        return (List<T>) StreamSupport.stream(getDelegates().values())
                 .filter(databaseClass::isInstance)
                 .collect(Collectors.toList());
     }
@@ -173,7 +174,7 @@ public class AggregateDatabase implements Database, Iterable<Database> {
     public <T extends Database> T getFirstDelegateByClass(Class<T> databaseClass) {
         Preconditions.checkNotNull(databaseClass);
 
-        return (T) getDelegates().values().stream()
+        return (T) StreamSupport.stream(getDelegates().values())
                 .filter(databaseClass::isInstance)
                 .findFirst()
                 .orElse(null);
@@ -362,15 +363,15 @@ public class AggregateDatabase implements Database, Iterable<Database> {
         return read(query.getGroup(), delegate -> delegate.readLastUpdate(query));
     }
 
-    private boolean batch(java.util.function.Predicate<Database> predicate) {
+    private boolean batch(Predicate<Database> predicate) {
         Database defaultDelegate = getDefaultDelegate();
-        boolean result = predicate.test(defaultDelegate);
+        boolean result = predicate.equals(defaultDelegate);
 
-        getDelegates().values().stream()
+        StreamSupport.stream(getDelegates().values())
                 .filter(delegate -> !delegate.equals(defaultDelegate))
                 .forEach(delegate -> {
                     try {
-                        predicate.test(delegate);
+                        predicate.equals(delegate);
 
                     } catch (Exception error) {
                         LOGGER.warn(String.format("Can't batch in [%s]", delegate), error);
@@ -466,7 +467,7 @@ public class AggregateDatabase implements Database, Iterable<Database> {
 
         consumer.accept(defaultDelegate);
 
-        getDelegates().values().stream()
+        StreamSupport.stream(getDelegates().values())
                 .filter(delegate -> !delegate.equals(defaultDelegate))
                 .forEach(delegate -> {
                     try {

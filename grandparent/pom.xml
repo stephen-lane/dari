@@ -217,6 +217,66 @@ try {
                     <additionalparam>-Xdoclint:none</additionalparam>
                 </configuration>
             </plugin>
+
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>1.2.1</version>
+
+                <dependencies>
+                    <dependency>
+                    	<groupId>net.sourceforge.streamsupport</groupId>
+                    	<artifactId>streamsupport</artifactId>
+                    	<version>1.4.1</version>
+                    </dependency>
+                    <!--<dependency>-->
+                    	<!--<groupId>org.codehaus.mojo</groupId>-->
+                    	<!--<artifactId>animal-sniffer-maven-plugin</artifactId>-->
+                    	<!--<version>1.14</version>-->
+                    <!--</dependency>-->
+                </dependencies>
+            </plugin>
+
+            <plugin>
+                <groupId>net.orfjackal.retrolambda</groupId>
+                <artifactId>retrolambda-maven-plugin</artifactId>
+                <version>2.1.0</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>process-main</goal>
+                            <goal>process-test</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <target>1.7</target>
+                    <defaultMethods>true</defaultMethods>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>animal-sniffer-maven-plugin</artifactId>
+                <version>1.15-SNAPSHOT</version>
+                <executions>
+                   <execution>
+                      <id>signature-check</id>
+                      <phase>verify</phase>
+                      <goals>
+                         <goal>check</goal>
+                      </goals>
+                   </execution>
+                </executions>
+                <configuration>
+                    <!--<ignoreDependencies>false</ignoreDependencies>-->
+                   <signature>
+                      <groupId>org.codehaus.mojo.signature</groupId>
+                      <artifactId>java17</artifactId>
+                      <version>1.0</version>
+                   </signature>
+                </configuration>
+             </plugin>
         </plugins>
     </build>
 

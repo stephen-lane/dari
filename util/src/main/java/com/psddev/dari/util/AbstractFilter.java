@@ -25,6 +25,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java8.util.stream.StreamSupport;
 
 /**
  * Skeletal implementation of {@link Filter}.
@@ -160,7 +161,7 @@ public abstract class AbstractFilter implements Filter {
      */
     @Override
     public final void destroy() {
-        initialized.forEach(Filter::destroy);
+        StreamSupport.stream(initialized).forEach(filter -> filter.destroy());
 
         try {
             doDestroy();

@@ -21,13 +21,14 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
-import java.util.stream.Collectors;
 
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 
 import javax.annotation.ParametersAreNonnullByDefault;
+import java8.util.stream.Collectors;
+import java8.util.stream.StreamSupport;
 
 public class TypeDefinition<T> {
 
@@ -380,7 +381,7 @@ public class TypeDefinition<T> {
         protected Map<String, Method> create() {
 
             Map<String, Method> getters = new CompactMap<>();
-            getAllMethods().forEach(method -> {
+            StreamSupport.stream(getAllMethods()).forEach(method -> {
                 if (method.getDeclaringClass() != Object.class) {
 
                     int mod = method.getModifiers();
@@ -422,7 +423,7 @@ public class TypeDefinition<T> {
         protected Map<String, Method> create() {
 
             Map<String, Method> setters = new CompactMap<>();
-            getAllMethods().forEach(method -> {
+            StreamSupport.stream(getAllMethods()).forEach(method -> {
                 if (method.getDeclaringClass() != Object.class) {
 
                     int mod = method.getModifiers();
@@ -501,8 +502,8 @@ public class TypeDefinition<T> {
             // check interfaces
             List<Class<?>> interfaces = Arrays.asList(sourceClass.getInterfaces());
 
-            superTypes.addAll(interfaces.stream().filter((i) -> i.getTypeParameters().length > 0).collect(Collectors.toList()));
-            interfaces.forEach((i) -> superTypes.addAll(getAllSuperTypesWithTypeVariables(i)));
+            superTypes.addAll(StreamSupport.stream(interfaces).filter((i) -> i.getTypeParameters().length > 0).collect(Collectors.toList()));
+            StreamSupport.stream(interfaces).forEach((i) -> superTypes.addAll(getAllSuperTypesWithTypeVariables(i)));
 
             return superTypes;
         }

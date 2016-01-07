@@ -3,11 +3,9 @@ package com.psddev.dari.util;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-
 import javax.servlet.FilterChain;
 import javax.servlet.ServletContext;
 import javax.servlet.http.HttpServletRequest;
@@ -15,6 +13,7 @@ import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.fileupload.FileItem;
 import com.google.common.base.Preconditions;
+import java8.util.stream.StreamSupport;
 
 /**
  * For creating {@link StorageItem}(s) from a {@link MultipartRequest}
@@ -171,24 +170,24 @@ public class StorageItemFilter extends AbstractFilter {
             storageItem.setData(new FileInputStream(file));
 
             // Add additional beforeSave functionality through StorageItemBeforeSave implementations
-            ClassFinder.findConcreteClasses(StorageItemBeforeSave.class)
+            StreamSupport.stream(ClassFinder.findConcreteClasses(StorageItemBeforeSave.class))
                     .forEach(c -> {
                         try {
                             TypeDefinition.getInstance(c).newInstance().beforeSave(storageItem, part);
                         } catch (IOException e) {
-                            throw new UncheckedIOException(e);
+                            throw new RuntimeException(e);
                         }
                     });
 
             storageItem.save();
 
             // Add additional afterSave functionality through StorageItemAfterSave implementations
-            ClassFinder.findConcreteClasses(StorageItemAfterSave.class)
+            StreamSupport.stream(ClassFinder.findConcreteClasses(StorageItemAfterSave.class))
                     .forEach(c -> {
                         try {
                             TypeDefinition.getInstance(c).newInstance().afterSave(storageItem);
                         } catch (IOException e) {
-                            throw new UncheckedIOException(e);
+                            throw new RuntimeException(e);
                         }
                     });
 

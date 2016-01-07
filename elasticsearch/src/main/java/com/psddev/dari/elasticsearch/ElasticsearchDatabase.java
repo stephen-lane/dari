@@ -30,7 +30,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.BiFunction;
-import java.util.function.Function;
+import java8.util.function.Function;
+import java8.util.stream.StreamSupport;
 
 public class ElasticsearchDatabase extends AbstractDatabase<Client> {
 
@@ -102,7 +103,7 @@ public class ElasticsearchDatabase extends AbstractDatabase<Client> {
             Set<UUID> typeIds = query.getConcreteTypeIds(this);
             String[] typeIdStrings = typeIds.size() == 0
                     ? new String[] { "_all" }
-                    : typeIds.stream().map(UUID::toString).toArray(String[]::new);
+                    : StreamSupport.stream(typeIds).map(UUID::toString).toArray(String[]::new);
 
             SearchResponse response = client.prepareSearch(getIndexName())
                     .setFetchSource(!query.isReferenceOnly())

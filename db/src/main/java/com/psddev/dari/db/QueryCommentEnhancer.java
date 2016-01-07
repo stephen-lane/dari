@@ -11,7 +11,8 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
+import java8.util.stream.Collectors;
+import java8.util.stream.StreamSupport;
 
 public class QueryCommentEnhancer extends ClassEnhancer {
 
@@ -37,7 +38,7 @@ public class QueryCommentEnhancer extends ClassEnhancer {
         COMMENT_METHOD_NAME = commentMethod.getName();
         COMMENT_METHOD_DESC = Type.getMethodDescriptor(commentMethod);
 
-        FACTORY_METHODS = Arrays.stream(queryClass.getMethods())
+        FACTORY_METHODS = StreamSupport.stream(Arrays.asList(queryClass.getMethods()))
                 .filter(method -> Modifier.isStatic(method.getModifiers())
                         && queryClass.isAssignableFrom(method.getReturnType()))
                 .map(FactoryMethod::new)
@@ -73,7 +74,7 @@ public class QueryCommentEnhancer extends ClassEnhancer {
 
                 if (opcode == Opcodes.INVOKESTATIC
                         && CLASS_INTERNAL_NAME.equals(owner)
-                        && FACTORY_METHODS.stream().anyMatch(method -> method.matches(name, desc))) {
+                        && StreamSupport.stream(FACTORY_METHODS).anyMatch(method -> method.matches(name, desc))) {
 
                     super.visitLdcInsn(currentSource + ":" + currentLine);
                     super.visitMethodInsn(Opcodes.INVOKEVIRTUAL, CLASS_INTERNAL_NAME, COMMENT_METHOD_NAME, COMMENT_METHOD_DESC, false);
