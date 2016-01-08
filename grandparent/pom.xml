@@ -219,20 +219,6 @@ try {
             </plugin>
 
             <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>exec-maven-plugin</artifactId>
-                <version>1.2.1</version>
-
-                <dependencies>
-                    <dependency>
-                    	<groupId>net.sourceforge.streamsupport</groupId>
-                    	<artifactId>streamsupport</artifactId>
-                    	<version>1.4.1</version>
-                    </dependency>
-                </dependencies>
-            </plugin>
-
-            <plugin>
                 <groupId>net.orfjackal.retrolambda</groupId>
                 <artifactId>retrolambda-maven-plugin</artifactId>
                 <version>2.1.0</version>
