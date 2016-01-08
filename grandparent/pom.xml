@@ -229,11 +229,6 @@ try {
                     	<artifactId>streamsupport</artifactId>
                     	<version>1.4.1</version>
                     </dependency>
-                    <!--<dependency>-->
-                    	<!--<groupId>org.codehaus.mojo</groupId>-->
-                    	<!--<artifactId>animal-sniffer-maven-plugin</artifactId>-->
-                    	<!--<version>1.14</version>-->
-                    <!--</dependency>-->
                 </dependencies>
             </plugin>
 
