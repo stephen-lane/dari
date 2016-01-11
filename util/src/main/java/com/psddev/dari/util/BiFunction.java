@@ -22,7 +22,9 @@
  *
  *
  */
-package java.util.function;
+package com.psddev.dari.util;
+
+import java.util.function.Function;
 
 /**
  * Represents a function that accepts two arguments and produces a result.
