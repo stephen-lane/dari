@@ -9,7 +9,6 @@ import com.psddev.dari.db.PredicateParser;
 import com.psddev.dari.db.Query;
 import com.psddev.dari.db.State;
 import com.psddev.dari.db.UnsupportedPredicateException;
-import com.psddev.dari.util.BiFunction;
 import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.PaginatedResult;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -30,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java8.util.function.BiFunction;
 import java8.util.function.Function;
 import java8.util.stream.StreamSupport;
 
