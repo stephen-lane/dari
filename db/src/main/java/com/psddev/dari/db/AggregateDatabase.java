@@ -16,7 +16,6 @@ import javax.annotation.ParametersAreNonnullByDefault;
 
 import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
-import com.google.common.base.Predicate;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
@@ -363,21 +362,20 @@ public class AggregateDatabase implements Database, Iterable<Database> {
         return read(query.getGroup(), delegate -> delegate.readLastUpdate(query));
     }
 
-    private boolean batch(Predicate<Database> predicate) {
+    private boolean batch(java8.util.function.Predicate<Database> predicate) {
         Database defaultDelegate = getDefaultDelegate();
-        boolean result = predicate.equals(defaultDelegate);
+        boolean result = predicate.test(defaultDelegate);
 
         StreamSupport.stream(getDelegates().values())
                 .filter(delegate -> !delegate.equals(defaultDelegate))
                 .forEach(delegate -> {
                     try {
-                        predicate.equals(delegate);
+                        predicate.test(delegate);
 
                     } catch (Exception error) {
                         LOGGER.warn(String.format("Can't batch in [%s]", delegate), error);
                     }
                 });
-
         return result;
     }
 
