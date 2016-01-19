@@ -54,6 +54,7 @@
         <module>twilio-java7</module>
         <module>util</module>
         <module>util-java7</module>
+        <module>streamsupport</module>
     </modules>
 
     <dependencyManagement>
