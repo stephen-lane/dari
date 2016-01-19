@@ -1,5 +1,7 @@
 package com.psddev.dari.streamsupport;
 
+import java.util.Collection;
+
 import com.psddev.dari.util.ClassEnhancer;
 import com.psddev.dari.util.StringUtils;
 import com.psddev.dari.util.asm.AnnotationVisitor;
@@ -143,18 +145,30 @@ public class StreamSupportEnhancer extends ClassEnhancer {
             @Override
             public void visitMethodInsn(int opcode, String owner, String name, String desc, boolean itf) {
 
-                if (owner.equals("java/util/Collection") && name.equals("stream")) {
-                    System.out.println("Converting collection.stream");
-                    opcode = 184;
-                    owner = "java8/util/stream/StreamSupport";
-                    desc = "(Ljava/util/Collection;)Ljava8/util/stream/Stream;";
-                    itf = false;
+                Class klass = null;
+                try {
+                    klass = Class.forName(owner.replace("/", "."));
+                } catch (ClassNotFoundException e) {
+                    //Class not found
                 }
 
-                owner = convertJava8StreamToStreamSupport(owner);
-                desc = convertJava8StreamToStreamSupport(desc);
+                boolean collection = klass != null && Collection.class.isAssignableFrom(klass);
 
-                super.visitMethodInsn(opcode, owner, name, desc, itf);
+                if (collection && name.equals("stream")) {
+                    System.out.println("Converting collection.stream");
+                    opcode = 184;
+                    desc = "(L" + owner + ";)Ljava8/util/stream/Stream;";
+                    owner = "java8/util/stream/StreamSupport";
+                    itf = false;
+
+                    super.visitMethodInsn(opcode, owner, name, desc, itf);
+                } else {
+
+                    owner = convertJava8StreamToStreamSupport(owner);
+                    desc = convertJava8StreamToStreamSupport(desc);
+
+                    super.visitMethodInsn(opcode, owner, name, desc, itf);
+                }
 
             }
         };

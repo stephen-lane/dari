@@ -8,10 +8,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.joda.time.DateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
@@ -19,8 +21,6 @@ import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.RepeatingTask;
 import com.psddev.dari.util.Stats;
 import com.psddev.dari.util.StringUtils;
-import java8.util.stream.Collectors;
-import java8.util.stream.StreamSupport;
 
 /**
  * Periodically updates indexes annotated with {@code \@Recalculate}.
@@ -176,7 +176,7 @@ public class RecalculationTask extends RepeatingTask {
                 if (!isGlobal) {
                     Set<ObjectType> concreteTypes = new HashSet<>();
                     for (String group : context.groups) {
-                        concreteTypes.addAll(StreamSupport.stream(db.getEnvironment().getTypesByGroup(group)).filter(ObjectType::isConcrete).collect(Collectors.toSet()));
+                        concreteTypes.addAll(db.getEnvironment().getTypesByGroup(group).stream().filter(ObjectType::isConcrete).collect(Collectors.toSet()));
                     }
                     if (!concreteTypes.isEmpty()) {
                         query.where("_type = ?", concreteTypes);
