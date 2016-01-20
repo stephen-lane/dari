@@ -11,9 +11,14 @@ import com.psddev.dari.util.asm.Handle;
 import com.psddev.dari.util.asm.Label;
 import com.psddev.dari.util.asm.MethodVisitor;
 import com.psddev.dari.util.asm.Opcodes;
+import com.psddev.dari.util.asm.Type;
 import com.psddev.dari.util.asm.TypePath;
 
 public class StreamSupportEnhancer extends ClassEnhancer {
+
+    private static final String ANNOTATION_DESCRIPTOR = Type.getDescriptor(StreamSupportEnhanced.class);
+
+    private boolean alreadyEnhanced;
 
     @Override
     public boolean canEnhance(ClassReader reader) {
@@ -60,6 +65,9 @@ public class StreamSupportEnhancer extends ClassEnhancer {
 
     @Override
     public AnnotationVisitor visitAnnotation(String desc, boolean visible) {
+        if (!alreadyEnhanced && desc.equals(ANNOTATION_DESCRIPTOR)) {
+            alreadyEnhanced = true;
+        }
         desc = convertJava8StreamToStreamSupport(desc);
         return super.visitAnnotation(desc, visible);
     }
@@ -83,7 +91,9 @@ public class StreamSupportEnhancer extends ClassEnhancer {
 
         MethodVisitor visitor = super.visitMethod(access, name, desc, signature, exceptions);
 
-        System.out.println("MethodVisitor " + name + " ||| " + desc + " ||| " + signature);
+        if (alreadyEnhanced) {
+            return visitor;
+        }
 
         return new MethodVisitor(Opcodes.ASM5, visitor) {
             @Override
@@ -177,6 +187,17 @@ public class StreamSupportEnhancer extends ClassEnhancer {
 
             }
         };
+    }
+
+    @Override
+    public void visitEnd() {
+        if (!alreadyEnhanced) {
+            AnnotationVisitor annotation = super.visitAnnotation(ANNOTATION_DESCRIPTOR, true);
+
+            annotation.visitEnd();
+        }
+
+        super.visitEnd();
     }
 
     private String convertJava8StreamToStreamSupport(String input) {
