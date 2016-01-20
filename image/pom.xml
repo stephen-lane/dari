@@ -13,6 +13,7 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
 
+    <groupId>com.psddev</groupId>
     <artifactId>dari-image</artifactId>
     <version>3.2-SNAPSHOT</version>
     <packaging>jar</packaging>

@@ -13,6 +13,7 @@
         <relativePath>../grandparent/pom.xml</relativePath>
     </parent>
 
+    <groupId>com.psddev</groupId>
     <artifactId>dari-parent</artifactId>
     <version>3.2-SNAPSHOT</version>
     <packaging>pom</packaging>
