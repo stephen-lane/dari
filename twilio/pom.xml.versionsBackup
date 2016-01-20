@@ -9,26 +9,26 @@
     <parent>
         <groupId>com.psddev</groupId>
         <artifactId>dari</artifactId>
-        <version>3.3-SNAPSHOT</version>
+        <version>3.2-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
     <groupId>com.psddev</groupId>
-    <artifactId>dari-aws</artifactId>
-    <version>3.3-SNAPSHOT</version>
+    <artifactId>dari-twilio</artifactId>
+    <version>3.2-SNAPSHOT</version>
     <packaging>jar</packaging>
 
-    <name>Dari: Integration - Amazon Web Services</name>
+    <name>Dari: Integration - Twilio</name>
 
     <dependencies>
         <dependency>
-            <groupId>com.amazonaws</groupId>
-            <artifactId>aws-java-sdk</artifactId>
+            <groupId>com.psddev</groupId>
+            <artifactId>dari-sms</artifactId>
         </dependency>
 
         <dependency>
             <groupId>com.psddev</groupId>
-            <artifactId>dari-storage</artifactId>
+            <artifactId>dari-util</artifactId>
         </dependency>
     </dependencies>
 
