@@ -44,7 +44,6 @@
         <module>mail</module>
         <module>mail-java7</module>
         <module>parent</module>
-        <module>parent-java7</module>
         <module>reloader/tomcat6</module>
         <module>sms</module>
         <module>sms-java7</module>

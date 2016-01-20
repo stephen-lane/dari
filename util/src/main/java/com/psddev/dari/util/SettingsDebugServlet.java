@@ -9,12 +9,13 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.stream.Stream;
+
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -26,7 +27,6 @@ import com.psddev.dari.util.sa.JvmMethodListener;
 import com.psddev.dari.util.sa.JvmObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import java8.util.stream.StreamSupport;
 
 /** Debug servlet for inspecting {@linkplain Settings global settings}. */
 @DebugFilter.Path("settings")
@@ -85,7 +85,7 @@ public class SettingsDebugServlet extends HttpServlet {
             List<Usage> usages = new ArrayList<>();
             SettingsMethodListener listener = new SettingsMethodListener(usages);
 
-            StreamSupport.stream(Arrays.asList(Settings.class.getMethods()))
+            Stream.of(Settings.class.getMethods())
                     .filter(m -> Modifier.isStatic(m.getModifiers()) && m.getName().startsWith("get"))
                     .forEach(m -> jvm.addMethodListener(m, listener));
 

@@ -162,6 +162,11 @@ public class StreamSupportEnhancer extends ClassEnhancer {
                     itf = false;
 
                     super.visitMethodInsn(opcode, owner, name, desc, itf);
+
+                } else if (owner.equals("java/util/Arrays") && name.equals("stream")) {
+                    super.visitMethodInsn(184, "java/util/Arrays", "asList", "([Ljava/lang/Object;)Ljava/util/List;", false);
+                    super.visitMethodInsn(184, "java8/util/stream/StreamSupport", "stream", "(Ljava/util/Collection;)Ljava8/util/stream/Stream;", false);
+
                 } else {
 
                     owner = convertJava8StreamToStreamSupport(owner);
