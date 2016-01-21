@@ -16,7 +16,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
-import java8.util.stream.StreamSupport;
 
 /**
  * {@link com.psddev.dari.util.StorageItem} implementation that uses
@@ -105,20 +104,20 @@ public class S3StorageItem extends AbstractStorageItem {
         Map<String, List<String>> headers = (Map<String, List<String>>) getMetadata().get(HTTP_HEADERS);
 
         if (headers != null) {
-            for (Map.Entry<String, List<String>> keySet : headers.entrySet()) {
-                if (keySet.getValue() != null) {
-                    switch (keySet.getKey()) {
+            headers.forEach((key, values) -> {
+                if (values != null) {
+                    switch (key) {
 
                         case Headers.CONTENT_LENGTH:
-                            StreamSupport.stream(keySet.getValue()).forEach(value -> metadata.setHeader(keySet.getKey(), ObjectUtils.to(Long.class, value)));
+                            values.forEach(value -> metadata.setHeader(key, ObjectUtils.to(Long.class, value)));
                             break;
 
                         default:
-                            StreamSupport.stream(keySet.getValue()).forEach(value -> metadata.setHeader(keySet.getKey(), value));
+                            values.forEach(value -> metadata.setHeader(key, value));
                             break;
                     }
                 }
-            }
+            });
         }
 
         PutObjectRequest poRequest = new PutObjectRequest(getBucket(), getPath(), data, metadata);

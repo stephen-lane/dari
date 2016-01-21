@@ -1,6 +1,7 @@
 package com.psddev.dari.streamsupport;
 
 import java.util.Collection;
+import java.util.Map;
 
 import com.psddev.dari.util.ClassEnhancer;
 import com.psddev.dari.util.StringUtils;
@@ -176,6 +177,18 @@ public class StreamSupportEnhancer extends ClassEnhancer {
                 } else if (owner.equals("java/util/Arrays") && name.equals("stream")) {
                     super.visitMethodInsn(184, "java/util/Arrays", "asList", "([Ljava/lang/Object;)Ljava/util/List;", false);
                     super.visitMethodInsn(184, "java8/util/stream/StreamSupport", "stream", "(Ljava/util/Collection;)Ljava8/util/stream/Stream;", false);
+
+                } else if (collection && name.equals("forEach")) {
+                    super.visitMethodInsn(184, "com/psddev/dari/util/StreamSupportUtils", "forEach", "(Ljava/lang/Iterable;Ljava8/util/function/Consumer;)V", false);
+
+                } else if (klass != null && Map.class.isAssignableFrom(klass) && name.equals("forEach")) {
+                    super.visitMethodInsn(184, "com/psddev/dari/util/StreamSupportUtils", "mapForEach", "(Ljava/util/Map;Ljava/util/function/BiConsumer;)V", false);
+
+                } else if (collection && name.equals("removeIf") && desc.equals("(Ljava/util/function/Predicate;)Z")) {
+                    super.visitMethodInsn(184, "com/psddev/dari/util/StreamSupportUtils", "removeIf", "(Ljava/lang/Iterable;Ljava8/util/function/Predicate;)Z", false);
+
+                } else if (owner.equals("java/util/stream/Stream") && name.equals("of") && desc.equals("([Ljava/lang/Object;)Ljava/util/stream/Stream;")) {
+                    super.visitMethodInsn(184, "com/psddev/dari/util/StreamSupportUtils", "of", "([Ljava/lang/Object;)Ljava8/util/stream/Stream;", false);
 
                 } else {
 

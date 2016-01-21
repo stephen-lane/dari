@@ -4,9 +4,7 @@ import com.google.common.base.Preconditions;
 
 import java.util.List;
 import java.util.Set;
-
-import java8.util.stream.Collectors;
-import java8.util.stream.StreamSupport;
+import java.util.stream.Collectors;
 
 /**
  * Object that can contain fields and indexes.
@@ -24,13 +22,15 @@ public interface ObjectStruct {
     static List<ObjectField> findIndexedFields(ObjectStruct struct) {
         Preconditions.checkNotNull(struct);
 
-        Set<String> indexed = StreamSupport.stream(struct.getIndexes())
-                .flatMap(index -> StreamSupport.stream(index.getFields()))
+        Set<String> indexed = struct.getIndexes().stream()
+                .flatMap(index -> index.getFields().stream())
                 .collect(Collectors.toSet());
 
         List<ObjectField> fields = struct.getFields();
 
-        return StreamSupport.stream(fields).filter(field -> indexed.contains(field.getInternalName())).collect(Collectors.toList());
+        fields.removeIf(field -> !indexed.contains(field.getInternalName()));
+
+        return fields;
     }
 
     /**

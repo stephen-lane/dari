@@ -13,7 +13,6 @@ import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.fileupload.FileItem;
 import com.google.common.base.Preconditions;
-import java8.util.stream.StreamSupport;
 
 /**
  * For creating {@link StorageItem}(s) from a {@link MultipartRequest}
@@ -67,7 +66,8 @@ public class StorageItemFilter extends AbstractFilter {
      * @throws IOException
      */
     public static StorageItem getParameter(HttpServletRequest request, String parameterName, String storageName) throws IOException {
-        return getParameters(request, parameterName, storageName).get(0);
+        List<StorageItem> storageItems = getParameters(request, parameterName, storageName);
+        return !ObjectUtils.isBlank(storageItems) ? storageItems.get(0) : null;
     }
 
     /**
@@ -94,6 +94,7 @@ public class StorageItemFilter extends AbstractFilter {
             if (!ObjectUtils.isBlank(items)) {
                 for (int i = 0; i < items.length; i++) {
                     FileItem item = items[i];
+
                     if (item == null) {
                         continue;
                     }
@@ -101,6 +102,11 @@ public class StorageItemFilter extends AbstractFilter {
                     // handles input non-file input types in case of mixed input scenario
                     if (item.isFormField()) {
                         storageItems.add(createStorageItem(request.getParameterValues(parameterName)[i]));
+                        continue;
+                    }
+
+                    // No file value found attached to input
+                    if (StringUtils.isBlank(item.getName())) {
                         continue;
                     }
 
@@ -170,7 +176,7 @@ public class StorageItemFilter extends AbstractFilter {
             storageItem.setData(new FileInputStream(file));
 
             // Add additional beforeSave functionality through StorageItemBeforeSave implementations
-            StreamSupport.stream(ClassFinder.findConcreteClasses(StorageItemBeforeSave.class))
+            ClassFinder.findConcreteClasses(StorageItemBeforeSave.class)
                     .forEach(c -> {
                         try {
                             TypeDefinition.getInstance(c).newInstance().beforeSave(storageItem, part);
@@ -182,7 +188,7 @@ public class StorageItemFilter extends AbstractFilter {
             storageItem.save();
 
             // Add additional afterSave functionality through StorageItemAfterSave implementations
-            StreamSupport.stream(ClassFinder.findConcreteClasses(StorageItemAfterSave.class))
+            ClassFinder.findConcreteClasses(StorageItemAfterSave.class)
                     .forEach(c -> {
                         try {
                             TypeDefinition.getInstance(c).newInstance().afterSave(storageItem);
