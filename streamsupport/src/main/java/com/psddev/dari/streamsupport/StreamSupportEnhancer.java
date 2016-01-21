@@ -154,6 +154,24 @@ public class StreamSupportEnhancer extends ClassEnhancer {
             }
 
             @Override
+            public void visitParameter(String name, int access) {
+                name = convertJava8StreamToStreamSupport(name);
+                super.visitParameter(name, access);
+            }
+
+            @Override
+            public AnnotationVisitor visitParameterAnnotation(int parameter, String desc, boolean visible) {
+                desc = convertJava8StreamToStreamSupport(desc);
+                return super.visitParameterAnnotation(parameter, desc, visible);
+            }
+
+            @Override
+            public void visitTypeInsn(int opcode, String type) {
+                type = convertJava8StreamToStreamSupport(type);
+                super.visitTypeInsn(opcode, type);
+            }
+
+            @Override
             public void visitMethodInsn(int opcode, String owner, String name, String desc, boolean itf) {
 
                 Class klass = null;
