@@ -182,7 +182,7 @@ public class StreamSupportEnhancer extends ClassEnhancer {
                     super.visitMethodInsn(184, "com/psddev/dari/util/StreamSupportUtils", "forEach", "(Ljava/lang/Iterable;Ljava8/util/function/Consumer;)V", false);
 
                 } else if (klass != null && Map.class.isAssignableFrom(klass) && name.equals("forEach")) {
-                    super.visitMethodInsn(184, "com/psddev/dari/util/StreamSupportUtils", "mapForEach", "(Ljava/util/Map;Ljava/util/function/BiConsumer;)V", false);
+                    super.visitMethodInsn(184, "com/psddev/dari/util/StreamSupportUtils", "mapForEach", "(Ljava/util/Map;Ljava8/util/function/BiConsumer;)V", false);
 
                 } else if (collection && name.equals("removeIf") && desc.equals("(Ljava/util/function/Predicate;)Z")) {
                     super.visitMethodInsn(184, "com/psddev/dari/util/StreamSupportUtils", "removeIf", "(Ljava/lang/Iterable;Ljava8/util/function/Predicate;)Z", false);
