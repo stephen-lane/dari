@@ -3,19 +3,22 @@ package com.psddev.dari.util;
 import com.google.common.collect.ImmutableSet;
 import org.junit.Test;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import java.util.Map;
+
+import static org.hamcrest.Matchers.*;
+import static org.junit.Assert.*;
+import static org.mockito.Mockito.*;
 
 public class PingTest {
 
     @Test
     public void pingOne() {
-        //assertThat(Ping.pingOne(OkPing.class), nullValue());
+        assertThat(Ping.pingOne(OkPing.class), nullValue());
     }
 
     @Test
     public void pingOneError() {
-        //assertThat(Ping.pingOne(ErrorPing.class), instanceOf(ErrorPingException.class));
+        assertThat(Ping.pingOne(ErrorPing.class), instanceOf(ErrorPingException.class));
     }
 
     @Test
@@ -24,14 +27,13 @@ public class PingTest {
 
         when(finder.find(ObjectUtils.getCurrentClassLoader(), Ping.class)).thenReturn(ImmutableSet.of(OkPing.class, ErrorPing.class));
 
-        //Breaks retro-lamda
-        /*ClassFinder.getThreadDefault().with(finder, () -> {
+        ClassFinder.getThreadDefault().with(finder, () -> {
             Map<Class<?>, Throwable> results = Ping.pingAll();
 
             assertThat(results.size(), equalTo(2));
             assertThat(results, hasEntry(OkPing.class, null));
             assertThat(results, hasEntry(equalTo(ErrorPing.class), instanceOf(ErrorPingException.class)));
-        });*/
+        });
     }
 
     private static class OkPing implements Ping {
