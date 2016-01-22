@@ -179,13 +179,16 @@ public class StreamSupportEnhancer extends ClassEnhancer {
                     klass = Class.forName(owner.replace("/", "."));
                 } catch (ClassNotFoundException e) {
                     //Class not found
+                } catch (NoClassDefFoundError error) {
+                    super.visitMethodInsn(opcode, owner, name, desc, itf);
+                    return;
                 }
 
                 boolean collection = klass != null && Collection.class.isAssignableFrom(klass);
 
                 if (collection && name.equals("stream")) {
                     opcode = 184;
-                    desc = "(L" + owner + ";)Ljava8/util/stream/Stream;";
+                    desc = "(Ljava/util/Collection;)Ljava8/util/stream/Stream;";
                     owner = "java8/util/stream/StreamSupport";
                     itf = false;
 
