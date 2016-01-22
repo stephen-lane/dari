@@ -184,7 +184,6 @@ public class StreamSupportEnhancer extends ClassEnhancer {
                 boolean collection = klass != null && Collection.class.isAssignableFrom(klass);
 
                 if (collection && name.equals("stream")) {
-                    System.out.println("Converting collection.stream");
                     opcode = 184;
                     desc = "(L" + owner + ";)Ljava8/util/stream/Stream;";
                     owner = "java8/util/stream/StreamSupport";
