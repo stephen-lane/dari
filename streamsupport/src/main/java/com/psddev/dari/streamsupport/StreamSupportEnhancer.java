@@ -210,6 +210,12 @@ public class StreamSupportEnhancer extends ClassEnhancer {
                 } else if (owner.equals("java/util/stream/Stream") && name.equals("of") && desc.equals("([Ljava/lang/Object;)Ljava/util/stream/Stream;")) {
                     super.visitMethodInsn(184, "com/psddev/dari/util/StreamSupportUtils", "of", "([Ljava/lang/Object;)Ljava8/util/stream/Stream;", false);
 
+                } else if (owner.equals("java/util/regex/Pattern") && name.equals("splitAsStream") && desc.equals("(Ljava/lang/CharSequence;)Ljava/util/stream/Stream;")) {
+                    super.visitMethodInsn(184, "com/psddev/dari/util/StreamSupportUtils", "splitAsStream", "(Ljava/util/regex/Pattern;Ljava/lang/CharSequence;)Ljava8/util/stream/Stream;", false);
+
+                } else if (owner.equals("java/util/function/Function") && name.equals("identity") && desc.equals("()Ljava/util/function/Function;")) {
+                    super.visitMethodInsn(184, "com/psddev/dari/util/StreamSupportUtils", "identity", "()Ljava8/util/function/Function;", false);
+
                 } else {
 
                     owner = convertJava8StreamToStreamSupport(owner);
