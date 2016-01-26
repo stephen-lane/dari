@@ -245,6 +245,9 @@ public class StreamSupportEnhancer extends ClassEnhancer {
                 } else if (owner.equals("java/util/List") && name.equals("sort") && desc.equals("(Ljava/util/Comparator;)V")) {
                     super.visitMethodInsn(184, "java8/util/Lists", name, "(Ljava/util/List;Ljava/util/Comparator;)V", false);
 
+                } else if (owner.equals("java/lang/Class") && name.equals("getAnnotationsByType") && desc.equals("(Ljava/lang/Class;)[Ljava/lang/annotation/Annotation;")) {
+                    super.visitMethodInsn(184, "com/psddev/dari/util/StreamSupportUtils", name, "(Ljava/lang/Class;Ljava/lang/Class;)[Ljava/lang/annotation/Annotation;", false);
+
                 } else {
 
                     owner = convertJava8StreamToStreamSupport(owner);

@@ -1,5 +1,6 @@
 package com.psddev.dari.util;
 
+import java.lang.annotation.Annotation;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.ConcurrentModificationException;
@@ -20,6 +21,7 @@ import java8.util.function.IntConsumer;
 import java8.util.function.LongConsumer;
 import java8.util.function.Predicate;
 import java8.util.stream.BaseStream;
+import java8.util.stream.Collectors;
 import java8.util.stream.Stream;
 import java8.util.stream.StreamSupport;
 
@@ -377,5 +379,14 @@ public class StreamSupportUtils {
                 return false;
             }
         }
+    }
+
+    public static <A extends Annotation> A[] getAnnotationsByType(Class annotatableClass, Class<A> annotationClass) {
+        Objects.requireNonNull(annotationClass);
+
+        return (A[]) StreamSupport.stream(Arrays.asList(annotatableClass.getAnnotations()))
+                     .filter(annotation -> annotationClass.isInstance(annotation))
+                     .collect(Collectors.toList())
+                     .toArray();
     }
 }
