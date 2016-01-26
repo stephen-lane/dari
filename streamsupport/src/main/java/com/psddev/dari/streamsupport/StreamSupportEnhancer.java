@@ -219,6 +219,32 @@ public class StreamSupportEnhancer extends ClassEnhancer {
                 } else if (owner.equals("java/util/stream/Stream") && name.equals("concat") && desc.equals("(Ljava/util/stream/Stream;Ljava/util/stream/Stream;)Ljava/util/stream/Stream;")) {
                     super.visitMethodInsn(184, "com/psddev/dari/util/StreamSupportUtils", "concat", "(Ljava8/util/stream/Stream;Ljava8/util/stream/Stream;)Ljava8/util/stream/Stream;", false);
 
+                } else if (owner.equals("java/util/Comparator")
+                                && (name.equals("comparing")
+                                || name.equals("comparingInt")
+                                || name.equals("comparingLong")
+                                || name.equals("comparingDouble"))) {
+
+                    super.visitMethodInsn(184, "java8/util/Comparators", name, convertJava8StreamToStreamSupport(desc), false);
+
+                } else if (owner.equals("java/util/Comparator") && name.equals("thenComparing") && desc.equals("(Ljava/util/function/Function;)Ljava/util/Comparator;")) {
+                    super.visitMethodInsn(184, "java8/util/Comparators", name, "(Ljava/util/Comparator;Ljava8/util/function/Function;)Ljava/util/Comparator;", false);
+
+                } else if (owner.equals("java/util/stream/IntStream")
+                                && (name.equals("builder")
+                                || name.equals("empty")
+                                || name.equals("of")
+                                || name.equals("iterate")
+                                || name.equals("generate")
+                                || name.equals("range")
+                                || name.equals("rangeClosed")
+                                || name.equals("concat"))) {
+
+                    super.visitMethodInsn(184, "java8/util/stream/IntStreams", name, convertJava8StreamToStreamSupport(desc), itf);
+
+                } else if (owner.equals("java/util/List") && name.equals("sort") && desc.equals("(Ljava/util/Comparator;)V")) {
+                    super.visitMethodInsn(184, "java8/util/Lists", name, "(Ljava/util/List;Ljava/util/Comparator;)V", false);
+
                 } else {
 
                     owner = convertJava8StreamToStreamSupport(owner);
