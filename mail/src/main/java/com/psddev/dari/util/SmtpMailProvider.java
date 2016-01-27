@@ -168,16 +168,16 @@ public class SmtpMailProvider extends AbstractMailProvider {
                 LOGGER.debug("Sent email to [{}] with subject [{}].",
                         message.getTo(), message.getSubject());
                 callback.onSuccess(message);
-            } catch (MessagingException me) {
-                LOGGER.warn("Failed to send: [{}]", me.getMessage());
-                callback.onFail(message, me);
+            } catch (Exception e) {
+                LOGGER.warn("Failed to send: [{}]", e.getMessage());
+                callback.onFail(message, e);
             }
         }
         try {
             transport.close();
-        } catch (MessagingException me) {
+        } catch (Exception e) {
             LOGGER.warn("Failed to disconnect from smtp server [{}]", host);
-            callback.onFail(null, me);
+            callback.onFail(null, e);
         }
     }
 
