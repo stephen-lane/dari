@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.ConcurrentModificationException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -384,9 +385,15 @@ public class StreamSupportUtils {
     public static <A extends Annotation> A[] getAnnotationsByType(Class annotatableClass, Class<A> annotationClass) {
         Objects.requireNonNull(annotationClass);
 
-        return (A[]) StreamSupport.stream(Arrays.asList(annotatableClass.getAnnotations()))
+        List<Annotation> annotationList = StreamSupport.stream(Arrays.asList(annotatableClass.getAnnotations()))
                      .filter(annotation -> annotationClass.isInstance(annotation))
-                     .collect(Collectors.toList())
-                     .toArray();
+                     .collect(Collectors.toList());
+
+        Annotation[] annotations = new Annotation[annotationList.size()];
+        for (int i = 0; i < annotationList.size(); i++) {
+            annotations[i] = annotationList.get(i);
+        }
+
+        return (A[]) annotations;
     }
 }
