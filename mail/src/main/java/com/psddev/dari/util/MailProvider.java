@@ -23,7 +23,9 @@ public interface MailProvider extends SettingsBackedObject {
     /**
      * Bulk sends a list of mail given a {@code List<MailMessage>}.
      */
-    public void sendBulk(List<MailMessage> messages, MailProviderCallbackHandler callback);
+    public default void sendBulk(List<MailMessage> messages, MailProviderCallbackHandler callback) {
+        messages.forEach(MailMessage::send);
+    }
 
     /**
      * {@link MailProvider} utility methods.
