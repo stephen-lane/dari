@@ -1,6 +1,7 @@
 package com.psddev.dari.util;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
@@ -115,9 +116,100 @@ public class SmtpMailProvider extends AbstractMailProvider {
             LOGGER.error(errorText);
             throw new IllegalArgumentException(errorText);
         }
+        Session session = createSession();
+        try {
+            Message mimeMessage = createMimeMessage(session, message);
+            Transport.send(mimeMessage);
+            LOGGER.debug("Sent email to [{}] with subject [{}].",
+                    message.getTo(), message.getSubject());
 
-        Session session;
+        } catch (MessagingException me) {
+            LOGGER.warn("Failed to send: [{}]", me.getMessage());
+            me.printStackTrace();
+            throw new RuntimeException(me);
+        }
+    }
 
+    @Override
+    public void sendBulk(List<MailMessage> messages, MailProviderCallbackHandler callback) {
+        if (StringUtils.isEmpty(host)) {
+            String errorText = "SMTP Host can't be null!";
+            LOGGER.error(errorText);
+            throw new IllegalArgumentException(errorText);
+        }
+
+        if (ObjectUtils.isBlank(messages)) {
+            String errorText = "EmailMessage can't be null!";
+            LOGGER.error(errorText);
+            throw new IllegalArgumentException(errorText);
+        }
+
+        Session session = createSession();
+        Transport transport = null;
+        try {
+            transport = session.getTransport("smtp");
+            transport.connect();
+        } catch (MessagingException me) {
+            LOGGER.warn("Failed to connect to smtp server [{}]", host);
+            me.printStackTrace();
+            throw new RuntimeException(me);
+        }
+
+        for (MailMessage message : messages) {
+            try {
+                Message mimeMessage = createMimeMessage(session, message);
+                transport.sendMessage(mimeMessage, mimeMessage.getAllRecipients());
+                LOGGER.debug("Sent email to [{}] with subject [{}].",
+                        message.getTo(), message.getSubject());
+                callback.onSuccess(message);
+            } catch (MessagingException me) {
+                callback.onFail(message, me);
+                LOGGER.warn("Failed to send: [{}]", me.getMessage());
+                me.printStackTrace();
+                throw new RuntimeException(me);
+            }
+        }
+        try {
+            transport.close();
+        } catch (MessagingException me) {
+            LOGGER.warn("Failed to disconnect from smtp server [{}]", host);
+            me.printStackTrace();
+            throw new RuntimeException(me);
+        }
+    }
+
+    private Message createMimeMessage(Session session, MailMessage message) throws MessagingException {
+        Message mimeMessage = new MimeMessage(session);
+
+        mimeMessage.setFrom(new InternetAddress(message.getFrom()));
+        mimeMessage.setRecipients(Message.RecipientType.TO, InternetAddress.parse(message.getTo()));
+        mimeMessage.setSubject(message.getSubject());
+
+        if (!StringUtils.isEmpty(message.getReplyTo())) {
+            mimeMessage.setReplyTo(InternetAddress.parse(message.getReplyTo()));
+        }
+
+        // Body, plain vs. html
+        MimeMultipart multiPartContent = new MimeMultipart();
+
+        if (!StringUtils.isEmpty(message.getBodyPlain())) {
+            MimeBodyPart plain = new MimeBodyPart();
+            plain.setText(message.getBodyPlain(), StandardCharsets.UTF_8.toString());
+            multiPartContent.addBodyPart(plain);
+        }
+
+        if (!StringUtils.isEmpty(message.getBodyHtml())) {
+            MimeBodyPart html = new MimeBodyPart();
+            html.setContent(message.getBodyHtml(), "text/html; charset=" + StandardCharsets.UTF_8.toString());
+            multiPartContent.addBodyPart(html);
+            multiPartContent.setSubType("alternative");
+        }
+
+        mimeMessage.setContent(multiPartContent);
+        return mimeMessage;
+    }
+
+    private Session createSession() {
         Properties props = new Properties();
         props.put("mail.transport.protocol", "smtp");
         props.put("mail.smtp.host", host);
@@ -127,7 +219,7 @@ public class SmtpMailProvider extends AbstractMailProvider {
             props.put("mail.smtp.starttls.enable", "true");
             props.put("mail.smtp.port", tlsPort);
 
-        // Note - not really tested.
+            // Note - not really tested.
         } else if (useSsl) {
             props.put("mail.smtp.socketFactory.port", sslPort);
             props.put("mail.smtp.socketFactory.class", "javax.net.ssl.SSLSocketFactory");
@@ -137,7 +229,7 @@ public class SmtpMailProvider extends AbstractMailProvider {
         if (!StringUtils.isEmpty(username)
                 && !StringUtils.isEmpty(password)) {
             props.put("mail.smtp.auth", "true");
-            session = Session.getInstance(props, new javax.mail.Authenticator() {
+            return Session.getInstance(props, new javax.mail.Authenticator() {
                 @Override
                 protected PasswordAuthentication getPasswordAuthentication() {
                     return new PasswordAuthentication(username, password);
@@ -145,46 +237,7 @@ public class SmtpMailProvider extends AbstractMailProvider {
             });
 
         } else {
-            session = Session.getInstance(props);
-        }
-
-        try {
-            Message mimeMessage = new MimeMessage(session);
-
-            mimeMessage.setFrom(new InternetAddress(message.getFrom()));
-            mimeMessage.setRecipients(Message.RecipientType.TO, InternetAddress.parse(message.getTo()));
-            mimeMessage.setSubject(message.getSubject());
-
-            if (!StringUtils.isEmpty(message.getReplyTo())) {
-                mimeMessage.setReplyTo(InternetAddress.parse(message.getReplyTo()));
-            }
-
-            // Body, plain vs. html
-            MimeMultipart multiPartContent = new MimeMultipart();
-
-            if (!StringUtils.isEmpty(message.getBodyPlain())) {
-                MimeBodyPart plain = new MimeBodyPart();
-                plain.setText(message.getBodyPlain(), StandardCharsets.UTF_8.toString());
-                multiPartContent.addBodyPart(plain);
-            }
-
-            if (!StringUtils.isEmpty(message.getBodyHtml())) {
-                MimeBodyPart html = new MimeBodyPart();
-                html.setContent(message.getBodyHtml(), "text/html; charset=" + StandardCharsets.UTF_8.toString());
-                multiPartContent.addBodyPart(html);
-                multiPartContent.setSubType("alternative");
-            }
-
-            mimeMessage.setContent(multiPartContent);
-
-            Transport.send(mimeMessage);
-            LOGGER.debug("Sent email to [{}] with subject [{}].",
-                    message.getTo(), message.getSubject());
-
-        } catch (MessagingException me) {
-            LOGGER.warn("Failed to send: [{}]", me.getMessage());
-            me.printStackTrace();
-            throw new RuntimeException(me);
+            return Session.getInstance(props);
         }
     }
 

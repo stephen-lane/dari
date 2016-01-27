@@ -4,6 +4,8 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 
+import java.util.List;
+
 /** Interface for sending a {@link MailMessage} **/
 public interface MailProvider extends SettingsBackedObject {
 
@@ -17,6 +19,11 @@ public interface MailProvider extends SettingsBackedObject {
      * Sends mail given a {@code MailMessage}.
      */
     public void send(MailMessage message);
+
+    /**
+     * Bulk sends a list of mail given a {@code List<MailMessage>}.
+     */
+    public void sendBulk(List<MailMessage> messages, MailProviderCallbackHandler callback);
 
     /**
      * {@link MailProvider} utility methods.
