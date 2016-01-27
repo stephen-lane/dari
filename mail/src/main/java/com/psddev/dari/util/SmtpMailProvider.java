@@ -125,7 +125,6 @@ public class SmtpMailProvider extends AbstractMailProvider {
 
         } catch (MessagingException me) {
             LOGGER.warn("Failed to send: [{}]", me.getMessage());
-            me.printStackTrace();
             throw new RuntimeException(me);
         }
     }
@@ -135,13 +134,15 @@ public class SmtpMailProvider extends AbstractMailProvider {
         if (StringUtils.isEmpty(host)) {
             String errorText = "SMTP Host can't be null!";
             LOGGER.error(errorText);
-            throw new IllegalArgumentException(errorText);
+            callback.onFail(null, new IllegalArgumentException(errorText));
+            return;
         }
 
-        if (ObjectUtils.isBlank(messages)) {
-            String errorText = "EmailMessage can't be null!";
+        if (messages == null) {
+            String errorText = "Messages can't be null!";
             LOGGER.error(errorText);
-            throw new IllegalArgumentException(errorText);
+            callback.onFail(null, new IllegalArgumentException(errorText));
+            return;
         }
 
         Session session = createSession();
@@ -151,11 +152,16 @@ public class SmtpMailProvider extends AbstractMailProvider {
             transport.connect();
         } catch (MessagingException me) {
             LOGGER.warn("Failed to connect to smtp server [{}]", host);
-            me.printStackTrace();
-            throw new RuntimeException(me);
+            callback.onFail(null, me);
+            return;
         }
 
         for (MailMessage message : messages) {
+            if (message == null) {
+                String errorText = "Message can't be null!";
+                LOGGER.error(errorText);
+                callback.onFail(null, new IllegalArgumentException(errorText));
+            }
             try {
                 Message mimeMessage = createMimeMessage(session, message);
                 transport.sendMessage(mimeMessage, mimeMessage.getAllRecipients());
@@ -163,18 +169,15 @@ public class SmtpMailProvider extends AbstractMailProvider {
                         message.getTo(), message.getSubject());
                 callback.onSuccess(message);
             } catch (MessagingException me) {
-                callback.onFail(message, me);
                 LOGGER.warn("Failed to send: [{}]", me.getMessage());
-                me.printStackTrace();
-                throw new RuntimeException(me);
+                callback.onFail(message, me);
             }
         }
         try {
             transport.close();
         } catch (MessagingException me) {
             LOGGER.warn("Failed to disconnect from smtp server [{}]", host);
-            me.printStackTrace();
-            throw new RuntimeException(me);
+            callback.onFail(null, me);
         }
     }
 
