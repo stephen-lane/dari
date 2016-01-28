@@ -24,7 +24,19 @@ public interface MailProvider extends SettingsBackedObject {
      * Bulk sends a list of mail given a {@code List<MailMessage>}.
      */
     public default void sendBulk(List<MailMessage> messages, MailProviderCallbackHandler callback) {
-        messages.forEach(MailMessage::send);
+        if (messages == null) {
+            String errorText = "Messages can't be null!";
+            callback.onFail(null, new IllegalArgumentException(errorText));
+        } else {
+            for (MailMessage message : messages) {
+                try {
+                    send(message);
+                    callback.onSuccess(message);
+                } catch (Exception e) {
+                    callback.onFail(message, e);
+                }
+            }
+        }
     }
 
     /**
