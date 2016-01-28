@@ -108,6 +108,12 @@
 
     <difference>
         <className>com/psddev/dari/util/MailProvider</className>
+        <differenceType>7012</differenceType>
+        <method>**</method>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/MailProvider</className>
         <differenceType>8001</differenceType>
     </difference>
 
@@ -199,11 +205,6 @@
     <difference>
         <className>com/psddev/dari/util/UrlStorageItem</className>
         <differenceType>8001</differenceType>
-    </difference>
-
-    <difference>
-        <className>com/psddev/dari/util/MailProvider</className>
-        <differenceType>7012</differenceType>
     </difference>
 
     <!-- Temporary while this is reworked to accommodate shading ASM. -->
