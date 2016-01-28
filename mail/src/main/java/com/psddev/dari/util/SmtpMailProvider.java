@@ -161,16 +161,17 @@ public class SmtpMailProvider extends AbstractMailProvider {
                 String errorText = "Message can't be null!";
                 LOGGER.error(errorText);
                 callback.onFail(null, new IllegalArgumentException(errorText));
-            }
-            try {
-                Message mimeMessage = createMimeMessage(session, message);
-                transport.sendMessage(mimeMessage, mimeMessage.getAllRecipients());
-                LOGGER.debug("Sent email to [{}] with subject [{}].",
-                        message.getTo(), message.getSubject());
-                callback.onSuccess(message);
-            } catch (Exception e) {
-                LOGGER.warn("Failed to send: [{}]", e.getMessage());
-                callback.onFail(message, e);
+            } else {
+                try {
+                    Message mimeMessage = createMimeMessage(session, message);
+                    transport.sendMessage(mimeMessage, mimeMessage.getAllRecipients());
+                    LOGGER.debug("Sent email to [{}] with subject [{}].",
+                            message.getTo(), message.getSubject());
+                    callback.onSuccess(message);
+                } catch (Exception e) {
+                    LOGGER.warn("Failed to send: [{}]", e.getMessage());
+                    callback.onFail(message, e);
+                }
             }
         }
         try {

@@ -30,6 +30,11 @@
             <groupId>com.psddev</groupId>
             <artifactId>dari-storage</artifactId>
         </dependency>
+
+        <dependency>
+            <groupId>com.psddev</groupId>
+            <artifactId>dari-mail</artifactId>
+        </dependency>
     </dependencies>
 
 </project>
