@@ -92,9 +92,9 @@ public class SESMailProvider extends AbstractMailProvider {
         Session session = Session.getDefaultInstance(new Properties());
         for (MailMessage message : messages) {
             if (message == null) {
-                String errorText = "Message can't be null!";
+                String errorText = "MailMessage item in list cannot be null!";
                 LOGGER.error(errorText);
-                callback.onFail(message, new IllegalArgumentException(errorText));
+                callback.onFail(message, new NullPointerException(errorText));
             } else {
                 try {
                     MimeMessage mimeMessage = createMimeMessage(session, message);

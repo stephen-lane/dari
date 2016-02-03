@@ -158,9 +158,9 @@ public class SmtpMailProvider extends AbstractMailProvider {
 
         for (MailMessage message : messages) {
             if (message == null) {
-                String errorText = "Message can't be null!";
+                String errorText = "MailMessage item in list cannot be null!!";
                 LOGGER.error(errorText);
-                callback.onFail(null, new IllegalArgumentException(errorText));
+                callback.onFail(null, new NullPointerException(errorText));
             } else {
                 try {
                     Message mimeMessage = createMimeMessage(session, message);
