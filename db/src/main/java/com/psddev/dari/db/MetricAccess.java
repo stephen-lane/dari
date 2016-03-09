@@ -1495,13 +1495,9 @@ class MetricAccess {
                         try {
                             SqlVendor vendor = database.getVendor();
                             while (result.next()) {
-                                List<UUID> row = new ArrayList<UUID>();
                                 lastId = vendor.getUuid(result, 1);
                                 lastDimensionId = vendor.getUuid(result, 2);
                                 lastTypeId = vendor.getUuid(result, 3);
-                                row.add(lastId);
-                                row.add(lastDimensionId);
-                                row.add(lastTypeId);
                                 items.add(new Metric.DistinctIds(lastId, lastTypeId, lastDimensionId));
                             }
                         } finally {
