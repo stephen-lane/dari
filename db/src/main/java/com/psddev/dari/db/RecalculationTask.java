@@ -117,6 +117,7 @@ public class RecalculationTask extends RepeatingTask {
                 }
             }
 
+            Long startTime = System.nanoTime();
             if (canExecute) {
                 try {
                     recalculated = recalculate(context, last);
@@ -124,6 +125,8 @@ public class RecalculationTask extends RepeatingTask {
                 } finally {
                     last.setLastExecutedDate(new DateTime());
                     last.setCurrentRunningDate(null);
+                    last.setRecalculatedCount(recalculated);
+                    last.setExecutionTimeSeconds((System.nanoTime() - startTime) / 1_000_000_000L);
                     last.saveImmediately();
                 }
             }
@@ -261,6 +264,10 @@ public class RecalculationTask extends RepeatingTask {
         @Indexed(unique = true)
         private String key;
 
+        private Long recalculatedCount;
+
+        private Long executionTimeSeconds;
+
         public DateTime getCurrentRunningDate() {
             return (currentRunningDate == null ? null : new DateTime(currentRunningDate));
         }
@@ -285,6 +292,21 @@ public class RecalculationTask extends RepeatingTask {
             this.key = key;
         }
 
+        public Long getRecalculatedCount() {
+            return recalculatedCount;
+        }
+
+        public void setRecalculatedCount(Long recalculatedCount) {
+            this.recalculatedCount = recalculatedCount;
+        }
+
+        public Long getExecutionTimeSeconds() {
+            return executionTimeSeconds;
+        }
+
+        public void setExecutionTimeSeconds(Long executionTimeSeconds) {
+            this.executionTimeSeconds = executionTimeSeconds;
+        }
     }
 
     private static Collection<RecalculationContext> getIndexableMethods() {
