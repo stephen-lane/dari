@@ -33,8 +33,7 @@ public class RecalculationTask extends RepeatingTask {
     private static final Logger LOGGER = LoggerFactory.getLogger(RecalculationTask.class);
     private static final Stats STATS = new Stats("Recalculation Task");
 
-    private long recordsProcessed = 0L;
-    private long recordsTotal = 0L;
+    private String processingKey;
 
     @Override
     protected DateTime calculateRunTime(DateTime currentTime) {
@@ -43,14 +42,15 @@ public class RecalculationTask extends RepeatingTask {
 
     @Override
     protected void doRepeatingTask(DateTime runTime) throws Exception {
-        recordsProcessed = 0L;
-        recordsTotal = 0L;
+        processingKey = null;
 
         for (RecalculationContext context : getIndexableMethods()) {
             Stats.Timer timer = STATS.startTimer();
             long recalculated = recalculateIfNecessary(context);
             if (recalculated > 0L) {
                 timer.stop("Recalculate " + context.getKey(), recalculated);
+                // only process one method per task execution so progressIndex / progressTotal makes sense
+                break;
             }
         }
     }
@@ -120,12 +120,15 @@ public class RecalculationTask extends RepeatingTask {
             Long startTime = System.nanoTime();
             if (canExecute) {
                 try {
+                    processingKey = context.getKey();
+                    LOGGER.info("Recalculating " + processingKey);
                     recalculated = recalculate(context, last);
 
                 } finally {
+                    LOGGER.info("Recalculated: " + getProgress());
                     last.setLastExecutedDate(new DateTime());
                     last.setCurrentRunningDate(null);
-                    last.setRecalculatedCount(recalculated);
+                    last.setRecalculatedCount(getProgressIndex());
                     last.setExecutionTimeSeconds((System.nanoTime() - startTime) / 1_000_000_000L);
                     last.saveImmediately();
                 }
@@ -154,6 +157,7 @@ public class RecalculationTask extends RepeatingTask {
 
         long recalculated = 0L;
         int transactionCounter = 0;
+        setProgressIndex(0L);
         Database db = Database.Static.getDefault();
         db.beginWrites();
         try {
@@ -175,6 +179,7 @@ public class RecalculationTask extends RepeatingTask {
                 } else if (context.delay != null) {
                     processedLastRunDate = context.delay.metricAfterDate(new DateTime());
                 }
+                LOGGER.info("Recalculating " + context.getKey() + " after " + processedLastRunDate);
                 iterator = Metric.Static.getDistinctIdsBetween(Database.Static.getDefault(), null, metricField, processedLastRunDate, null);
 
             } else {
@@ -206,7 +211,7 @@ public class RecalculationTask extends RepeatingTask {
                         lastId = distinctIds.id;
                         obj = Query.fromAll().noCache().resolveToReferenceOnly().where("_id = ?", distinctIds.id).first();
                     }
-                    setProgressIndex(++ recordsTotal);
+                    setProgressIndex(getProgressIndex() + 1);
                     State objState = State.getInstance(obj);
                     if (objState == null || objState.getType() == null) {
                         continue;
@@ -222,7 +227,6 @@ public class RecalculationTask extends RepeatingTask {
                     ObjectIndex[] indexes = typeMethodIndexes.getUnchecked(objState.getType());
                     db.recalculate(objState, indexes);
                     recalculated += indexes.length;
-                    recordsProcessed ++;
                     transactionCounter += indexes.length;
                     if (transactionCounter >= COMMIT_SIZE) {
                         transactionCounter = 0;
@@ -250,7 +254,20 @@ public class RecalculationTask extends RepeatingTask {
 
     @Override
     public String getProgress() {
-        return new StringBuilder("Recalculated ").append(recordsProcessed).append(", checked ").append(recordsTotal).toString();
+        StringBuilder progress = new StringBuilder();
+        String key = processingKey;
+
+        if (key != null) {
+            progress.append(key).append(' ');
+        }
+
+        String superProgress = super.getProgress();
+
+        if (superProgress != null) {
+            progress.append(superProgress);
+        }
+
+        return progress.toString();
     }
 
     /**
