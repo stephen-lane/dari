@@ -1514,7 +1514,7 @@ class MetricAccess {
             private String getSql() {
                 SqlVendor vendor = database.getVendor();
                 StringBuilder sql = new StringBuilder();
-                sql.append("SELECT DISTINCT ");
+                sql.append("SELECT ");
                 vendor.appendIdentifier(sql, MetricAccess.METRIC_ID_FIELD);
                 sql.append(",");
                 vendor.appendIdentifier(sql, MetricAccess.METRIC_DIMENSION_FIELD);
@@ -1553,6 +1553,13 @@ class MetricAccess {
                     vendor.appendIdentifier(sql, MetricAccess.METRIC_DIMENSION_FIELD); sql.append(" > "); vendor.appendValue(sql, lastDimensionId);                                   //                 dimensionId > lastDimensionId
                     sql.append(")))))");                                                                                                                                              //             )))))
                 }
+
+                sql.append(" GROUP BY ");
+                vendor.appendIdentifier(sql, MetricAccess.METRIC_TYPE_FIELD);
+                sql.append(",");
+                vendor.appendIdentifier(sql, MetricAccess.METRIC_ID_FIELD);
+                sql.append(",");
+                vendor.appendIdentifier(sql, MetricAccess.METRIC_DIMENSION_FIELD);
 
                 sql.append(" ORDER BY ");
                 vendor.appendIdentifier(sql, MetricAccess.METRIC_TYPE_FIELD);
