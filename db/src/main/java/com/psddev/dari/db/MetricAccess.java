@@ -1573,7 +1573,7 @@ class MetricAccess {
         }
 
         public static Iterator<Metric.DistinctIds> getDistinctIds(SqlDatabase database, UUID typeId, int symbolId, Long startTimestamp, Long endTimestamp) {
-            return new DistinctIdsIterator(database, typeId, symbolId, startTimestamp, endTimestamp, 200);
+            return new DistinctIdsIterator(database, typeId, symbolId, startTimestamp, endTimestamp, 1000);
         }
 
         private static UUID getDimensionIdByValue(SqlDatabase db, String dimensionValue, boolean master) throws SQLException {
