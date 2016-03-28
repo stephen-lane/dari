@@ -469,6 +469,7 @@ public class SolrDatabase extends AbstractDatabase<SolrServer> {
         }
 
         StringBuilder sortBuilder = new StringBuilder();
+        StringBuilder boostFunctionBuilder = new StringBuilder();
         for (Sorter sorter : query.getSorters()) {
             String operator = sorter.getOperator();
             boolean isAscending = Sorter.ASCENDING_OPERATOR.equals(operator);
@@ -527,6 +528,35 @@ public class SolrDatabase extends AbstractDatabase<SolrServer> {
                 sortBuilder.append(" || ");
                 continue;
 
+            } else if (Sorter.NEWEST_OPERATOR.equals(operator) || Sorter.OLDEST_OPERATOR.equals(operator)) {
+                String queryKey = (String) sorter.getOptions().get(1);
+                Query.MappedKey mappedKey = mapFullyDenormalizedKey(query, queryKey);
+                String solrField = specialFields.get(mappedKey);
+
+                if (solrField == null) {
+                    String internalType = mappedKey.getInternalType();
+                    if (internalType != null) {
+                        solrField = getSolrField(internalType).sortPrefix + mappedKey.getIndexKey(null);
+                    }
+                }
+
+                if (solrField == null) {
+                    throw new UnsupportedIndexException(this, queryKey);
+                }
+
+                double boost = ObjectUtils.to(double.class, sorter.getOptions().get(0));
+                if (boost == 0) {
+                    boost = 1.0;
+                }
+                boost = 1 / boost;
+
+                if (Sorter.NEWEST_OPERATOR.equals(operator)) {
+                    boostFunctionBuilder.append(String.format("{!boost b=recip(ms(NOW/HOUR,%s),3.16e-11,%s,%s)}", solrField, boost, boost));
+                } else {
+                    boostFunctionBuilder.append(String.format("{!boost b=linear(ms(NOW/HOUR,%s),3.16e-11,%s)}", solrField, boost));
+                }
+                continue;
+
             } else if (schema.get().version >= 9) {
                 boolean closest = Sorter.CLOSEST_OPERATOR.equals(operator);
 
@@ -573,6 +603,10 @@ public class SolrDatabase extends AbstractDatabase<SolrServer> {
             queryBuilder.append(TENANT_FIELD);
             queryBuilder.append(':');
             queryBuilder.append(tenant);
+        }
+
+        if (boostFunctionBuilder.length() > 0) {
+            queryBuilder.insert(0, boostFunctionBuilder.toString());
         }
 
         solrQuery.setQuery(queryBuilder.toString());

@@ -1495,13 +1495,9 @@ class MetricAccess {
                         try {
                             SqlVendor vendor = database.getVendor();
                             while (result.next()) {
-                                List<UUID> row = new ArrayList<UUID>();
                                 lastId = vendor.getUuid(result, 1);
                                 lastDimensionId = vendor.getUuid(result, 2);
                                 lastTypeId = vendor.getUuid(result, 3);
-                                row.add(lastId);
-                                row.add(lastDimensionId);
-                                row.add(lastTypeId);
                                 items.add(new Metric.DistinctIds(lastId, lastTypeId, lastDimensionId));
                             }
                         } finally {
@@ -1518,7 +1514,7 @@ class MetricAccess {
             private String getSql() {
                 SqlVendor vendor = database.getVendor();
                 StringBuilder sql = new StringBuilder();
-                sql.append("SELECT DISTINCT ");
+                sql.append("SELECT ");
                 vendor.appendIdentifier(sql, MetricAccess.METRIC_ID_FIELD);
                 sql.append(",");
                 vendor.appendIdentifier(sql, MetricAccess.METRIC_DIMENSION_FIELD);
@@ -1558,6 +1554,13 @@ class MetricAccess {
                     sql.append(")))))");                                                                                                                                              //             )))))
                 }
 
+                sql.append(" GROUP BY ");
+                vendor.appendIdentifier(sql, MetricAccess.METRIC_TYPE_FIELD);
+                sql.append(",");
+                vendor.appendIdentifier(sql, MetricAccess.METRIC_ID_FIELD);
+                sql.append(",");
+                vendor.appendIdentifier(sql, MetricAccess.METRIC_DIMENSION_FIELD);
+
                 sql.append(" ORDER BY ");
                 vendor.appendIdentifier(sql, MetricAccess.METRIC_TYPE_FIELD);
                 sql.append(",");
@@ -1570,7 +1573,7 @@ class MetricAccess {
         }
 
         public static Iterator<Metric.DistinctIds> getDistinctIds(SqlDatabase database, UUID typeId, int symbolId, Long startTimestamp, Long endTimestamp) {
-            return new DistinctIdsIterator(database, typeId, symbolId, startTimestamp, endTimestamp, 200);
+            return new DistinctIdsIterator(database, typeId, symbolId, startTimestamp, endTimestamp, 1000);
         }
 
         private static UUID getDimensionIdByValue(SqlDatabase db, String dimensionValue, boolean master) throws SQLException {

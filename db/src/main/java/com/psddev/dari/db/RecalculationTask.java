@@ -1,5 +1,7 @@
 package com.psddev.dari.db;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -19,11 +21,14 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.RepeatingTask;
+import com.psddev.dari.util.Settings;
 import com.psddev.dari.util.Stats;
 import com.psddev.dari.util.StringUtils;
 
 /**
  * Periodically updates indexes annotated with {@code \@Recalculate}.
+ *
+ * Optionally specify a task host with the setting "dari/recalculationTaskHost".
  */
 public class RecalculationTask extends RepeatingTask {
 
@@ -32,9 +37,9 @@ public class RecalculationTask extends RepeatingTask {
     private static final int COMMIT_SIZE = 200;
     private static final Logger LOGGER = LoggerFactory.getLogger(RecalculationTask.class);
     private static final Stats STATS = new Stats("Recalculation Task");
+    private static final String TASK_HOST_SETTING = "dari/recalculationTaskHost";
 
-    private long recordsProcessed = 0L;
-    private long recordsTotal = 0L;
+    private String processingKey;
 
     @Override
     protected DateTime calculateRunTime(DateTime currentTime) {
@@ -43,14 +48,20 @@ public class RecalculationTask extends RepeatingTask {
 
     @Override
     protected void doRepeatingTask(DateTime runTime) throws Exception {
-        recordsProcessed = 0L;
-        recordsTotal = 0L;
+        processingKey = null;
+
+        String hostname = Settings.get(String.class, TASK_HOST_SETTING);
+        if (!isTaskHost(hostname)) {
+            return;
+        }
 
         for (RecalculationContext context : getIndexableMethods()) {
             Stats.Timer timer = STATS.startTimer();
             long recalculated = recalculateIfNecessary(context);
             if (recalculated > 0L) {
                 timer.stop("Recalculate " + context.getKey(), recalculated);
+                // only process one method per task execution so progressIndex / progressTotal makes sense
+                break;
             }
         }
     }
@@ -117,13 +128,19 @@ public class RecalculationTask extends RepeatingTask {
                 }
             }
 
+            Long startTime = System.nanoTime();
             if (canExecute) {
                 try {
+                    processingKey = context.getKey();
+                    LOGGER.info("Recalculating " + processingKey);
                     recalculated = recalculate(context, last);
 
                 } finally {
+                    LOGGER.info("Recalculated: " + getProgress());
                     last.setLastExecutedDate(new DateTime());
                     last.setCurrentRunningDate(null);
+                    last.setRecalculatedCount(getProgressIndex());
+                    last.setExecutionTimeSeconds((System.nanoTime() - startTime) / 1_000_000_000L);
                     last.saveImmediately();
                 }
             }
@@ -151,6 +168,7 @@ public class RecalculationTask extends RepeatingTask {
 
         long recalculated = 0L;
         int transactionCounter = 0;
+        setProgressIndex(0L);
         Database db = Database.Static.getDefault();
         db.beginWrites();
         try {
@@ -168,7 +186,11 @@ public class RecalculationTask extends RepeatingTask {
                     if (context.delay != null) {
                         processedLastRunDate = context.delay.metricAfterDate(processedLastRunDate);
                     }
+
+                } else if (context.delay != null) {
+                    processedLastRunDate = context.delay.metricAfterDate(new DateTime());
                 }
+                LOGGER.info("Recalculating " + context.getKey() + " after " + processedLastRunDate);
                 iterator = Metric.Static.getDistinctIdsBetween(Database.Static.getDefault(), null, metricField, processedLastRunDate, null);
 
             } else {
@@ -200,7 +222,7 @@ public class RecalculationTask extends RepeatingTask {
                         lastId = distinctIds.id;
                         obj = Query.fromAll().noCache().resolveToReferenceOnly().where("_id = ?", distinctIds.id).first();
                     }
-                    setProgressIndex(++ recordsTotal);
+                    setProgressIndex(getProgressIndex() + 1);
                     State objState = State.getInstance(obj);
                     if (objState == null || objState.getType() == null) {
                         continue;
@@ -216,7 +238,6 @@ public class RecalculationTask extends RepeatingTask {
                     ObjectIndex[] indexes = typeMethodIndexes.getUnchecked(objState.getType());
                     db.recalculate(objState, indexes);
                     recalculated += indexes.length;
-                    recordsProcessed ++;
                     transactionCounter += indexes.length;
                     if (transactionCounter >= COMMIT_SIZE) {
                         transactionCounter = 0;
@@ -244,7 +265,34 @@ public class RecalculationTask extends RepeatingTask {
 
     @Override
     public String getProgress() {
-        return new StringBuilder("Recalculated ").append(recordsProcessed).append(", checked ").append(recordsTotal).toString();
+        StringBuilder progress = new StringBuilder();
+        String key = processingKey;
+
+        if (key != null) {
+            progress.append(key).append(' ');
+        }
+
+        String superProgress = super.getProgress();
+
+        if (superProgress != null) {
+            progress.append(superProgress);
+        }
+
+        return progress.toString();
+    }
+
+    private static boolean isTaskHost(String hostname) {
+        if (hostname == null || "localhost".equals(hostname)) {
+            return true;
+        }
+        try {
+            InetAddress allowed = InetAddress.getByName(hostname);
+            InetAddress local = InetAddress.getLocalHost();
+            return local.getHostAddress().equals(allowed.getHostAddress());
+        } catch (UnknownHostException e) {
+            LOGGER.error("Unknown host exception during Recalculation", e);
+            return false;
+        }
     }
 
     /**
@@ -260,6 +308,10 @@ public class RecalculationTask extends RepeatingTask {
 
         @Indexed(unique = true)
         private String key;
+
+        private Long recalculatedCount;
+
+        private Long executionTimeSeconds;
 
         public DateTime getCurrentRunningDate() {
             return (currentRunningDate == null ? null : new DateTime(currentRunningDate));
@@ -285,6 +337,21 @@ public class RecalculationTask extends RepeatingTask {
             this.key = key;
         }
 
+        public Long getRecalculatedCount() {
+            return recalculatedCount;
+        }
+
+        public void setRecalculatedCount(Long recalculatedCount) {
+            this.recalculatedCount = recalculatedCount;
+        }
+
+        public Long getExecutionTimeSeconds() {
+            return executionTimeSeconds;
+        }
+
+        public void setExecutionTimeSeconds(Long executionTimeSeconds) {
+            this.executionTimeSeconds = executionTimeSeconds;
+        }
     }
 
     private static Collection<RecalculationContext> getIndexableMethods() {

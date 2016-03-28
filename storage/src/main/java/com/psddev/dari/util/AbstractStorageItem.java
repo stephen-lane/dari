@@ -1,5 +1,6 @@
 package com.psddev.dari.util;
 
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.MalformedURLException;
@@ -280,7 +281,7 @@ public abstract class AbstractStorageItem implements StorageItem {
     @Override
     public InputStream getData() throws IOException {
         if (data == null) {
-            data = createData();
+            data = filterStreamToResetDataOnClose(createData());
         }
         return data;
     }
@@ -290,7 +291,7 @@ public abstract class AbstractStorageItem implements StorageItem {
 
     @Override
     public void setData(InputStream data) {
-        this.data = data;
+        this.data = filterStreamToResetDataOnClose(data);
     }
 
     @Deprecated
@@ -314,7 +315,7 @@ public abstract class AbstractStorageItem implements StorageItem {
         return createPublicUrl(getSecureBaseUrl(), getPath());
     }
 
-    private String createPublicUrl(String baseUrl, String path) {
+    protected String createPublicUrl(String baseUrl, String path) {
         if (!ObjectUtils.isBlank(baseUrl)) {
             path = StringUtils.ensureEnd(baseUrl, "/") + path;
             try {
@@ -341,7 +342,6 @@ public abstract class AbstractStorageItem implements StorageItem {
         InputStream data = getData();
         try {
             saveData(data);
-            setData(null);
         } finally {
             data.close();
         }
@@ -383,6 +383,24 @@ public abstract class AbstractStorageItem implements StorageItem {
     @Override
     public String toString() {
         return String.format("storageItem:%s:%s", getStorage(), getPath());
+    }
+
+    // sets StorageItem#data to null when the stream is closed so that callers
+    // don't need to explicitly call setData(null) on the StorageItem and
+    // instead can simply follow best practices with regard to reading and
+    // closing streams.
+    private InputStream filterStreamToResetDataOnClose(InputStream stream) {
+        if (stream != null) {
+            return new FilterInputStream(stream) {
+                @Override
+                public void close() throws IOException {
+                    setData(null);
+                    super.close();
+                }
+            };
+        } else {
+            return null;
+        }
     }
 
     // --- Deprecated ---

@@ -69,6 +69,7 @@ import org.slf4j.LoggerFactory;
 public final class CodeUtils {
 
     public static final String JAVA_SOURCE_DIRECTORY_PROPERTY = "javaSourceDirectory";
+    public static final String JAVA_GENERATED_SOURCES_DIRECTORY_PROPERTY = "javaGeneratedSourcesDirectory";
     public static final String RESOURCE_DIRECTORY_PROPERTY = "resourceDirectory";
 
     private static final String BUILD_PROPERTIES_PATH = "build.properties";
@@ -115,6 +116,15 @@ public final class CodeUtils {
                             if (source.exists()) {
                                 sources.add(source);
                                 directories.add(source);
+                            }
+                        }
+
+                        String generatedSourcesString = build.getProperty(JAVA_GENERATED_SOURCES_DIRECTORY_PROPERTY);
+                        if (generatedSourcesString != null) {
+                            File generatedSources = new File(generatedSourcesString);
+                            if (generatedSources.exists()) {
+                                sources.add(generatedSources);
+                                directories.add(generatedSources);
                             }
                         }
 

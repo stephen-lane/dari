@@ -45,6 +45,8 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 
+import javax.naming.InitialContext;
+import javax.naming.NamingException;
 import javax.sql.DataSource;
 
 import com.zaxxer.hikari.HikariDataSource;
@@ -76,6 +78,7 @@ import com.psddev.dari.util.UuidUtils;
 public class SqlDatabase extends AbstractDatabase<Connection> {
 
     public static final String DATA_SOURCE_SETTING = "dataSource";
+    public static final String DATA_SOURCE_JNDI_NAME_SETTING = "dataSourceJndiName";
     public static final String JDBC_DRIVER_CLASS_SETTING = "jdbcDriverClass";
     public static final String JDBC_URL_SETTING = "jdbcUrl";
     public static final String JDBC_USER_SETTING = "jdbcUser";
@@ -83,6 +86,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
     public static final String JDBC_POOL_SIZE_SETTING = "jdbcPoolSize";
 
     public static final String READ_DATA_SOURCE_SETTING = "readDataSource";
+    public static final String READ_DATA_SOURCE_JNDI_NAME_SETTING = "readDataSourceJndiName";
     public static final String READ_JDBC_DRIVER_CLASS_SETTING = "readJdbcDriverClass";
     public static final String READ_JDBC_URL_SETTING = "readJdbcUrl";
     public static final String READ_JDBC_USER_SETTING = "readJdbcUser";
@@ -1805,6 +1809,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
         setReadDataSource(createDataSource(
                 settings,
                 READ_DATA_SOURCE_SETTING,
+                READ_DATA_SOURCE_JNDI_NAME_SETTING,
                 READ_JDBC_DRIVER_CLASS_SETTING,
                 READ_JDBC_URL_SETTING,
                 READ_JDBC_USER_SETTING,
@@ -1813,6 +1818,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
         setDataSource(createDataSource(
                 settings,
                 DATA_SOURCE_SETTING,
+                DATA_SOURCE_JNDI_NAME_SETTING,
                 JDBC_DRIVER_CLASS_SETTING,
                 JDBC_URL_SETTING,
                 JDBC_USER_SETTING,
@@ -1895,11 +1901,26 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
     private DataSource createDataSource(
             Map<String, Object> settings,
             String dataSourceSetting,
+            String dataSourceJndiNameSetting,
             String jdbcDriverClassSetting,
             String jdbcUrlSetting,
             String jdbcUserSetting,
             String jdbcPasswordSetting,
             String jdbcPoolSizeSetting) {
+
+        Object dataSourceJndiName = settings.get(dataSourceJndiNameSetting);
+        if (dataSourceJndiName instanceof String) {
+            try {
+                Object dataSourceObject = new InitialContext().lookup((String) dataSourceJndiName);
+                if (dataSourceObject instanceof DataSource) {
+                    return (DataSource) dataSourceObject;
+                }
+            } catch (NamingException e) {
+                throw new SettingsException(dataSourceJndiNameSetting,
+                        String.format("Can't find [%s]!",
+                        dataSourceJndiName), e);
+            }
+        }
 
         Object dataSourceObject = settings.get(dataSourceSetting);
         if (dataSourceObject instanceof DataSource) {

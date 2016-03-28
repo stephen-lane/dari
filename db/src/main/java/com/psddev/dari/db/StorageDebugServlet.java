@@ -132,7 +132,7 @@ public class StorageDebugServlet extends HttpServlet {
                                 }
                             writeEnd();
                             writeStart("label", "class", "checkbox", "style", "margin-top: 5px;");
-                                writeElement("input", "name", "saveObject", "type", "checkbox");
+                                writeElement("input", "name", "saveObject", "type", "checkbox", "value", "true");
                                 writeHtml("Save object? (slower - consider reusing the original storage name instead)");
                             writeEnd();
                         writeEnd();
