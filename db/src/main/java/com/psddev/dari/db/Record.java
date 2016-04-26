@@ -264,6 +264,56 @@ public class Record implements BeanInfo, Cloneable, Comparable<Record>, HtmlObje
     @SuppressWarnings("unused") private Object getDynamicProperty47() { return getDynamicProperty(47); }
     @SuppressWarnings("unused") private Object getDynamicProperty48() { return getDynamicProperty(48); }
     @SuppressWarnings("unused") private Object getDynamicProperty49() { return getDynamicProperty(49); }
+    @SuppressWarnings("unused") private Object getDynamicProperty50() { return getDynamicProperty(50); }
+    @SuppressWarnings("unused") private Object getDynamicProperty51() { return getDynamicProperty(51); }
+    @SuppressWarnings("unused") private Object getDynamicProperty52() { return getDynamicProperty(52); }
+    @SuppressWarnings("unused") private Object getDynamicProperty53() { return getDynamicProperty(53); }
+    @SuppressWarnings("unused") private Object getDynamicProperty54() { return getDynamicProperty(54); }
+    @SuppressWarnings("unused") private Object getDynamicProperty55() { return getDynamicProperty(55); }
+    @SuppressWarnings("unused") private Object getDynamicProperty56() { return getDynamicProperty(56); }
+    @SuppressWarnings("unused") private Object getDynamicProperty57() { return getDynamicProperty(57); }
+    @SuppressWarnings("unused") private Object getDynamicProperty58() { return getDynamicProperty(58); }
+    @SuppressWarnings("unused") private Object getDynamicProperty59() { return getDynamicProperty(59); }
+    @SuppressWarnings("unused") private Object getDynamicProperty60() { return getDynamicProperty(60); }
+    @SuppressWarnings("unused") private Object getDynamicProperty61() { return getDynamicProperty(61); }
+    @SuppressWarnings("unused") private Object getDynamicProperty62() { return getDynamicProperty(62); }
+    @SuppressWarnings("unused") private Object getDynamicProperty63() { return getDynamicProperty(63); }
+    @SuppressWarnings("unused") private Object getDynamicProperty64() { return getDynamicProperty(64); }
+    @SuppressWarnings("unused") private Object getDynamicProperty65() { return getDynamicProperty(65); }
+    @SuppressWarnings("unused") private Object getDynamicProperty66() { return getDynamicProperty(66); }
+    @SuppressWarnings("unused") private Object getDynamicProperty67() { return getDynamicProperty(67); }
+    @SuppressWarnings("unused") private Object getDynamicProperty68() { return getDynamicProperty(68); }
+    @SuppressWarnings("unused") private Object getDynamicProperty69() { return getDynamicProperty(69); }
+    @SuppressWarnings("unused") private Object getDynamicProperty70() { return getDynamicProperty(70); }
+    @SuppressWarnings("unused") private Object getDynamicProperty71() { return getDynamicProperty(71); }
+    @SuppressWarnings("unused") private Object getDynamicProperty72() { return getDynamicProperty(72); }
+    @SuppressWarnings("unused") private Object getDynamicProperty73() { return getDynamicProperty(73); }
+    @SuppressWarnings("unused") private Object getDynamicProperty74() { return getDynamicProperty(74); }
+    @SuppressWarnings("unused") private Object getDynamicProperty75() { return getDynamicProperty(75); }
+    @SuppressWarnings("unused") private Object getDynamicProperty76() { return getDynamicProperty(76); }
+    @SuppressWarnings("unused") private Object getDynamicProperty77() { return getDynamicProperty(77); }
+    @SuppressWarnings("unused") private Object getDynamicProperty78() { return getDynamicProperty(78); }
+    @SuppressWarnings("unused") private Object getDynamicProperty79() { return getDynamicProperty(79); }
+    @SuppressWarnings("unused") private Object getDynamicProperty80() { return getDynamicProperty(80); }
+    @SuppressWarnings("unused") private Object getDynamicProperty81() { return getDynamicProperty(81); }
+    @SuppressWarnings("unused") private Object getDynamicProperty82() { return getDynamicProperty(82); }
+    @SuppressWarnings("unused") private Object getDynamicProperty83() { return getDynamicProperty(83); }
+    @SuppressWarnings("unused") private Object getDynamicProperty84() { return getDynamicProperty(84); }
+    @SuppressWarnings("unused") private Object getDynamicProperty85() { return getDynamicProperty(85); }
+    @SuppressWarnings("unused") private Object getDynamicProperty86() { return getDynamicProperty(86); }
+    @SuppressWarnings("unused") private Object getDynamicProperty87() { return getDynamicProperty(87); }
+    @SuppressWarnings("unused") private Object getDynamicProperty88() { return getDynamicProperty(88); }
+    @SuppressWarnings("unused") private Object getDynamicProperty89() { return getDynamicProperty(89); }
+    @SuppressWarnings("unused") private Object getDynamicProperty90() { return getDynamicProperty(90); }
+    @SuppressWarnings("unused") private Object getDynamicProperty91() { return getDynamicProperty(91); }
+    @SuppressWarnings("unused") private Object getDynamicProperty92() { return getDynamicProperty(92); }
+    @SuppressWarnings("unused") private Object getDynamicProperty93() { return getDynamicProperty(93); }
+    @SuppressWarnings("unused") private Object getDynamicProperty94() { return getDynamicProperty(94); }
+    @SuppressWarnings("unused") private Object getDynamicProperty95() { return getDynamicProperty(95); }
+    @SuppressWarnings("unused") private Object getDynamicProperty96() { return getDynamicProperty(96); }
+    @SuppressWarnings("unused") private Object getDynamicProperty97() { return getDynamicProperty(97); }
+    @SuppressWarnings("unused") private Object getDynamicProperty98() { return getDynamicProperty(98); }
+    @SuppressWarnings("unused") private Object getDynamicProperty99() { return getDynamicProperty(99); }
     // CHECKSTYLE:ON
 
     // --- Cloneable support ---
