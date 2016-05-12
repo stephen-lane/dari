@@ -62,7 +62,7 @@ public enum SqlIndex {
                     }
                 }
 
-                return false;
+                return true;
             }
 
             @Override
