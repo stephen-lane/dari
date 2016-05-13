@@ -537,12 +537,16 @@ public class ReferentialText extends AbstractList<Object> {
 
     @Override
     public void add(int index, Object item) {
-        list.add(index, checkItem(item));
+        list.add(index, item);
     }
 
     @Override
     public Object get(int index) {
-        return list.get(index);
+        Object item = checkItem(list.get(index));
+
+        list.set(index, item);
+
+        return item;
     }
 
     @Override
@@ -552,7 +556,7 @@ public class ReferentialText extends AbstractList<Object> {
 
     @Override
     public Object set(int index, Object item) {
-        return list.set(index, checkItem(item));
+        return list.set(index, item);
     }
 
     @Override
