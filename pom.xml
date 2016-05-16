@@ -38,6 +38,7 @@
         <module>jclouds</module>
         <module>mail</module>
         <module>parent</module>
+        <module>reflections</module>
         <module>reloader/tomcat6</module>
         <module>sms</module>
         <module>storage</module>
@@ -158,6 +159,12 @@
             <dependency>
                 <groupId>com.psddev</groupId>
                 <artifactId>dari-mail</artifactId>
+                <version>3.2-SNAPSHOT</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.psddev</groupId>
+                <artifactId>dari-reflections</artifactId>
                 <version>3.2-SNAPSHOT</version>
             </dependency>
 
