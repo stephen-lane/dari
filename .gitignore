@@ -10,6 +10,7 @@ target
 /docs/documentation/javadocs
 /docs/documentation/_site
 /asm/dependency-reduced-pom.xml
+/reflections/dependency-reduced-pom.xml
 
 # Jekyll
 _site
