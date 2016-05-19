@@ -57,6 +57,7 @@ class SqlQuery {
     private Join mysqlIndexHint;
     private boolean mysqlIgnoreIndexPrimaryDisabled;
     private boolean forceLeftJoins;
+    private boolean hasAnyLimitingPredicates;
 
     private final List<Predicate> recordMetricDatePredicates = new ArrayList<Predicate>();
     private final List<Predicate> recordMetricParentDatePredicates = new ArrayList<Predicate>();
@@ -381,7 +382,7 @@ class SqlQuery {
                 continue;
             }
 
-            int symbolId = database.getSymbolId(key.getIndexKey(useIndex));
+            int symbolId = database.getReadSymbolId(key.getIndexKey(useIndex));
             String sourceTableAndSymbol = fieldData.getIndexTable().toLowerCase(Locale.ENGLISH) + symbolId;
 
             SqlIndex useSqlIndex = SqlIndex.Static.getByIndex(useIndex);
@@ -644,6 +645,9 @@ class SqlQuery {
             boolean hasMissing = false;
             int subClauseCount = 0;
             boolean isNotEqualsAll = PredicateParser.NOT_EQUALS_ALL_OPERATOR.equals(operator);
+            if (!isNotEqualsAll) {
+                hasAnyLimitingPredicates = true;
+            }
 
             if (isNotEqualsAll || PredicateParser.EQUALS_ANY_OPERATOR.equals(operator)) {
                 Query<?> valueQuery = mappedKey.getSubQueryWithComparison(comparisonPredicate);
@@ -672,7 +676,11 @@ class SqlQuery {
                     return;
                 }
 
+                List<Object> inValues = new ArrayList<>();
+
                 for (Object value : comparisonPredicate.resolveValues(database)) {
+                    boolean isInValue = false;
+
                     if (value == null) {
                         ++ subClauseCount;
                         comparisonBuilder.append("0 = 1");
@@ -731,7 +739,7 @@ class SqlQuery {
                             comparisonBuilder.append(joinValueField);
                             if (join.likeValuePrefix != null) {
                                 comparisonBuilder.append(" NOT LIKE ");
-                                join.appendValue(comparisonBuilder, comparisonPredicate, join.likeValuePrefix + database.getSymbolId(value.toString()) + ";%");
+                                join.appendValue(comparisonBuilder, comparisonPredicate, join.likeValuePrefix + database.getReadSymbolId(value.toString()) + ";%");
                             } else {
                                 comparisonBuilder.append(" != ");
                                 join.appendValue(comparisonBuilder, comparisonPredicate, value);
@@ -739,17 +747,36 @@ class SqlQuery {
                             comparisonBuilder.append(')');
 
                         } else {
-                            comparisonBuilder.append(joinValueField);
                             if (join.likeValuePrefix != null) {
+                                comparisonBuilder.append(joinValueField);
                                 comparisonBuilder.append(" LIKE ");
-                                join.appendValue(comparisonBuilder, comparisonPredicate, join.likeValuePrefix + database.getSymbolId(value.toString()) + ";%");
+                                join.appendValue(comparisonBuilder, comparisonPredicate, join.likeValuePrefix + database.getReadSymbolId(value.toString()) + ";%");
+
                             } else {
-                                comparisonBuilder.append(" = ");
-                                join.appendValue(comparisonBuilder, comparisonPredicate, value);
+                                isInValue = true;
+
+                                inValues.add(value);
                             }
                         }
                     }
 
+                    if (!isInValue) {
+                        comparisonBuilder.append(isNotEqualsAll ? " AND " : " OR  ");
+                    }
+                }
+
+                if (!inValues.isEmpty()) {
+                    comparisonBuilder.append(joinValueField);
+                    comparisonBuilder.append(" IN (");
+
+                    for (Object inValue : inValues) {
+                        join.appendValue(comparisonBuilder, comparisonPredicate, inValue);
+                        comparisonBuilder.append(", ");
+                    }
+
+                    comparisonBuilder.setLength(comparisonBuilder.length() - 2);
+
+                    comparisonBuilder.append(")");
                     comparisonBuilder.append(isNotEqualsAll ? " AND " : " OR  ");
                 }
 
@@ -1268,7 +1295,7 @@ class SqlQuery {
         selectBuilder.insert(7, "MIN(r.data) minData, MAX(r.data) maxData, "); // Right after "SELECT " (7 chars)
         fromBuilder.insert(0, "FROM " + MetricAccess.Static.getMetricTableIdentifier(database) + " r ");
         whereBuilder.append(" AND r." + MetricAccess.METRIC_SYMBOL_FIELD + " = ");
-        vendor.appendValue(whereBuilder, database.getSymbolId(actionSymbol));
+        vendor.appendValue(whereBuilder, database.getReadSymbolId(actionSymbol));
 
         // If a dimensionId is not specified, we will append dimensionId = 00000000000000000000000000000000
         if (recordMetricDimensionPredicates.isEmpty()) {
@@ -1416,7 +1443,7 @@ class SqlQuery {
         sql.append(" AND \n");
         appendSimpleOnClause(sql, vendor, "r", SqlDatabase.TYPE_ID_COLUMN, "=", "m2", MetricAccess.METRIC_TYPE_FIELD);
         sql.append(" AND \n");
-        appendSimpleWhereClause(sql, vendor, "m2", MetricAccess.METRIC_SYMBOL_FIELD, "=", database.getSymbolId(actionSymbol));
+        appendSimpleWhereClause(sql, vendor, "m2", MetricAccess.METRIC_SYMBOL_FIELD, "=", database.getReadSymbolId(actionSymbol));
         // If a dimensionId is not specified, we will append dimensionId = 00000000000000000000000000000000
         if (recordMetricDimensionPredicates.isEmpty()) {
             sql.append(" AND ");
@@ -1580,6 +1607,7 @@ class SqlQuery {
 
         if (fromClause.length() > 0
                 && !fromClause.contains("LEFT OUTER JOIN")
+                && hasAnyLimitingPredicates
                 && !mysqlIgnoreIndexPrimaryDisabled) {
             statementBuilder.append(" /*! IGNORE INDEX (PRIMARY) */");
         }
@@ -1911,7 +1939,7 @@ class SqlQuery {
 
             } else if (database.hasInRowIndex() && index.isShortConstant()) {
                 needsIndexTable = false;
-                likeValuePrefix = "%;" + database.getSymbolId(mappedKeys.get(queryKey).getIndexKey(selectedIndexes.get(queryKey))) + "=";
+                likeValuePrefix = "%;" + database.getReadSymbolId(mappedKeys.get(queryKey).getIndexKey(selectedIndexes.get(queryKey))) + "=";
                 valueField = recordInRowIndexField;
                 sqlIndexTable = this.sqlIndex.getReadTable(database, index);
 
@@ -2001,12 +2029,13 @@ class SqlQuery {
         }
 
         public Object quoteIndexKey(String indexKey) {
-            return SqlDatabase.quoteValue(sqlIndexTable.convertKey(database, index, indexKey));
+            return SqlDatabase.quoteValue(sqlIndexTable.convertReadKey(database, index, indexKey));
         }
 
         public void appendValue(StringBuilder builder, ComparisonPredicate comparison, Object value) {
             Query.MappedKey mappedKey = mappedKeys.get(comparison.getKey());
             ObjectField field = mappedKey.getField();
+            ObjectIndex index = selectedIndexes.get(queryKey);
             SqlIndex fieldSqlIndex = field != null
                     ? SqlIndex.Static.getByType(field.getInternalItemType())
                     : sqlIndex;

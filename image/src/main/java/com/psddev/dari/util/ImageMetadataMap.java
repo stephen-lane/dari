@@ -36,7 +36,7 @@ import com.drew.metadata.Tag;
 <dependency>
     <groupId>com.drewnoakes</groupId>
     <artifactId>metadata-extractor</artifactId>
-    <version>2.4.0-beta-1</version>
+    <version>2.8.1</version>
 </dependency>}</code></pre></blockquote>
  *
  * <p>All errors will be {@linkplain #getErrors caught and stored}
@@ -121,13 +121,13 @@ public class ImageMetadataMap extends HashMap<String, Object> {
 
     // Populates the map based on the given {@code metadata}.
     private void populateMetadata(Metadata metadata) {
-        for (Iterator<?> di = metadata.getDirectoryIterator(); di.hasNext();) {
+        for (Iterator<?> di = metadata.getDirectories().iterator(); di.hasNext();) {
             Directory directory = (Directory) di.next();
             Map<String, String> tags = new HashMap<String, String>();
 
             put(directory.getName(), tags);
 
-            for (Iterator<?> ti = directory.getTagIterator(); ti.hasNext();) {
+            for (Iterator<?> ti = directory.getTags().iterator(); ti.hasNext();) {
                 Tag tag = (Tag) ti.next();
 
                 try {

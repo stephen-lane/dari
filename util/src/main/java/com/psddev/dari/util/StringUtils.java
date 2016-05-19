@@ -231,7 +231,9 @@ public final class StringUtils {
     public static String toPascalCase(String string) {
         StringBuilder nb = new StringBuilder();
         for (String word : splitString(string)) {
-            nb.append(Character.toUpperCase(word.charAt(0))).append(word.substring(1));
+            if (!word.isEmpty()) {
+                nb.append(Character.toUpperCase(word.charAt(0))).append(word.substring(1));
+            }
         }
         return nb.toString();
     }

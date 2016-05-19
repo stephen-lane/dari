@@ -19,6 +19,18 @@ public interface RecalculationDelay {
     boolean isUpdateDue(DateTime currentTime, DateTime lastRunTime);
 
     /**
+     * Returns the {@code DateTime} RecalculateTask uses to find records that
+     * have metric data.
+     *
+     * @param lastRunTime The last execution date of RecalculationTask after
+     *                    having been truncated by the indicated MetricInterval.
+     *                    Never {@code null}.
+     */
+    default DateTime metricAfterDate(DateTime lastRunTime) {
+        return lastRunTime;
+    }
+
+    /**
      * Implementation that recalculates the field value every minute.
      */
     class Minute implements RecalculationDelay {
@@ -26,6 +38,11 @@ public interface RecalculationDelay {
         @Override
         public boolean isUpdateDue(DateTime currentTime, DateTime lastRunTime) {
             return lastRunTime == null || currentTime.minusMinutes(1).isAfter(lastRunTime);
+        }
+
+        @Override
+        public DateTime metricAfterDate(DateTime lastRunTime) {
+            return lastRunTime.minusMinutes(15);
         }
     }
 
@@ -38,6 +55,11 @@ public interface RecalculationDelay {
         public boolean isUpdateDue(DateTime currentTime, DateTime lastRunTime) {
             return lastRunTime == null || currentTime.minusMinutes(15).isAfter(lastRunTime);
         }
+
+        @Override
+        public DateTime metricAfterDate(DateTime lastRunTime) {
+            return lastRunTime.minusHours(1);
+        }
     }
 
     /**
@@ -48,6 +70,11 @@ public interface RecalculationDelay {
         @Override
         public boolean isUpdateDue(DateTime currentTime, DateTime lastRunTime) {
             return lastRunTime == null || currentTime.minusMinutes(30).isAfter(lastRunTime);
+        }
+
+        @Override
+        public DateTime metricAfterDate(DateTime lastRunTime) {
+            return lastRunTime.minusHours(2);
         }
     }
 
@@ -60,6 +87,11 @@ public interface RecalculationDelay {
         public boolean isUpdateDue(DateTime currentTime, DateTime lastRunTime) {
             return lastRunTime == null || currentTime.minusHours(1).isAfter(lastRunTime);
         }
+
+        @Override
+        public DateTime metricAfterDate(DateTime lastRunTime) {
+            return lastRunTime.minusDays(1);
+        }
     }
 
     /**
@@ -71,6 +103,11 @@ public interface RecalculationDelay {
         public boolean isUpdateDue(DateTime currentTime, DateTime lastRunTime) {
             return lastRunTime == null || currentTime.minusHours(12).isAfter(lastRunTime);
         }
+
+        @Override
+        public DateTime metricAfterDate(DateTime lastRunTime) {
+            return lastRunTime.minusDays(2);
+        }
     }
 
     /**
@@ -81,6 +118,11 @@ public interface RecalculationDelay {
         @Override
         public boolean isUpdateDue(DateTime currentTime, DateTime lastRunTime) {
             return lastRunTime == null || currentTime.minusDays(1).isAfter(lastRunTime);
+        }
+
+        @Override
+        public DateTime metricAfterDate(DateTime lastRunTime) {
+            return lastRunTime.minusDays(4);
         }
     }
 }

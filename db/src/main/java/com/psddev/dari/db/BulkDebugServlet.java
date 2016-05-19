@@ -3,10 +3,10 @@ package com.psddev.dari.db;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -92,18 +92,29 @@ public class BulkDebugServlet extends HttpServlet {
                     Set<String> destinationGroups = ((AbstractDatabase<?>) destination).getGroups();
 
                     if (!destinationGroups.contains(UUID.randomUUID().toString())) {
-                        Set<UUID> savableTypeIds = new HashSet<>();
+                        Set<UUID> unsavableTypeIds = source.getEnvironment()
+                                .getTypes()
+                                .stream()
+                                .map(Record::getId)
+                                .collect(Collectors.toSet());
 
                         for (ObjectType type : source.getEnvironment().getTypes()) {
-                            for (String typeGroup : type.getGroups()) {
-                                if (destinationGroups.contains(typeGroup)) {
-                                    savableTypeIds.add(type.getId());
-                                    break;
+                            if (type.getObjectClass() == null
+                                    || type.getGroups().contains(Modification.class.getName())
+                                    || type.isAbstract()
+                                    || type.isEmbedded()) {
+                                unsavableTypeIds.remove(type.getId());
+                            } else {
+                                for (String typeGroup : type.getGroups()) {
+                                    if (destinationGroups.contains(typeGroup)) {
+                                        unsavableTypeIds.remove(type.getId());
+                                        break;
+                                    }
                                 }
                             }
                         }
 
-                        query.and("_type = ?", savableTypeIds);
+                        query.and("_type != ?", unsavableTypeIds);
                     }
                 }
 

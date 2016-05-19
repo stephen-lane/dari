@@ -140,10 +140,12 @@ try {
 
     map['classFinder.include'] = 'true'
     map['javaSourceDirectory'] = project.build.sourceDirectory
+    map['javaGeneratedSourcesDirectory'] = new File(project.build.directory, ['generated-sources'].join(File.separator)).getPath()
     map['resourceDirectory'] = new File(pom.basedir, [ 'src', 'main', 'resources' ].join(File.separator)).getPath()
     map['webappSourceDirectory'] = new File(pom.basedir, [ 'src', 'main', 'webapp' ].join(File.separator)).getPath()
 
     map['sourceFilter.javaSources'] = project.build.sourceDirectory
+    map['sourceFilter.javaGeneratedSources'] = new File(project.build.directory, ['generated-sources'].join(File.separator)).getPath()
     map['sourceFilter.webappSources'] = new File(pom.basedir, [ 'src', 'main', 'webapp' ].join(File.separator)).getPath()
 
     def properties = new Properties()
@@ -302,7 +304,7 @@ try {
                     <plugin>
                         <groupId>com.github.eirslett</groupId>
                         <artifactId>frontend-maven-plugin</artifactId>
-                        <version>0.0.23</version>
+                        <version>0.0.26</version>
 
                         <executions>
                             <execution>
@@ -312,8 +314,8 @@ try {
                                     <goal>install-node-and-npm</goal>
                                 </goals>
                                 <configuration>
-                                    <nodeVersion>v0.12.7</nodeVersion>
-                                    <npmVersion>2.12.1</npmVersion>
+                                    <nodeVersion>v4.2.1</nodeVersion>
+                                    <npmVersion>2.14.7</npmVersion>
                                 </configuration>
                             </execution>
 
@@ -510,7 +512,7 @@ try {
                                 <id>deploy-javadoc-package</id>
                                 <phase>package</phase>
                                 <goals>
-                                    <goal>aggregate</goal>
+                                    <goal>aggregate-jar</goal>
                                 </goals>
                             </execution>
                         </executions>
@@ -547,12 +549,12 @@ try {
     <distributionManagement>
         <repository>
             <id>psddev-releases</id>
-            <url>http://nexus.psddev.com/content/repositories/releases</url>
+            <url>https://artifactory.psdops.com/psddev-releases</url>
         </repository>
 
         <snapshotRepository>
             <id>psddev-snapshots</id>
-            <url>http://nexus.psddev.com/content/repositories/snapshots</url>
+            <url>https://artifactory.psdops.com/psddev-snapshots</url>
         </snapshotRepository>
     </distributionManagement>
 
@@ -564,7 +566,7 @@ try {
     <repositories>
         <repository>
             <id>public.psddev</id>
-            <url>http://public.psddev.com/maven</url>
+            <url>https://artifactory.psdops.com/public</url>
             <snapshots>
                 <updatePolicy>always</updatePolicy>
             </snapshots>
@@ -574,7 +576,7 @@ try {
     <pluginRepositories>
         <pluginRepository>
             <id>public.psddev</id>
-            <url>http://public.psddev.com/maven</url>
+            <url>https://artifactory.psdops.com/public</url>
             <snapshots>
                 <updatePolicy>always</updatePolicy>
             </snapshots>

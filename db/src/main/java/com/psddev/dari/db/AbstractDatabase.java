@@ -761,6 +761,16 @@ public abstract class AbstractDatabase<C> implements Database {
         }
     };
 
+    private static class BeforeCommitTrigger extends TriggerOnce {
+
+        @Override
+        protected void executeOnce(Object object) {
+            if (object instanceof Record) {
+                ((Record) object).beforeCommit();
+            }
+        }
+    }
+
     private static class AfterSaveTrigger extends TriggerOnce {
 
         @Override
@@ -810,14 +820,6 @@ public abstract class AbstractDatabase<C> implements Database {
     @Override
     public final void save(State state) {
         checkState(state);
-
-        ObjectType type = state.getType();
-
-        if (type != null && !type.isConcrete()) {
-            throw new IllegalStateException(String.format(
-                    "Can't save a non-concrete object! (%s)",
-                    type.getLabel()));
-        }
 
         state.fireTrigger(new BeforeSaveTrigger());
 
@@ -874,6 +876,14 @@ public abstract class AbstractDatabase<C> implements Database {
             throw new IllegalArgumentException(String.format(
                     "Can't write a reference-only object! (%s)",
                     state.getId()));
+        }
+
+        ObjectType type = state.getType();
+
+        if (type != null && !type.isConcrete()) {
+            throw new IllegalStateException(String.format(
+                    "Can't save a non-concrete object! (%s)",
+                    type.getLabel()));
         }
     }
 
@@ -965,6 +975,12 @@ public abstract class AbstractDatabase<C> implements Database {
                     lock.lock();
                 }
                 validate(validates, false);
+            }
+
+            if (validates != null) {
+                for (State state : validates) {
+                    state.fireTrigger(new BeforeCommitTrigger());
+                }
             }
 
             boolean isCommitted = false;

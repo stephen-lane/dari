@@ -10,10 +10,15 @@ import java.util.Map;
 
 import javax.xml.bind.DatatypeConverter;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
  * {@link SmsProvider} backed by <a href="http://www.twilio.com/">Twilio</a>.
  */
 public class TwilioSmsProvider implements SmsProvider {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(TwilioSmsProvider.class);
 
     public static final String ACCOUNT_SID_SUB_SETTING = "accountSid";
     public static final String AUTH_TOKEN_SUB_SETTING = "authToken";
@@ -64,7 +69,7 @@ public class TwilioSmsProvider implements SmsProvider {
             HttpURLConnection conn = (HttpURLConnection) new URL(
                     "https://api.twilio.com/2010-04-01/Accounts/"
                     + getAccountSid()
-                    + "/SMS/Messages.json").openConnection();
+                    + "/Messages.json").openConnection();
 
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Authorization", "Basic " + DatatypeConverter.printBase64Binary((getAccountSid() + ":" + getAuthToken()).getBytes(StandardCharsets.UTF_8)));
@@ -83,13 +88,28 @@ public class TwilioSmsProvider implements SmsProvider {
                 output.close();
             }
 
-            InputStream input = conn.getInputStream();
+            InputStream input = null;
 
             try {
-                IoUtils.toString(input, StandardCharsets.UTF_8);
+                boolean isError = false;
+
+                try {
+                    input = conn.getInputStream();
+
+                } catch (IOException ex) {
+                    input = conn.getErrorStream();
+                    isError = true;
+                }
+
+                String response = IoUtils.toString(input, StandardCharsets.UTF_8);
+                // TODO: Utilize response.
+
+                if (isError) {
+                    LOGGER.warn("Failed to send SMS: {}", response);
+                }
 
             } finally {
-                input.close();
+                IoUtils.closeQuietly(input);
             }
 
         } catch (IOException error) {

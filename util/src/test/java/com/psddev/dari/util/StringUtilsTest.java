@@ -236,6 +236,10 @@ public class StringUtilsTest {
 	public void toPascalCase() {
 		assertEquals("AStringWithWords", StringUtils.toPascalCase("a string with words"));
 	}
+	@Test
+	public void toPascalCase_leadingDelimiters() {
+		assertEquals("AStringWithWords", StringUtils.toPascalCase("_a_string_with_words"));
+	}
 	@Test (expected=NullPointerException.class)
 	public void toPascalCase_null() {
 		StringUtils.toPascalCase(null);

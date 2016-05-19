@@ -161,6 +161,7 @@ public interface StorageItem extends SettingsBackedObject {
                 StorageItem newItem = createIn(newStorage);
                 newItem.setPath(item.getPath());
                 newItem.setContentType(item.getContentType());
+                newItem.setMetadata(item.getMetadata());
                 newItem.setData(data);
                 newItem.save();
                 return newItem;

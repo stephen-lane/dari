@@ -13,6 +13,8 @@ import com.psddev.dari.util.StringUtils;
  * <ul>
  * <li>{@value ASCENDING_OPERATOR}
  * <li>{@value CLOSEST_OPERATOR}
+ * <li>{@value NEWEST_OPERATOR}
+ * <li>{@value OLDEST_OPERATOR}
  * <li>{@value DESCENDING_OPERATOR}
  * <li>{@value FARTHEST_OPERATOR}
  * <li>{@value RELEVANT_OPERATOR}
@@ -26,6 +28,9 @@ public class Sorter extends Record {
 
     public static final String CLOSEST_OPERATOR = "closest";
     public static final String FARTHEST_OPERATOR = "farthest";
+
+    public static final String NEWEST_OPERATOR = "newest";
+    public static final String OLDEST_OPERATOR = "oldest";
 
     public static final String RELEVANT_OPERATOR = "relevant";
 

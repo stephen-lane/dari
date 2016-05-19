@@ -45,6 +45,8 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 
+import javax.naming.InitialContext;
+import javax.naming.NamingException;
 import javax.sql.DataSource;
 
 import com.zaxxer.hikari.HikariDataSource;
@@ -76,6 +78,7 @@ import com.psddev.dari.util.UuidUtils;
 public class SqlDatabase extends AbstractDatabase<Connection> {
 
     public static final String DATA_SOURCE_SETTING = "dataSource";
+    public static final String DATA_SOURCE_JNDI_NAME_SETTING = "dataSourceJndiName";
     public static final String JDBC_DRIVER_CLASS_SETTING = "jdbcDriverClass";
     public static final String JDBC_URL_SETTING = "jdbcUrl";
     public static final String JDBC_USER_SETTING = "jdbcUser";
@@ -83,6 +86,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
     public static final String JDBC_POOL_SIZE_SETTING = "jdbcPoolSize";
 
     public static final String READ_DATA_SOURCE_SETTING = "readDataSource";
+    public static final String READ_DATA_SOURCE_JNDI_NAME_SETTING = "readDataSourceJndiName";
     public static final String READ_JDBC_DRIVER_CLASS_SETTING = "readJdbcDriverClass";
     public static final String READ_JDBC_URL_SETTING = "readJdbcUrl";
     public static final String READ_JDBC_USER_SETTING = "readJdbcUser";
@@ -234,6 +238,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
         m.put("H2", SqlVendor.H2.class);
         m.put("MySQL", SqlVendor.MySQL.class);
         m.put("PostgreSQL", SqlVendor.PostgreSQL.class);
+        m.put("EnterpriseDB", SqlVendor.PostgreSQL.class);
         m.put("Oracle", SqlVendor.Oracle.class);
         VENDOR_CLASSES = m;
     }
@@ -541,6 +546,29 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
     };
 
     /**
+     * Returns an unique numeric ID for the given {@code symbol},
+     * or {@code -1} if it's not available.
+     */
+    public int getReadSymbolId(String symbol) {
+        Integer id = symbols.get().get(symbol);
+
+        if (id == null) {
+            Connection connection = openConnection();
+            try {
+                id = selectSymbolId(connection, symbol);
+                if (id != null) {
+                    symbols.get().put(symbol, id);
+                }
+            } finally {
+                closeConnection(connection);
+            }
+            sqlQueryCache.invalidateAll();
+        }
+
+        return id != null ? id : -1;
+    }
+
+    /**
      * Returns an unique numeric ID for the given {@code symbol}.
      */
     public int getSymbolId(String symbol) {
@@ -572,37 +600,51 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
                     }
                 }
 
-                StringBuilder selectBuilder = new StringBuilder();
-                selectBuilder.append("SELECT ");
-                vendor.appendIdentifier(selectBuilder, SYMBOL_ID_COLUMN);
-                selectBuilder.append(" FROM ");
-                vendor.appendIdentifier(selectBuilder, SYMBOL_TABLE);
-                selectBuilder.append(" WHERE ");
-                vendor.appendIdentifier(selectBuilder, VALUE_COLUMN);
-                selectBuilder.append('=');
-                vendor.appendValue(selectBuilder, symbol);
-
-                String selectSql = selectBuilder.toString();
-                Statement statement = null;
-                ResultSet result = null;
-
-                try {
-                    statement = connection.createStatement();
-                    result = statement.executeQuery(selectSql);
-                    result.next();
-                    id = result.getInt(1);
-                    symbols.get().put(symbol, id);
-
-                } catch (SQLException ex) {
-                    throw createQueryException(ex, selectSql, null);
-
-                } finally {
-                    closeResources(null, null, statement, result);
-                }
+                id = selectSymbolId(connection, symbol);
+                symbols.get().put(symbol, id);
 
             } finally {
                 closeConnection(connection);
             }
+        }
+
+        return id;
+    }
+
+    private Integer selectSymbolId(Connection connection, String symbol) {
+        Integer id = null;
+
+        try {
+            StringBuilder selectBuilder = new StringBuilder();
+            selectBuilder.append("SELECT ");
+            vendor.appendIdentifier(selectBuilder, SYMBOL_ID_COLUMN);
+            selectBuilder.append(" FROM ");
+            vendor.appendIdentifier(selectBuilder, SYMBOL_TABLE);
+            selectBuilder.append(" WHERE ");
+            vendor.appendIdentifier(selectBuilder, VALUE_COLUMN);
+            selectBuilder.append('=');
+            vendor.appendValue(selectBuilder, symbol);
+
+            String selectSql = selectBuilder.toString();
+            Statement statement = null;
+            ResultSet result = null;
+
+            try {
+                statement = connection.createStatement();
+                result = statement.executeQuery(selectSql);
+                if (result.next()) {
+                    id = result.getInt(1);
+                }
+
+            } catch (SQLException ex) {
+                throw createQueryException(ex, selectSql, null);
+
+            } finally {
+                closeResources(null, null, statement, result);
+            }
+
+        } finally {
+            closeConnection(connection);
         }
 
         return id;
@@ -1086,7 +1128,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
         SqlIndex useSqlIndex = SqlIndex.Static.getByIndex(useIndex);
         SqlIndex.Table indexTable = useSqlIndex.getReadTable(this, useIndex);
         String sourceTableName = fieldData.getIndexTable();
-        int symbolId = getSymbolId(key.getIndexKey(useIndex));
+        int symbolId = getReadSymbolId(key.getIndexKey(useIndex));
         StringBuilder sql = new StringBuilder();
         int fieldIndex = 0;
 
@@ -1768,6 +1810,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
         setReadDataSource(createDataSource(
                 settings,
                 READ_DATA_SOURCE_SETTING,
+                READ_DATA_SOURCE_JNDI_NAME_SETTING,
                 READ_JDBC_DRIVER_CLASS_SETTING,
                 READ_JDBC_URL_SETTING,
                 READ_JDBC_USER_SETTING,
@@ -1776,6 +1819,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
         setDataSource(createDataSource(
                 settings,
                 DATA_SOURCE_SETTING,
+                DATA_SOURCE_JNDI_NAME_SETTING,
                 JDBC_DRIVER_CLASS_SETTING,
                 JDBC_URL_SETTING,
                 JDBC_USER_SETTING,
@@ -1858,11 +1902,26 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
     private DataSource createDataSource(
             Map<String, Object> settings,
             String dataSourceSetting,
+            String dataSourceJndiNameSetting,
             String jdbcDriverClassSetting,
             String jdbcUrlSetting,
             String jdbcUserSetting,
             String jdbcPasswordSetting,
             String jdbcPoolSizeSetting) {
+
+        Object dataSourceJndiName = settings.get(dataSourceJndiNameSetting);
+        if (dataSourceJndiName instanceof String) {
+            try {
+                Object dataSourceObject = new InitialContext().lookup((String) dataSourceJndiName);
+                if (dataSourceObject instanceof DataSource) {
+                    return (DataSource) dataSourceObject;
+                }
+            } catch (NamingException e) {
+                throw new SettingsException(dataSourceJndiNameSetting,
+                        String.format("Can't find [%s]!",
+                        dataSourceJndiName), e);
+            }
+        }
 
         Object dataSourceObject = settings.get(dataSourceSetting);
         if (dataSourceObject instanceof DataSource) {

@@ -24,7 +24,7 @@ import org.imgscalr.Scalr;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class JavaImageEditor extends AbstractImageEditor {
+public class JavaImageEditor extends AbstractUrlImageEditor {
 
     private static final String DEFAULT_IMAGE_FORMAT = "png";
     private static final String DEFAULT_IMAGE_CONTENT_TYPE = "image/" + DEFAULT_IMAGE_FORMAT;
@@ -41,7 +41,6 @@ public class JavaImageEditor extends AbstractImageEditor {
     protected static final String THUMBNAIL_COMMAND = "thumbnail";
 
     private Scalr.Method quality = Scalr.Method.AUTOMATIC;
-    private String baseUrl;
     private String basePath;
     private String sharedSecret;
     private String errorImage;
@@ -57,10 +56,6 @@ public class JavaImageEditor extends AbstractImageEditor {
         this.quality = quality;
     }
 
-    public String getBaseUrl() {
-        return baseUrl;
-    }
-
     public String getBasePath() {
         if (StringUtils.isBlank(basePath) && !(StringUtils.isBlank(baseUrl))) {
             basePath = baseUrl.substring(baseUrl.indexOf("//") + 2);
@@ -70,10 +65,6 @@ public class JavaImageEditor extends AbstractImageEditor {
             }
         }
         return basePath;
-    }
-
-    public void setBaseUrl(String baseUrl) {
-        this.baseUrl = baseUrl;
     }
 
     public String getSharedSecret() {
@@ -126,8 +117,8 @@ public class JavaImageEditor extends AbstractImageEditor {
     @Override
     public StorageItem edit(StorageItem storageItem, String command, Map<String, Object> options, Object... arguments) {
 
-        if (StringUtils.isBlank(this.getBasePath()) && PageContextFilter.Static.getRequest() != null) {
-            setBaseUrlFromRequest(PageContextFilter.Static.getRequest());
+        if (StringUtils.isBlank(this.getBasePath())) {
+            setBaseUrlFromRequest(PageContextFilter.Static.getRequestOrNull());
         }
 
         if (ImageEditor.CROP_COMMAND.equals(command)
@@ -137,14 +128,23 @@ public class JavaImageEditor extends AbstractImageEditor {
             return storageItem;
         }
 
-        String imageUrl = storageItem.getPublicUrl();
+        String imageUrl = new OriginStorageItem(storageItem).getPublicUrl();
         List<String> commands = new ArrayList<String>();
 
-        if (imageUrl.startsWith(this.getBaseUrl()) && imageUrl.contains("?url=")) {
+        boolean usePrivateUrl = false;
+        if (options != null && options.containsKey(ImageEditorPrivateUrl.PRIVATE_URL_OPTION)
+                && ObjectUtils.to(Boolean.class, options.get(ImageEditorPrivateUrl.PRIVATE_URL_OPTION))) {
+            usePrivateUrl = true;
+        }
+
+        String privateBaseUrl = usePrivateUrl ? getPrivateBaseUrl() : null;
+        String baseUrl = privateBaseUrl != null ? privateBaseUrl : getBaseUrl();
+
+        if (imageUrl.startsWith(baseUrl) && imageUrl.contains("?url=")) {
             String[] imageComponents = imageUrl.split("\\?url=");
             imageUrl = StringUtils.decodeUri(imageComponents[1]);
 
-            String path = imageComponents[0].substring(this.getBaseUrl().length());
+            String path = imageComponents[0].substring(baseUrl.length());
             for (String parameter : path.split("/")) {
                 if (!EXTRA_CROPS.contains(parameter)) {
                     commands.add(parameter);
@@ -278,7 +278,7 @@ public class JavaImageEditor extends AbstractImageEditor {
         }
 
         StringBuilder storageItemUrlBuilder = new StringBuilder();
-        storageItemUrlBuilder.append(this.getBaseUrl());
+        storageItemUrlBuilder.append(baseUrl);
         if (!StringUtils.isBlank(this.getSharedSecret())) {
             StringBuilder commandsBuilder = new StringBuilder();
 
@@ -340,6 +340,7 @@ public class JavaImageEditor extends AbstractImageEditor {
 
     @Override
     public void initialize(String settingsKey, Map<String, Object> settings) {
+        super.initialize(settingsKey, settings);
 
         if (!ObjectUtils.isBlank(settings.get(QUALITY_SETTING))) {
             Object qualitySetting = settings.get(QUALITY_SETTING);
@@ -350,10 +351,6 @@ public class JavaImageEditor extends AbstractImageEditor {
             } else if (qualitySetting instanceof String) {
                 quality = Scalr.Method.valueOf(ObjectUtils.to(String.class, qualitySetting));
             }
-        }
-
-        if (!ObjectUtils.isBlank(settings.get("baseUrl"))) {
-            setBaseUrl(ObjectUtils.to(String.class, settings.get("baseUrl")));
         }
 
         if (!ObjectUtils.isBlank(settings.get("sharedSecret"))) {
@@ -404,17 +401,20 @@ public class JavaImageEditor extends AbstractImageEditor {
     protected void setBaseUrlFromRequest(HttpServletRequest request) {
 
         StringBuilder baseUrlBuilder = new StringBuilder();
-        baseUrlBuilder.append("http");
-        if (request.isSecure()) {
-            baseUrlBuilder.append("s");
-        }
 
-        baseUrlBuilder.append("://")
-                .append(request.getServerName());
+        if (request != null) {
+            baseUrlBuilder.append("http");
+            if (request.isSecure()) {
+                baseUrlBuilder.append("s");
+            }
 
-        if (request.getServerPort() != 80 && request.getServerPort() != 443) {
-            baseUrlBuilder.append(":")
-                    .append(request.getServerPort());
+            baseUrlBuilder.append("://")
+                    .append(request.getServerName());
+
+            if (request.getServerPort() != 80 && request.getServerPort() != 443) {
+                baseUrlBuilder.append(":")
+                        .append(request.getServerPort());
+            }
         }
 
         baseUrlBuilder.append(JavaImageServlet.SERVLET_PATH);

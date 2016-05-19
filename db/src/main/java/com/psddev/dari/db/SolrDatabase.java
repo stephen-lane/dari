@@ -338,6 +338,18 @@ public class SolrDatabase extends AbstractDatabase<SolrServer> {
         }
     }
 
+    private SolrQuery addComment(SolrQuery solrQuery, Query<?> query) {
+        if (solrQuery != null && query != null) {
+            String comment = query.getComment();
+
+            if (!ObjectUtils.isBlank(comment)) {
+                solrQuery.set("dari.queryComment", comment);
+            }
+        }
+
+        return solrQuery;
+    }
+
     public SolrQuery buildQueryFacetByField(Query<?> query, String field) {
         SolrQuery solrQuery = buildQuery(query);
         Query.MappedKey mappedKey = mapFullyDenormalizedKey(query, field);
@@ -357,7 +369,7 @@ public class SolrDatabase extends AbstractDatabase<SolrServer> {
         solrQuery.setFacet(true);
         solrQuery.addFacetField(solrField);
 
-        return solrQuery;
+        return addComment(solrQuery, query);
     }
 
     public SolrQuery buildQueryNumericRangeFacet(Query<?> query, String field, Number start, Number end, Number gap) {
@@ -378,7 +390,7 @@ public class SolrDatabase extends AbstractDatabase<SolrServer> {
 
         solrQuery.addNumericRangeFacet(solrField, start, end, gap);
 
-        return solrQuery;
+        return addComment(solrQuery, query);
     }
 
     /** Builds a Solr query based on the given {@code query}. */
@@ -469,6 +481,7 @@ public class SolrDatabase extends AbstractDatabase<SolrServer> {
         }
 
         StringBuilder sortBuilder = new StringBuilder();
+        StringBuilder boostFunctionBuilder = new StringBuilder();
         for (Sorter sorter : query.getSorters()) {
             String operator = sorter.getOperator();
             boolean isAscending = Sorter.ASCENDING_OPERATOR.equals(operator);
@@ -527,6 +540,35 @@ public class SolrDatabase extends AbstractDatabase<SolrServer> {
                 sortBuilder.append(" || ");
                 continue;
 
+            } else if (Sorter.NEWEST_OPERATOR.equals(operator) || Sorter.OLDEST_OPERATOR.equals(operator)) {
+                String queryKey = (String) sorter.getOptions().get(1);
+                Query.MappedKey mappedKey = mapFullyDenormalizedKey(query, queryKey);
+                String solrField = specialFields.get(mappedKey);
+
+                if (solrField == null) {
+                    String internalType = mappedKey.getInternalType();
+                    if (internalType != null) {
+                        solrField = getSolrField(internalType).sortPrefix + mappedKey.getIndexKey(null);
+                    }
+                }
+
+                if (solrField == null) {
+                    throw new UnsupportedIndexException(this, queryKey);
+                }
+
+                double boost = ObjectUtils.to(double.class, sorter.getOptions().get(0));
+                if (boost == 0) {
+                    boost = 1.0;
+                }
+                boost = 1 / boost;
+
+                if (Sorter.NEWEST_OPERATOR.equals(operator)) {
+                    boostFunctionBuilder.append(String.format("{!boost b=recip(ms(NOW/HOUR,%s),3.16e-11,%s,%s)}", solrField, boost, boost));
+                } else {
+                    boostFunctionBuilder.append(String.format("{!boost b=linear(ms(NOW/HOUR,%s),3.16e-11,%s)}", solrField, boost));
+                }
+                continue;
+
             } else if (schema.get().version >= 9) {
                 boolean closest = Sorter.CLOSEST_OPERATOR.equals(operator);
 
@@ -575,8 +617,12 @@ public class SolrDatabase extends AbstractDatabase<SolrServer> {
             queryBuilder.append(tenant);
         }
 
+        if (boostFunctionBuilder.length() > 0) {
+            queryBuilder.insert(0, boostFunctionBuilder.toString());
+        }
+
         solrQuery.setQuery(queryBuilder.toString());
-        return solrQuery;
+        return addComment(solrQuery, query);
     }
 
     /**
@@ -1656,8 +1702,17 @@ public class SolrDatabase extends AbstractDatabase<SolrServer> {
                 UUID valueTypeId = ObjectUtils.to(UUID.class, valueMap.get(StateValueUtils.TYPE_KEY));
 
                 if (valueTypeId == null) {
-                    for (Object item : valueMap.values()) {
-                        addDocumentValues(document, allBuilder, includeInAny, field, name, item);
+                    if (field != null && ObjectField.RECORD_TYPE.equals(field.getInternalItemType())) {
+                        for (Object item : valueMap.values()) {
+                            if (item instanceof Map) {
+                                addDocumentValues(document, allBuilder, includeInAny, field, name, item);
+                            }
+                        }
+
+                    } else {
+                        for (Object item : valueMap.values()) {
+                            addDocumentValues(document, allBuilder, includeInAny, field, name, item);
+                        }
                     }
                     return;
 

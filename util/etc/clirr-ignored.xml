@@ -117,6 +117,11 @@
     </difference>
 
     <difference>
+        <className>com/psddev/dari/util/RandomUuidStorageItemPathGenerator</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
         <className>com/psddev/dari/util/SmsProvider</className>
         <differenceType>8001</differenceType>
     </difference>
@@ -142,6 +147,21 @@
     </difference>
 
     <difference>
+        <className>com/psddev/dari/util/StorageItemAfterSave</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/StorageItemBeforeSave</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/StorageItemFilter</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
         <className>com/psddev/dari/util/StorageItemHash</className>
         <differenceType>8001</differenceType>
     </difference>
@@ -158,6 +178,16 @@
 
     <difference>
         <className>com/psddev/dari/util/StorageItemPathHash</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/StorageItemPathGenerator</className>
+        <differenceType>8001</differenceType>
+    </difference>
+
+    <difference>
+        <className>com/psddev/dari/util/StorageItemUploadPart</className>
         <differenceType>8001</differenceType>
     </difference>
 

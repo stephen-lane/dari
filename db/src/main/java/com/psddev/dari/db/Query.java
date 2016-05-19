@@ -16,9 +16,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.google.common.collect.ImmutableMap;
 import com.psddev.dari.util.CompactMap;
 import com.psddev.dari.util.HtmlWriter;
@@ -26,6 +23,8 @@ import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.PaginatedResult;
 import com.psddev.dari.util.StringUtils;
 import com.psddev.dari.util.UuidUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Query over objects in a {@linkplain Database database}.
@@ -610,6 +609,24 @@ public class Query<E> extends Record {
      */
     public Query<E> sortRelevant(double weight, String predicateString, Object... parameters) {
         return sortRelevant(weight, PredicateParser.Static.parse(predicateString, parameters));
+    }
+
+    /**
+     * Adds a sorter that prioritizes the newest values
+     * with the given {@code key} weighted by the given {@code weight}
+     */
+    public Query<E> sortNewest(double weight, String key) {
+        sort(new Sorter(Sorter.NEWEST_OPERATOR, Arrays.asList(weight, key)));
+        return this;
+    }
+
+    /**
+     * Adds a sorter that prioritizes the oldest values
+     * with the given {@code key} weighted by the given {@code weight}
+     */
+    public Query<E> sortOldest(double weight, String key) {
+        sort(new Sorter(Sorter.OLDEST_OPERATOR, Arrays.asList(weight, key)));
+        return this;
     }
 
     public Query<E> fields(String... fields) {

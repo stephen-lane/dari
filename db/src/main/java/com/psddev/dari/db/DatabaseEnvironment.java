@@ -884,8 +884,8 @@ public class DatabaseEnvironment implements ObjectStruct {
                     if (index == null) {
                         index = nextIndex;
 
-                        if (index >= 49) {
-                            throw new IllegalStateException("Can't use more than 50 @BeanProperty!");
+                        if (index >= 99) {
+                            throw new IllegalStateException("Can't use more than 100 @BeanProperty!");
                         }
 
                         ++ nextIndex;

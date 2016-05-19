@@ -106,12 +106,6 @@ public class AsyncStorageItemWriter<E> extends AsyncConsumer<E> {
     protected void consume(E item) {
         State state = State.getInstance(item);
         if (copyAny(state.getValues(), source, destination)) {
-            if (saveObject) {
-                state.save();
-            }
-        }
-
-        if (saveObject) {
             states.add(State.getInstance(item));
             if (states.size() == commitSize) {
                 commit();
@@ -146,12 +140,13 @@ public class AsyncStorageItemWriter<E> extends AsyncConsumer<E> {
             }
 
         } else if (value instanceof Map) {
-            for (Map.Entry<?, Object> entry : ((Map<?, Object>) value).entrySet()) {
-                Object item = entry.getValue();
+            Map<String, Object> map = (Map<String, Object>) value;
+            for (String key : new ArrayList<>(map.keySet())) {
+                Object item = map.get(key);
                 if (item instanceof StorageItem) {
                     StorageItem newItem = copyItem((StorageItem) item, source, destination);
                     if (newItem != null) {
-                        entry.setValue(newItem);
+                        map.put(key, newItem);
                         isChanged = true;
                     }
                 } else {

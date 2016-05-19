@@ -120,7 +120,7 @@ public class SourceFilter extends AbstractFilter {
     private static final String CATALINA_BASE_PROPERTY = "catalina.base";
     private static final String RELOADER_MAVEN_ARTIFACT_ID = "dari-reloader-tomcat6";
     private static final String RELOADER_MAVEN_VERSION = "2.0-SNAPSHOT";
-    private static final String RELOADER_MAVEN_URL = "http://public.psddev.com/maven/com/psddev/" + RELOADER_MAVEN_ARTIFACT_ID + "/" + RELOADER_MAVEN_VERSION + "/";
+    private static final String RELOADER_MAVEN_URL = "https://artifactory.psdops.com/public/com/psddev/" + RELOADER_MAVEN_ARTIFACT_ID + "/" + RELOADER_MAVEN_VERSION + "/";
     private static final Pattern BUILD_NUMBER_PATTERN = Pattern.compile("<buildNumber>([^<]*)</buildNumber>");
     private static final Pattern TIMESTAMP_PATTERN = Pattern.compile("<timestamp>([^<]*)</timestamp>");
 
@@ -796,7 +796,17 @@ public class SourceFilter extends AbstractFilter {
                 } else {
                     javaSourceFileModifieds.putAll(newSourceFiles);
 
-                    Set<Class<? extends ClassEnhancer>> enhancerClasses = ClassFinder.findClasses(ClassEnhancer.class);
+                    Set<Class<? extends ClassEnhancer>> enhancerClasses = new HashSet<>();
+                    ServletContext context = getServletContext();
+
+                    if (context != null) {
+                        ClassFinder.getThreadDefaultServletContext().with(context, () -> {
+                            enhancerClasses.addAll(ClassFinder.findClasses(ClassEnhancer.class));
+                        });
+
+                    } else {
+                        enhancerClasses.addAll(ClassFinder.findClasses(ClassEnhancer.class));
+                    }
 
                     // Process any class files that's changed.
                     for (JavaFileObject outputFile : fileManager.list(

@@ -33,8 +33,8 @@ public class DateUtilsTest {
     
     @Test 
     public void fromString_format_tz() throws ParseException {
-    	Date expect =  new SimpleDateFormat("yyyy/MM/dd z HH:mm:ss").parse("2011/05/12 EST 12:45:27");
-    	assertEquals(expect, DateUtils.fromString("2011/05/12 EST 12:45:27", "yyyy/MM/dd z HH:mm:ss"));
+    	Date expect =  new SimpleDateFormat("yyyy/MM/dd z HH:mm:ss").parse("2011/05/12 EDT 12:45:27");
+    	assertEquals(expect, DateUtils.fromString("2011/05/12 EDT 12:45:27", "yyyy/MM/dd z HH:mm:ss"));
     }
     @Test (expected=DateFormatException.class)
     public void fromString_format_wrongformat() {

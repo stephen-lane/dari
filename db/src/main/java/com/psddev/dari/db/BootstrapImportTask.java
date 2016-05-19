@@ -62,6 +62,7 @@ class BootstrapImportTask extends Task {
         }
     }
 
+    @Override
     public void doTask() throws IOException {
         List<Task> tasks = new ArrayList<Task>();
         try {
@@ -236,13 +237,30 @@ class BootstrapImportTask extends Task {
                         }
                         continue;
                     }
-                    Object obj = type.createObject(id);
-                    Record record;
-                    if (obj instanceof Record) {
-                        record = (Record) obj;
-                    } else {
-                        LOGGER.error("Unknown type in line: " + line);
-                        continue;
+                    Record record = null;
+                    if (!objType.equals(type)) {
+                        for (ObjectIndex index : type.getIndexes()) {
+                            if (index.isUnique()) {
+                                Object uniqueValue = stateMap.get(index.getField());
+                                if (!ObjectUtils.isBlank(uniqueValue)) {
+                                    record = (Record) Query.fromAll().using(database).noCache().where(index.getUniqueName() + " = ?", uniqueValue).first();
+                                    if (record != null) {
+                                        addTranslatedId(ObjectUtils.to(UUID.class, stateMap.get("_id")), record.getId());
+                                        stateMap.put("_id", record.getId());
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (record == null) {
+                        Object obj = type.createObject(id);
+                        if (obj instanceof Record) {
+                            record = (Record) obj;
+                        } else {
+                            LOGGER.error("Unknown type in line: " + line);
+                            continue;
+                        }
                     }
 
                     if (!afterObjectTypes && !objType.equals(type)) {
@@ -253,7 +271,7 @@ class BootstrapImportTask extends Task {
                         stateMap = ObjectUtils.to(MAP_STRING_OBJECT_TYPE, ObjectUtils.fromJson(line));
                     }
 
-                    if ((typeMapTypeFields.containsKey(ObjectUtils.to(String.class, stateMap.get("_type"))) || objType.equals(type))) {
+                    if ((typeMapTypeFields.containsKey(ObjectUtils.to(String.class, stateMap.get("_type"))) || objType.equals(type)) && record.getState().isNew()) {
                         String typeMapField = typeMapTypeFields.get(ObjectUtils.to(String.class, stateMap.get("_type")));
                         Object localObj;
                         if (objType.equals(type)) {
@@ -263,7 +281,7 @@ class BootstrapImportTask extends Task {
                         }
                         if (localObj instanceof Recordable) {
                             UUID localId = ((Recordable) localObj).getState().getId();
-                            remoteToLocalIdMap.put(ObjectUtils.to(UUID.class, stateMap.get("_id")), localId);
+                            addTranslatedId(ObjectUtils.to(UUID.class, stateMap.get("_id")), localId);
                             stateMap.put("_id", localId);
                         }
                         if (localObj == null || isAllTypes || typeNames.contains(type.getInternalName())) {
@@ -326,6 +344,12 @@ class BootstrapImportTask extends Task {
         }
     }
 
+    private void addTranslatedId(UUID fromId, UUID toId) {
+        needsTranslation = true;
+        remoteToLocalIdMap.put(fromId, toId);
+        remoteToLocalIdStringMap.put(fromId.toString(), toId.toString());
+    }
+
     private String translateIds(String line) {
         if (!needsTranslation) {
             return line;
@@ -348,7 +372,7 @@ class BootstrapImportTask extends Task {
             }
             cursor = end;
             ObjectType unknownType;
-            if ((unknownType = unknownTypes.remove(localId)) != null) {
+            if (localId != null && (unknownType = unknownTypes.remove(UUID.fromString(localId))) != null) {
                 saveQueue.add(unknownType);
             }
         }
