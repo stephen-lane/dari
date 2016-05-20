@@ -554,7 +554,7 @@ public class PredicateParser {
 
             List<Object> values = comparison.resolveValues(state.getDatabase());
 
-            if (keyValue == null) {
+            if (ObjectUtils.isBlank(keyValue)) {
                 keyValue = Query.MISSING_VALUE;
                 return compare(state, keyValue, values);
 
