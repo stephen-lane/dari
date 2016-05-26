@@ -189,6 +189,7 @@ public class QueryDebugServlet extends HttpServlet {
             CachingDatabase caching = new CachingDatabase();
             caching.setDelegate(database);
             query.using(caching);
+            query.resolveInvisible();
         }
 
         @SuppressWarnings("deprecation")
@@ -541,7 +542,11 @@ public class QueryDebugServlet extends HttpServlet {
 
         @SuppressWarnings("unchecked")
         private void renderForm() throws IOException {
-            State state = State.getInstance(Query.from(Object.class).where("_id = ?", page.param(UUID.class, "id")).using(database).first());
+            State state = State.getInstance(Query.fromAll()
+                    .where("_id = ?", page.param(UUID.class, "id"))
+                    .using(database)
+                    .resolveInvisible()
+                    .first());
 
             if (state == null) {
                 writeStart("p", "class", "alert").writeHtml("No object!").writeEnd();
