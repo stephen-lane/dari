@@ -872,7 +872,14 @@ public class SourceFilter extends AbstractFilter {
                     }
 
                     if (!toBeAnalyzed.isEmpty()) {
-                        JvmAnalyzer.Static.analyze(toBeAnalyzed, new AnalysisResultLogger());
+                        try {
+                            JvmAnalyzer.Static.analyze(toBeAnalyzed, new AnalysisResultLogger());
+
+                        } catch (Exception error) {
+                            if (LOGGER.isDebugEnabled()) {
+                                LOGGER.debug(String.format("Can't analyze %s!", toBeAnalyzed), error);
+                            }
+                        }
                     }
 
                     if (!failures.isEmpty() && LOGGER.isInfoEnabled()) {
