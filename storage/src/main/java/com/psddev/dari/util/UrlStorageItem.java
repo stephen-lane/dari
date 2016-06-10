@@ -3,6 +3,7 @@ package com.psddev.dari.util;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.net.URLConnection;
 
 /**
  * Storage item backed by a URL.
@@ -27,7 +28,12 @@ public class UrlStorageItem extends AbstractStorageItem {
 
     @Override
     protected InputStream createData() throws IOException {
-        return new URL(getPublicUrl()).openStream();
+        URLConnection connection = new URL(getPublicUrl()).openConnection();
+
+        connection.setConnectTimeout(1000);
+        connection.setReadTimeout(5000);
+
+        return connection.getInputStream();
     }
 
     @Override
