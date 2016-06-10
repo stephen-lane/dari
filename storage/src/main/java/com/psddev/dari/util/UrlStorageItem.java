@@ -54,8 +54,10 @@ public class UrlStorageItem extends AbstractStorageItem {
             }
 
         } catch (IOException error) {
-            // Ignore.
+            // Ignore and try to set the path based on file extension.
         }
+
+        super.setContentType(ObjectUtils.getContentType(path));
     }
 
     @Override
