@@ -516,25 +516,27 @@ public abstract class ObjectUtils {
      * @return Never {@code null}.
      */
     public static String getContentType(String path) {
-        int at = path.lastIndexOf('#');
+        if (path != null) {
+            int at = path.lastIndexOf('#');
 
-        if (at > -1) {
-            path = path.substring(0, at);
-        }
+            if (at > -1) {
+                path = path.substring(0, at);
+            }
 
-        at = path.lastIndexOf('?');
+            at = path.lastIndexOf('?');
 
-        if (at > -1) {
-            path = path.substring(0, at);
-        }
+            if (at > -1) {
+                path = path.substring(0, at);
+            }
 
-        at = path.lastIndexOf('.');
+            at = path.lastIndexOf('.');
 
-        if (at > -1) {
-            String type = CONTENT_TYPES.get().get(path.substring(at + 1).toLowerCase(Locale.ENGLISH));
+            if (at > -1) {
+                String type = CONTENT_TYPES.get().get(path.substring(at + 1).toLowerCase(Locale.ENGLISH));
 
-            if (type != null) {
-                return type;
+                if (type != null) {
+                    return type;
+                }
             }
         }
 
