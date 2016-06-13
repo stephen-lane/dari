@@ -508,20 +508,35 @@ public abstract class ObjectUtils {
     };
 
     /**
-     * Returns the content type associated with the given {@code fileName}
-     * extension, or {@value DEFAULT_CONTENT_TYPE} if not found.
+     * Returns the content type associated with file name extension within the
+     * given URL-like {@code path} extension, or {@value #DEFAULT_CONTENT_TYPE}
+     * if not found.
      *
-     * @param fileName If {@code null}, returns {@value DEFAULT_CONTENT_TYPE}.
+     * @param path If {@code null}, returns {@value #DEFAULT_CONTENT_TYPE}.
      * @return Never {@code null}.
      */
-    public static String getContentType(String fileName) {
-        int dotAt = fileName.lastIndexOf('.');
+    public static String getContentType(String path) {
+        if (path != null) {
+            int at = path.lastIndexOf('#');
 
-        if (dotAt > -1) {
-            String type = CONTENT_TYPES.get().get(fileName.substring(dotAt + 1).toLowerCase(Locale.ENGLISH));
+            if (at > -1) {
+                path = path.substring(0, at);
+            }
 
-            if (type != null) {
-                return type;
+            at = path.lastIndexOf('?');
+
+            if (at > -1) {
+                path = path.substring(0, at);
+            }
+
+            at = path.lastIndexOf('.');
+
+            if (at > -1) {
+                String type = CONTENT_TYPES.get().get(path.substring(at + 1).toLowerCase(Locale.ENGLISH));
+
+                if (type != null) {
+                    return type;
+                }
             }
         }
 

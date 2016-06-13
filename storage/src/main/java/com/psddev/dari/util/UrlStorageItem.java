@@ -3,22 +3,47 @@ package com.psddev.dari.util;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.net.URLConnection;
 
-/** Storage item backed by a URL. */
+/**
+ * Storage item backed by a URL.
+ */
 public class UrlStorageItem extends AbstractStorageItem {
 
-    /** Storage name assigned to all instances by default. */
+    /**
+     * Storage name assigned to all instances by default.
+     */
     public static final String DEFAULT_STORAGE = "_url";
 
-    {
-        setStorage(DEFAULT_STORAGE);
+    /**
+     * Creates an instance.
+     */
+    public UrlStorageItem() {
+        super.setStorage(DEFAULT_STORAGE);
     }
 
-    // --- AbstractStorageItem support ---
+    @Override
+    public void setStorage(String storage) {
+    }
+
+    @Override
+    public void setPath(String path) {
+        super.setPath(path);
+        super.setContentType(ObjectUtils.getContentType(path));
+    }
+
+    @Override
+    public void setContentType(String contentType) {
+    }
 
     @Override
     protected InputStream createData() throws IOException {
-        return new URL(getPublicUrl()).openStream();
+        URLConnection connection = new URL(getPublicUrl()).openConnection();
+
+        connection.setConnectTimeout(1000);
+        connection.setReadTimeout(5000);
+
+        return connection.getInputStream();
     }
 
     @Override
