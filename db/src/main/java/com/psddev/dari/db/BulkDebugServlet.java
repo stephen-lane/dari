@@ -316,6 +316,20 @@ public class BulkDebugServlet extends HttpServlet {
                         writeEnd();
                     writeEnd();
 
+                    writeStart("div", "class", "control-group");
+                        writeStart("label", "class", "control-label", "id", wp.createId()).writeHtml("# Of Writers").writeEnd();
+                        writeStart("div", "class", "controls");
+                            writeElement("input", "name", "writersCount", "type", "text", "value", 5);
+                        writeEnd();
+                    writeEnd();
+
+                    writeStart("div", "class", "control-group");
+                        writeStart("label", "class", "control-label", "id", wp.createId()).writeHtml("Commit Size").writeEnd();
+                        writeStart("div", "class", "controls");
+                            writeElement("input", "name", "commitSize", "type", "text", "value", 50);
+                        writeEnd();
+                    writeEnd();
+
                     writeStart("div", "class", "form-actions");
                         writeElement("input", "type", "submit", "class", "btn btn-success", "value", "Start");
                     writeEnd();
