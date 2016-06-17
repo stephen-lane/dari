@@ -69,7 +69,7 @@
                                         .setUrls(com.psddev.dari.util.reflections.util.ClasspathHelper.forClassLoader(getClass().getClassLoader()))
                                         .setScanners(new com.psddev.dari.util.reflections.scanners.SubTypesScanner())
                                         .setSerializer(new com.psddev.dari.util.reflections.serializers.JsonSerializer()))
-                                        .save("${project.build.outputDirectory}/dari-reflections.json")
+                                        .save(project.build.outputDirectory + "/dari-reflections.json")
                             ]]></source>
                         </configuration>
                     </execution>
