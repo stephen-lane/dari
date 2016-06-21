@@ -1262,4 +1262,30 @@ public final class StringUtils {
 
         return new String(letters).trim().replaceAll("\\s+", " ");
     }
+
+    /**
+     * Based on the <code>org.apache.commons.io.FilenameUtils#getName</code> signature
+     *
+     * Returns the file name of the given file path supporting both Windows and UNIX file separators
+     * examples:
+     * C:\foo\bar.txt -> bar.txt
+     * \foo\bar.txt -> bar.txt
+     * http://foo/bar.txt -> bar.txt
+     * /foo/bar.txt -> bar.txt
+     * ~/foo/bar.txt -> bar.txt
+     * bar.txt -> bar.txt
+     *
+     * @param filePath
+     */
+    public static String getFileName(String filePath) {
+        if (filePath == null) {
+            return null;
+        }
+
+        int lastUnixPos = filePath.lastIndexOf('/');
+        int lastWindowsPos = filePath.lastIndexOf('\\');
+        int index = Math.max(lastUnixPos, lastWindowsPos);
+
+        return filePath.substring(index + 1);
+    }
 }
