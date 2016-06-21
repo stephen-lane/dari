@@ -344,6 +344,7 @@ public class DimsImageEditor extends AbstractUrlImageEditor {
             this.usePrivateUrl = usePrivateUrl;
 
             String url = item.getPublicUrl();
+            String publicUrl = url;
             LOGGER.trace("Creating new DIMS URL from [" + url + "]");
             if (url == null) {
                 throw new MalformedURLException("Cannot create DIMS URL for item [" + item + "] with url [null]");
@@ -362,7 +363,7 @@ public class DimsImageEditor extends AbstractUrlImageEditor {
                 baseUrl = StringUtils.removeEnd(DimsImageEditor.this.getBaseUrlForImageUrl(url), "/");
             }
 
-            if (url.startsWith(baseUrl)) {
+            if (publicUrl.startsWith(baseUrl)) {
 
                 // It's an existing DIMS URL that we're further modifying
 

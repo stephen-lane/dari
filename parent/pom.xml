@@ -23,6 +23,61 @@
     <build>
         <plugins>
             <plugin>
+                <groupId>org.codehaus.gmaven</groupId>
+                <artifactId>groovy-maven-plugin</artifactId>
+                <version>2.0</version>
+
+                <dependencies>
+                    <dependency>
+                        <groupId>javax.servlet</groupId>
+                        <artifactId>javax.servlet-api</artifactId>
+                        <version>3.1.0</version>
+                        <scope>compile</scope>
+                    </dependency>
+
+                    <dependency>
+                        <groupId>com.psddev</groupId>
+                        <artifactId>dari-reflections</artifactId>
+                        <version>3.2-SNAPSHOT</version>
+                    </dependency>
+
+                    <dependency>
+                        <groupId>org.javassist</groupId>
+                        <artifactId>javassist</artifactId>
+                        <version>3.18.2-GA</version>
+                    </dependency>
+                </dependencies>
+
+                <executions>
+                    <execution>
+                        <id>create-reflections-xml</id>
+                        <phase>process-classes</phase>
+
+                        <goals>
+                            <goal>execute</goal>
+                        </goals>
+
+                        <configuration>
+                            <classpathScope>compile</classpathScope>
+                            <source><![CDATA[
+                                def packaging = project.packaging
+
+                                if (!(packaging == 'jar' || packaging == 'war')) {
+                                    return
+                                }
+
+                                new com.psddev.dari.util.reflections.Reflections(new com.psddev.dari.util.reflections.util.ConfigurationBuilder()
+                                        .setUrls(com.psddev.dari.util.reflections.util.ClasspathHelper.forClassLoader(getClass().getClassLoader()))
+                                        .setScanners(new com.psddev.dari.util.reflections.scanners.SubTypesScanner())
+                                        .setSerializer(new com.psddev.dari.util.reflections.serializers.JsonSerializer()))
+                                        .save(project.build.outputDirectory + "/dari-reflections.json")
+                            ]]></source>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>1.2.1</version>

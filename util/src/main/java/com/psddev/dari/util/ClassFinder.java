@@ -10,6 +10,7 @@ import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -19,6 +20,7 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import javax.servlet.ServletContext;
@@ -26,6 +28,9 @@ import javax.tools.JavaFileObject;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
+import com.psddev.dari.util.reflections.Reflections;
+import com.psddev.dari.util.reflections.serializers.JsonSerializer;
+import com.psddev.dari.util.reflections.util.ConfigurationBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.google.common.cache.CacheBuilder;
@@ -85,6 +90,41 @@ public class ClassFinder {
                 }
             });
 
+    private static final Lazy<URL> REFLECTIONS_URL = new Lazy<URL>() {
+
+        @Override
+        protected URL create() throws Exception {
+            return getClass().getClassLoader().getResource("dari-reflections.json");
+        }
+    };
+
+    private static final Lazy<Reflections> REFLECTIONS = new Lazy<Reflections>() {
+
+        @Override
+        protected Reflections create() throws Exception {
+            Reflections reflections = new Reflections(
+                    new ConfigurationBuilder().setSerializer(new JsonSerializer()));
+
+            try (InputStream reflectionsInput = REFLECTIONS_URL.get().openStream()) {
+                reflections.collect(reflectionsInput);
+            }
+
+            return reflections;
+        }
+    };
+
+    private static final LoadingCache<Class<?>, Set<Class<?>>> REFLECTIONS_SUB_TYPES = CacheBuilder.newBuilder()
+            .build(new CacheLoader<Class<?>, Set<Class<?>>>() {
+
+                @Override
+                @ParametersAreNonnullByDefault
+                public Set<Class<?>> load(Class<?> baseClass) throws Exception {
+                    return REFLECTIONS.get().getSubTypesOf(baseClass).stream()
+                            .sorted(Comparator.comparing(Class::getName))
+                            .collect(Collectors.toCollection(LinkedHashSet::new));
+                }
+            });
+
     static {
         CodeUtils.addRedefineClassesListener(classes -> CLASSES_BY_BASE_CLASS_BY_LOADER_BY_FINDER.invalidateAll());
     }
@@ -130,7 +170,12 @@ public class ClassFinder {
         Preconditions.checkNotNull(baseClass);
 
         if (loader == null) {
-            loader = ObjectUtils.getCurrentClassLoader();
+            if (REFLECTIONS_URL.get() != null && Settings.get(boolean.class, "dari/useReflections")) {
+                return (Set) REFLECTIONS_SUB_TYPES.getUnchecked(baseClass);
+
+            } else {
+                loader = ObjectUtils.getCurrentClassLoader();
+            }
         }
 
         try {
