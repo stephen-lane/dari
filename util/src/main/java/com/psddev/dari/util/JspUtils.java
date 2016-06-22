@@ -1103,7 +1103,7 @@ public final class JspUtils {
             String url,
             Object... parameters) {
 
-        return getHostUrl(request) + getAbsolutePath(context, request, url, parameters);
+        return getHostUrl(request) + getEmbeddedAbsolutePath(context, request, url, parameters);
     }
 
     /** Returns the absolute protocol relative version of the given {@code url}. */
@@ -1113,7 +1113,7 @@ public final class JspUtils {
             String url,
             Object... parameters) {
 
-        return getProtocolRelativeHostUrl(request) + getAbsolutePath(context, request, url, parameters);
+        return getProtocolRelativeHostUrl(request) + getEmbeddedAbsolutePath(context, request, url, parameters);
     }
 
     /**
@@ -1224,7 +1224,7 @@ public final class JspUtils {
 
         response = (HttpServletResponse) getHeaderResponse(request, response);
         response.setStatus(status);
-        response.setHeader("Location", response.encodeRedirectURL(getAbsolutePath(context, request, path == null ? null : path.toString(), parameters)));
+        response.setHeader("Location", response.encodeRedirectURL(getEmbeddedAbsolutePath(context, request, path == null ? null : path.toString(), parameters)));
     }
 
     /**
