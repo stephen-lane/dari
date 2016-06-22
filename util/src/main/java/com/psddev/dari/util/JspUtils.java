@@ -277,6 +277,15 @@ public final class JspUtils {
         return getEmbeddedAbsoluteUrl(null, request, url, parameters);
     }
 
+    /** Returns the absolute protocol relative version of the given {@code url}. */
+    public static String getAbsoluteProtocolRelativeUrl(
+            HttpServletRequest request,
+            String url,
+            Object... parameters) {
+
+        return getEmbeddedAbsoluteProtocolRelativeUrl(null, request, url, parameters);
+    }
+
     /**
      * Returns the cookie with the given {@code name} from the given
      * {@code request}.
