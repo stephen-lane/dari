@@ -135,6 +135,7 @@ public class ObjectField extends Record {
     private static final String PATTERN_KEY = "pattern";
     private static final String DEFAULT_VALUE_KEY = "defaultValue";
     private static final String PREDICATE_KEY = "predicate";
+    private static final String RAW_KEY = "raw";
     private static final String VALUES_KEY = "values";
     private static final String GROUPS_KEY = "groups";
     private static final String VALUE_TYPES_KEY = "valueTypes";
@@ -171,6 +172,7 @@ public class ObjectField extends Record {
     private String pattern;
     private Object defaultValue;
     private String predicate;
+    private boolean raw;
     private Set<Value> values;
 
     private Set<String> groups;
@@ -211,6 +213,7 @@ public class ObjectField extends Record {
         pattern = field.pattern;
         defaultValue = field.defaultValue;
         predicate = field.predicate;
+        raw = field.raw;
         types = field.types != null ? new LinkedHashSet<ObjectType>(field.types) : null;
         genericArgumentIndex = field.genericArgumentIndex;
         genericArguments = field.genericArguments != null ? new ArrayList<ObjectType>(field.genericArguments) : null;
@@ -258,6 +261,7 @@ public class ObjectField extends Record {
         pattern = (String) definition.remove(PATTERN_KEY);
         defaultValue = definition.remove(DEFAULT_VALUE_KEY);
         predicate = (String) definition.remove(PREDICATE_KEY);
+        raw = Boolean.TRUE.equals(definition.remove(RAW_KEY));
         groups = ObjectUtils.to(SET_STRING_TYPE_REF, definition.remove(GROUPS_KEY));
 
         @SuppressWarnings("unchecked")
@@ -358,6 +362,7 @@ public class ObjectField extends Record {
         definition.put(PATTERN_KEY, pattern);
         definition.put(DEFAULT_VALUE_KEY, defaultValue);
         definition.put(PREDICATE_KEY, predicate);
+        definition.put(RAW_KEY, raw);
         definition.put(VALUES_KEY, valueDefinitions.isEmpty() ? null : valueDefinitions);
         definition.put(GROUPS_KEY, groups);
         definition.put(VALUE_TYPES_KEY, typeIds.isEmpty() ? null : typeIds);
@@ -666,6 +671,14 @@ public class ObjectField extends Record {
 
     public void setPredicate(String predicate) {
         this.predicate = predicate;
+    }
+
+    public boolean isRaw() {
+        return raw;
+    }
+
+    public void setRaw(boolean raw) {
+        this.raw = raw;
     }
 
     public Set<String> getGroups() {
