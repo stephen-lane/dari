@@ -946,7 +946,7 @@ public final class StringUtils {
 
     public static String escapeHtml(String string) {
         return string == null ? null : StringUtils.replaceAll(
-                StringEscapeUtils.escapeHtml(string),
+                org.apache.commons.lang3.StringEscapeUtils.escapeHtml4(string),
                 "\\x22", "&#34;",  // double quote
                 "\\x27", "&#39;"); // single quote
     }
