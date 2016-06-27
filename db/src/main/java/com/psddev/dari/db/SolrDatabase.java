@@ -849,11 +849,12 @@ public class SolrDatabase extends AbstractDatabase<SolrServer> {
         }
 
         protected String escapeValue(Object value) {
-            String escaped = Static.escapeValue(value);
-            if (escaped != null && schema.get().version >= 8) {
-                escaped = escaped.trim().toLowerCase(Locale.ENGLISH);
+            if (value != null && schema.get().version > 8) {
+                return Static.escapeValue(value.toString().trim().toLowerCase(Locale.ENGLISH));
+
+            } else {
+                return Static.escapeValue(value);
             }
-            return escaped;
         }
     }
 
