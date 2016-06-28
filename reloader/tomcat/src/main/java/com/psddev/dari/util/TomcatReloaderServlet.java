@@ -12,6 +12,7 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import com.google.common.base.Preconditions;
 import org.apache.catalina.ContainerServlet;
 import org.apache.catalina.Context;
 import org.apache.catalina.Host;
@@ -58,19 +59,20 @@ public class TomcatReloaderServlet extends HttpServlet implements ContainerServl
             return;
         }
 
-        if (!SourceFilter.RELOADER_RELOAD_ACTION.equals(action)) {
-            throw new IllegalArgumentException(String.format(
-                    "[%s] isn't a valid reloader action!", action));
-        }
+        Preconditions.checkArgument(
+                SourceFilter.RELOADER_RELOAD_ACTION.equals(action),
+                "[%s] isn't a valid reloader action!",
+                action);
 
-        final String contextPath = request.getParameter(SourceFilter.RELOADER_CONTEXT_PATH_PARAMETER);
-        final String requestPath = request.getParameter(SourceFilter.RELOADER_REQUEST_PATH_PARAMETER);
-        if (contextPath == null || requestPath == null) {
-            throw new IllegalArgumentException(String.format(
-                    "[%s] and [%s] parameters are required!",
-                    SourceFilter.RELOADER_CONTEXT_PATH_PARAMETER,
-                    SourceFilter.RELOADER_REQUEST_PATH_PARAMETER));
-        }
+        String contextPath = Preconditions.checkNotNull(
+                request.getParameter(SourceFilter.RELOADER_CONTEXT_PATH_PARAMETER),
+                "[%s] parameter is required!",
+                SourceFilter.RELOADER_CONTEXT_PATH_PARAMETER);
+
+        String requestPath = Preconditions.checkNotNull(
+                request.getParameter(SourceFilter.RELOADER_REQUEST_PATH_PARAMETER),
+                "[%s] parameter is required!",
+                SourceFilter.RELOADER_REQUEST_PATH_PARAMETER);
 
         // If context is still loading, display a message and wait.
         response.setContentType("text/html");
