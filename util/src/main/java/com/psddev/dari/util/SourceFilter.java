@@ -101,7 +101,7 @@ public class SourceFilter extends AbstractFilter {
     public static final String DEFAULT_INTERCEPT_PATH = "/_sourceFilter";
     public static final String INTERCEPT_PATH_SETTING = "dari/sourceFilterInterceptPath";
 
-    public static final String DEFAULT_RELOADER_PATH = "/reloader/";
+    public static final String DEFAULT_RELOADER_PATH = "/_reloader/";
     public static final String RELOADER_PATH_SETTING = "dari/sourceFilterReloaderPath";
     public static final String RELOADER_ACTION_PARAMETER = "action";
     public static final String RELOADER_PING_ACTION = "ping";
