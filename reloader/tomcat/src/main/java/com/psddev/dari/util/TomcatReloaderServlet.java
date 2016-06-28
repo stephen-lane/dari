@@ -17,8 +17,8 @@ import org.apache.catalina.Context;
 import org.apache.catalina.Host;
 import org.apache.catalina.Wrapper;
 
-/** Reloads a web application in Tomcat 6 for {@link SourceFilter}. */
-public class Tomcat6ReloaderServlet extends HttpServlet implements ContainerServlet {
+/** Reloads a web application in Tomcat for {@link SourceFilter}. */
+public class TomcatReloaderServlet extends HttpServlet implements ContainerServlet {
 
     private static final long serialVersionUID = 1L;
 
