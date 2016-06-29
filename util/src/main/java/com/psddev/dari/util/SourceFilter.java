@@ -30,7 +30,6 @@ import java.util.Properties;
 import java.util.ResourceBundle;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -128,7 +127,6 @@ public class SourceFilter extends AbstractFilter {
     private final Set<File> javaSourcesSet = new HashSet<File>();
     private Map<JavaFileObject, Long> javaSourceFileModifieds;
     private final Map<String, File> webappSourcesMap = new HashMap<String, File>();
-    private final Map<File, Long> webappSourceFileModifieds = new ConcurrentHashMap<File, Long>();
     private final Map<String, Date> changedClassTimes = new TreeMap<String, Date>();
 
     private final Map<Class<?>, List<AnalysisResult>> analysisResultsByClass = new TreeMap<Class<?>, List<AnalysisResult>>(new Comparator<Class<?>>() {
@@ -224,7 +222,6 @@ public class SourceFilter extends AbstractFilter {
         javaSourcesSet.clear();
         javaSourceFileModifieds = null;
         webappSourcesMap.clear();
-        webappSourceFileModifieds.clear();
         changedClassTimes.clear();
     }
 
@@ -953,26 +950,23 @@ public class SourceFilter extends AbstractFilter {
         }
 
         if (sourceFile.exists()) {
+            long sourceModified = sourceFile.lastModified();
+            long sourceLength = sourceFile.length();
+
             if (!outputFile.exists()) {
                 IoUtils.createParentDirectories(outputFile);
 
-            } else {
-                Long oldModified = webappSourceFileModifieds.get(sourceFile);
-                long newModified = sourceFile.lastModified();
-
-                if (oldModified == null) {
-                    webappSourceFileModifieds.put(sourceFile, newModified);
-                    return;
-
-                } else if (oldModified != newModified) {
-                    webappSourceFileModifieds.put(sourceFile, newModified);
-
-                } else if (newModified <= outputFile.lastModified()) {
-                    return;
-                }
+            } else if (sourceModified == outputFile.lastModified()
+                    && sourceLength == outputFile.length()) {
+                return;
             }
 
             IoUtils.copy(sourceFile, outputFile);
+
+            if (!outputFile.setLastModified(sourceModified)) {
+                LOGGER.debug("Can't set last modified on [{}] to [{}]!", outputFile, sourceModified);
+            }
+
             LOGGER.info("Copied [{}]", sourceFile);
 
         } else if (outputFile.exists()
