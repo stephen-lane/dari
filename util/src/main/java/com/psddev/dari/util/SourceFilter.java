@@ -110,6 +110,8 @@ public class SourceFilter extends AbstractFilter {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SourceFilter.class);
 
+    private static final Pattern TEXT_HTML_PATTERN = Pattern.compile("(?i)(^|,)text/html([,;]|$)");
+
     private static final String CLASSES_PATH = "/WEB-INF/classes/";
     private static final String BUILD_PROPERTIES_PATH = "build.properties";
     private static final String ISOLATING_RESPONSE_ATTRIBUTE = SourceFilter.class.getName() + ".isolatingResponse";
@@ -321,11 +323,15 @@ public class SourceFilter extends AbstractFilter {
             return;
         }
 
-        String contentType = ObjectUtils.getContentType(servletPath);
-        if (contentType.startsWith("image/")
-                || contentType.startsWith("video/")
-                || contentType.equals("text/css")
-                || contentType.equals("text/javascript")) {
+        // Try to detect if this request was initiated by an actual person.
+        // There's no reliable way of doing this, but all modern browsers
+        // seem to send text/html in the Accept header only for the main
+        // request.
+        String accept = request.getHeader("Accept");
+
+        if (accept == null
+                || !TEXT_HTML_PATTERN.matcher(accept).find()) {
+
             chain.doFilter(request, response);
             return;
         }
