@@ -1,11 +1,9 @@
 package com.psddev.dari.util;
 
 import java.io.IOException;
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -13,19 +11,30 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import com.google.common.base.Preconditions;
+import com.google.common.io.CharStreams;
 import org.apache.catalina.ContainerServlet;
 import org.apache.catalina.Context;
 import org.apache.catalina.Host;
 import org.apache.catalina.Wrapper;
+import org.apache.http.client.config.RequestConfig;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.RequestBuilder;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
 
-/** Reloads a web application in Tomcat for {@link SourceFilter}. */
+/**
+ * Reloads Tomcat web application for {@link SourceFilter}.
+ */
 public class TomcatReloaderServlet extends HttpServlet implements ContainerServlet {
 
     private static final long serialVersionUID = 1L;
 
+    private static final String WAIT_ACTION = "wait";
+
     private Wrapper wrapper;
     private Host host;
-    private final AtomicReference<CountDownLatch> latchReference = new AtomicReference<>();
+    private final AtomicBoolean reloading = new AtomicBoolean();
 
     @Override
     public Wrapper getWrapper() {
@@ -52,17 +61,13 @@ public class TomcatReloaderServlet extends HttpServlet implements ContainerServl
 
         String action = request.getParameter(SourceFilter.RELOADER_ACTION_PARAMETER);
 
+        // Ping to let SourceFilter know that reloader is installed.
         if (SourceFilter.RELOADER_PING_ACTION.equals(action)) {
             response.setContentType("text/plain");
             response.setCharacterEncoding("UTF-8");
             response.getWriter().write("OK");
             return;
         }
-
-        Preconditions.checkArgument(
-                SourceFilter.RELOADER_RELOAD_ACTION.equals(action),
-                "[%s] isn't a valid reloader action!",
-                action);
 
         String contextPath = Preconditions.checkNotNull(
                 request.getParameter(SourceFilter.RELOADER_CONTEXT_PATH_PARAMETER),
@@ -74,150 +79,179 @@ public class TomcatReloaderServlet extends HttpServlet implements ContainerServl
                 "[%s] parameter is required!",
                 SourceFilter.RELOADER_REQUEST_PATH_PARAMETER);
 
-        // If context is still loading, display a message and wait.
-        response.setContentType("text/html");
-        response.setCharacterEncoding("UTF-8");
+        // Reload requested.
+        if (SourceFilter.RELOADER_RELOAD_ACTION.equals(action)) {
 
-        new HtmlWriter(response.getWriter()) { {
-            putDefault(StackTraceElement.class, HtmlFormatter.STACK_TRACE_ELEMENT);
-            putDefault(Throwable.class, HtmlFormatter.THROWABLE);
+            // Display the reloading message immediately.
+            writeMessage(request, response, contextPath, requestPath);
 
-            writeTag("!doctype html");
-            writeStart("html");
-            {
-                writeStart("head");
-                {
+            // In case of concurrent requests to reload.
+            if (reloading.compareAndSet(false, true)) {
+                boolean reloaderStarted = false;
 
-                    writeStart("title").writeHtml("Reloader").writeEnd();
+                try {
+                    Context context = (Context) host.findChild(contextPath);
 
-                    writeElement("link",
-                            "href", JspUtils.getAbsolutePath(request, "/_resource/bootstrap/css/bootstrap.css"),
-                            "rel", "stylesheet",
-                            "type", "text/css");
-
-                    writeStart("style", "type", "text/css");
-                    {
-                        write(".hero-unit { background: transparent; left: 0; margin: -72px 0 0 60px; padding: 0; position: absolute; top: 50%; }");
-                        write(".hero-unit h1 { line-height: 1.33; }");
-                    }
-                    writeEnd();
-                }
-                writeEnd();
-
-                writeStart("body");
-                {
-
-                    writeStart("div", "class", "hero-unit");
-                    {
-                        writeStart("h1");
-                        {
-                            writeHtml("Reloading ");
-                            writeHtml(contextPath);
-                            writeHtml("/");
-                        }
-                        writeEnd();
-
-                        try {
-                            writeStart("ul", "class", "muted");
-
+                    if (context != null) {
+                        Thread reloader = new Thread(() -> {
                             try {
-                                writeStart("li");
-                                writeHtml("Waiting for it to start back up");
-                                writeEnd();
 
-                                for (int i = 0; i < 4000; ++i) {
-                                    writeHtml(" ");
+                                // The wait is necessary to make sure that the
+                                // reloading message has a chance to display,
+                                // since Tomcat seems to block everything during
+                                // reload.
+                                try {
+                                    Thread.sleep(2000);
+
+                                } catch (InterruptedException error) {
+                                    // Safe to ignore.
                                 }
-                                writeHtml("\r\n");
-                                flush();
 
-                                reload(request, response, contextPath, requestPath);
-
-                                writeStart("li");
-                                writeHtml("Ready!");
-                                writeEnd();
-
-                                writeStart("script", "type", "text/javascript");
-                                write("location.href = '" + StringUtils.escapeJavaScript(requestPath) + "';");
-                                writeEnd();
+                                context.reload();
 
                             } finally {
-                                writeEnd();
+                                reloading.compareAndSet(true, false);
                             }
+                        });
 
-                        } catch (Exception ex) {
-                            writeObject(ex);
-                        }
+                        reloader.setDaemon(true);
+                        reloader.start();
+                        reloaderStarted = true;
+
+                    } else {
+                        throw new IllegalArgumentException(String.format(
+                                "No context matching [%s]!", contextPath));
                     }
-                    writeEnd();
+
+                } finally {
+                    if (!reloaderStarted) {
+                        reloading.compareAndSet(true, false);
+                    }
                 }
-                writeEnd();
             }
-            writeEnd();
-        } };
+
+            return;
+        }
+
+        // Wait for reload to finish.
+        if (WAIT_ACTION.equals(action)) {
+            boolean ajax = JspUtils.isAjaxRequest(request);
+            boolean finished = false;
+
+            try (CloseableHttpClient pingClient = HttpClients.createDefault()) {
+                try (CloseableHttpResponse pingResponse = pingClient.execute(RequestBuilder.get()
+                        .setUri(JspUtils.getHostUrl(request) + contextPath + SourceFilter.Static.getInterceptPingPath())
+                        .setConfig(RequestConfig.custom()
+                                .setConnectionRequestTimeout(500)
+                                .setConnectTimeout(500)
+                                .setSocketTimeout(500)
+                                .build())
+                        .build())) {
+
+                    if ("OK".equals(EntityUtils.toString(pingResponse.getEntity()))) {
+                        finished = true;
+                    }
+                }
+
+            } catch (IOException error) {
+                // Reload isn't finished yet.
+            }
+
+            if (ajax) {
+                response.setContentType("text/plain");
+                response.setCharacterEncoding("UTF-8");
+                response.getWriter().write(String.valueOf(finished));
+
+            } else {
+                if (finished) {
+                    response.sendRedirect(contextPath + requestPath);
+
+                } else {
+                    writeMessage(request, response, contextPath, requestPath);
+                }
+            }
+
+            return;
+        }
+
+        throw new IllegalArgumentException(String.format(
+                "[%s] isn't a valid action!",
+                action));
     }
 
-    private void reload(
+    private void writeMessage(
             HttpServletRequest request,
             HttpServletResponse response,
             String contextPath,
             String requestPath)
             throws IOException {
 
-        CountDownLatch latch = new CountDownLatch(1);
+        response.setContentType("text/html");
+        response.setCharacterEncoding("UTF-8");
 
-        if (latchReference.compareAndSet(null, latch)) {
-            try {
-                Context context = (Context) host.findChild(contextPath);
+        HtmlWriter writer = new HtmlWriter(response.getWriter());
+        String waitUrl = new UrlBuilder(request)
+                .currentPath()
+                .currentParameters()
+                .parameter(SourceFilter.RELOADER_ACTION_PARAMETER, WAIT_ACTION)
+                .toString();
 
-                if (context != null) {
-                    context.reload();
+        writer.writeTag("!doctype html");
+        writer.writeStart("html");
+        {
+            writer.writeStart("head");
+            {
+                writer.writeStart("title").writeHtml("Reloader").writeEnd();
 
-                } else {
-                    throw new IllegalArgumentException(String.format(
-                            "No context matching [%s]!", contextPath));
+                writer.writeStart("style", "type", "text/css");
+                writeResource(writer, "TomcatReloaderServlet.css");
+                writer.writeEnd();
+
+                writer.writeStart("noscript");
+                {
+                    writer.writeElement("meta",
+                            "http-equiv", "refresh",
+                            "content", "2; url=" + waitUrl);
                 }
+                writer.writeEnd();
 
-            } finally {
-                latch.countDown();
-                latchReference.set(null);
+                writer.writeStart("script", "type", "text/javascript");
+                writer.writeRaw("var RELOADER_WAIT_URL = '").writeRaw(StringUtils.escapeJavaScript(waitUrl)).writeRaw("';");
+                writer.writeRaw("var RELOADER_RETURN_URL = '").writeRaw(StringUtils.escapeJavaScript(contextPath + requestPath)).writeRaw("';");
+                writer.writeEnd();
+
+                writer.writeStart("script", "type", "text/javascript");
+                writeResource(writer, "TomcatReloaderServlet.js");
+                writer.writeEnd();
             }
+            writer.writeEnd();
 
-        } else {
-            latch = latchReference.get();
-
-            if (latch != null) {
-                try {
-                    latch.await();
-
-                } catch (InterruptedException ex) {
-                    // Ignore thread interruption and continue.
+            writer.writeStart("body");
+            {
+                writer.writeStart("div", "class", "container");
+                {
+                    writer.writeStart("div", "class", "message");
+                    {
+                        writer.writeHtml("rel");
+                        writer.writeStart("span", "class", "o");
+                        writer.writeEnd();
+                        writer.writeHtml("ading...");
+                    }
+                    writer.writeEnd();
                 }
+                writer.writeEnd();
             }
+            writer.writeEnd();
         }
+        writer.writeEnd();
+    }
 
-        List<Throwable> errors = new ArrayList<>();
+    private void writeResource(HtmlWriter writer, String name) throws IOException {
+        try (InputStreamReader reader = new InputStreamReader(
+                getClass().getResourceAsStream(name),
+                StandardCharsets.UTF_8)) {
 
-        for (int i = 0; i < 20; ++ i) {
-            try {
-                URL pingUrl = new URL(JspUtils.getHostUrl(request) + contextPath + SourceFilter.Static.getInterceptPingPath());
-
-                if ("OK".equals(IoUtils.toString(pingUrl))) {
-                    return;
-                }
-
-            } catch (IOException ex) {
-                errors.add(ex);
-            }
-
-            try {
-                Thread.sleep(2000);
-
-            } catch (InterruptedException ex) {
-                break;
-            }
+            CharStreams.copy(reader, writer);
         }
-
-        throw new AggregateException(errors);
     }
 }
