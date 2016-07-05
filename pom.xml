@@ -301,6 +301,12 @@
             </dependency>
 
             <dependency>
+                <groupId>org.jooq</groupId>
+                <artifactId>jooq</artifactId>
+                <version>3.8.2</version>
+            </dependency>
+
+            <dependency>
                 <groupId>org.apache.jclouds</groupId>
                 <artifactId>jclouds-all</artifactId>
                 <version>1.9.0</version>
