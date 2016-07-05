@@ -14,11 +14,11 @@
     </parent>
 
     <groupId>com.psddev</groupId>
-    <artifactId>dari-reloader-tomcat6</artifactId>
+    <artifactId>dari-reloader-tomcat</artifactId>
     <version>3.2-SNAPSHOT</version>
     <packaging>war</packaging>
 
-    <name>Dari: Web Application Reloader for Tomcat 6.x</name>
+    <name>Dari: Web Application Reloader for Tomcat</name>
 
     <dependencies>
         <dependency>

@@ -39,7 +39,7 @@
         <module>mail</module>
         <module>parent</module>
         <module>reflections</module>
-        <module>reloader/tomcat6</module>
+        <module>reloader/tomcat</module>
         <module>sms</module>
         <module>storage</module>
         <module>twilio</module>
