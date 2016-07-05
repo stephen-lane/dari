@@ -23,6 +23,17 @@ public class ResetFilter extends AbstractFilter {
 
     @Override
     protected void doDestroy() {
+        Database.Static.getAll().forEach(database -> {
+            try {
+                database.close();
+
+            } catch (Exception error) {
+                LOGGER.info(
+                        String.format("Can't close [%s] database!", database),
+                        error);
+            }
+        });
+
         SqlDatabase.closeAll();
         SqlDatabase.Static.deregisterAllDrivers();
 

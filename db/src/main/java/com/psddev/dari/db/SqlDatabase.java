@@ -75,7 +75,7 @@ import com.psddev.dari.util.TypeDefinition;
 import com.psddev.dari.util.UuidUtils;
 
 /** Database backed by a SQL engine. */
-public class SqlDatabase extends AbstractDatabase<Connection> {
+public class SqlDatabase extends AbstractDatabase<Connection> implements MetricAccessDatabase {
 
     public static final String DATA_SOURCE_SETTING = "dataSource";
     public static final String DATA_SOURCE_JNDI_NAME_SETTING = "dataSourceJndiName";
@@ -337,6 +337,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
      * @return May be {@code null}.
      *
      **/
+    @Override
     public String getMetricCatalog() {
         return metricCatalog;
     }
@@ -365,6 +366,11 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
     /** Returns the vendor-specific SQL engine information. */
     public SqlVendor getVendor() {
         return vendor;
+    }
+
+    @Override
+    public SqlVendor getMetricVendor() {
+        return getVendor();
     }
 
     /** Sets the vendor-specific SQL engine information. */
@@ -571,6 +577,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
     /**
      * Returns an unique numeric ID for the given {@code symbol}.
      */
+    @Override
     public int getSymbolId(String symbol) {
         Integer id = symbols.get().get(symbol);
         if (id == null) {
@@ -1164,7 +1171,8 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
      * Executes the given read {@code statement} (created from the given
      * {@code sqlQuery}) before the given {@code timeout} (in seconds).
      */
-    ResultSet executeQueryBeforeTimeout(
+    @Override
+    public ResultSet executeQueryBeforeTimeout(
             Statement statement,
             String sqlQuery,
             int timeout)
@@ -1999,9 +2007,10 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
                                 + "\n\turl={}"
                                 + "\n\tusername={}"
                                 + "\n\tpoolSize={}",
-                        url,
-                        user,
-                        poolSize);
+                        new Object[] {
+                                url,
+                                user,
+                                poolSize });
 
                 HikariDataSource ds = new HikariDataSource();
 
