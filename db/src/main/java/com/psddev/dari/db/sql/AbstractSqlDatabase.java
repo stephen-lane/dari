@@ -60,6 +60,9 @@ import com.psddev.dari.db.StateValueUtils;
 import com.psddev.dari.db.UpdateNotifier;
 import com.zaxxer.hikari.HikariDataSource;
 import org.iq80.snappy.Snappy;
+import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
+import org.jooq.impl.DSL;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -161,6 +164,30 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
     protected final transient ConcurrentMap<Class<?>, UUID> singletonIds = new ConcurrentHashMap<>();
     private final List<UpdateNotifier<?>> updateNotifiers = new ArrayList<>();
+
+    // Cache that stores the difference between the local and the database
+    // time. This is used to calculate a more accurate time without querying
+    // the database all the time.
+    private final transient Supplier<Long> nowOffset = Suppliers.memoizeWithExpiration(() -> {
+        try {
+            Connection connection = openConnection();
+
+            try (DSLContext context = openContext(connection)) {
+                return System.currentTimeMillis() - context
+                        .select(DSL.currentTimestamp())
+                        .fetchOptional()
+                        .map(r -> r.value1().getTime())
+                        .orElse(0L);
+
+            } finally {
+                closeConnection(connection);
+            }
+
+        } catch (Exception error) {
+            return 0L;
+        }
+
+    }, 5, TimeUnit.MINUTES);
 
     /**
      * Quotes the given {@code identifier} so that it's safe to use
@@ -382,6 +409,18 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     }
 
     /**
+     * @return Never {@code null}.
+     */
+    protected abstract SQLDialect dialect();
+
+    /**
+     * @return Never {@code null}.
+     */
+    protected DSLContext openContext(Connection connection) {
+        return DSL.using(connection, dialect());
+    }
+
+    /**
      * Returns {@code true} if this database contains a table with
      * the given {@code name}.
      */
@@ -573,41 +612,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
         return id;
     }
-
-    private final Supplier<Long> nowOffset = Suppliers.memoizeWithExpiration(new Supplier<Long>() {
-
-        @Override
-        public Long get() {
-            String selectSql = getVendor().getSelectTimestampMillisSql();
-            Connection connection;
-            Statement statement = null;
-            ResultSet result = null;
-            Long nowOffsetMillis = 0L;
-
-            if (selectSql != null) {
-                try {
-                    connection = openConnection();
-                } catch (DatabaseException error) {
-                    LOGGER.debug("Can't read timestamp from the writable server!", error);
-                    connection = openReadConnection();
-                }
-
-                try {
-                    statement = connection.createStatement();
-                    result = statement.executeQuery(selectSql);
-                    if (result.next()) {
-                        nowOffsetMillis = System.currentTimeMillis() - result.getLong(1);
-                    }
-                } catch (SQLException ex) {
-                    throw createQueryException(ex, selectSql, null);
-                } finally {
-                    closeResources(null, connection, statement, result);
-                }
-            }
-
-            return nowOffsetMillis;
-        }
-    }, NOW_EXPIRATION_SECONDS, TimeUnit.SECONDS);
 
     @Override
     public long now() {

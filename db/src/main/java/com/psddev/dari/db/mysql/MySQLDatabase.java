@@ -16,6 +16,7 @@ import com.psddev.dari.util.CompactMap;
 import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.Profiler;
 import com.psddev.dari.util.UuidUtils;
+import org.jooq.SQLDialect;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -67,6 +68,11 @@ public class MySQLDatabase extends AbstractSqlDatabase {
 
     public long getReplicationCacheMaximumSize() {
         return this.replicationCacheMaximumSize;
+    }
+
+    @Override
+    protected SQLDialect dialect() {
+        return SQLDialect.MYSQL;
     }
 
     @Override
