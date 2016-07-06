@@ -110,12 +110,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
     public static final String VENDOR_CLASS_SETTING = "vendorClass";
     public static final String COMPRESS_DATA_SUB_SETTING = "compressData";
 
-    @Deprecated
-    public static final String CACHE_DATA_SUB_SETTING = "cacheData";
-
-    @Deprecated
-    public static final String DATA_CACHE_SIZE_SUB_SETTING = "dataCacheSize";
-
     public static final String INDEX_SPATIAL_SUB_SETTING = "indexSpatial";
 
     public static final String RECORD_TABLE = "Record";
@@ -376,24 +370,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
     /** Sets whether the data should be compressed. */
     public void setCompressData(boolean compressData) {
         this.compressData = compressData;
-    }
-
-    @Deprecated
-    public boolean isCacheData() {
-        return false;
-    }
-
-    @Deprecated
-    public void setCacheData(boolean cacheData) {
-    }
-
-    @Deprecated
-    public long getDataCacheMaximumSize() {
-        return 0L;
-    }
-
-    @Deprecated
-    public void setDataCacheMaximumSize(long dataCacheMaximumSize) {
     }
 
     public boolean isIndexSpatial() {
@@ -708,16 +684,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
             }
         }
     };
-
-    /**
-     * Returns the underlying JDBC connection.
-     *
-     * @deprecated Use {@link #openConnection} instead.
-     */
-    @Deprecated
-    public Connection getConnection() {
-        return openConnection();
-    }
 
     /** Closes any resources used by this database. */
     public void close() {
@@ -1344,21 +1310,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
         }
         filled.append(sqlQuery.substring(prevPh));
         return filled.toString();
-    }
-
-    /**
-     * Executes the given write {@code sqlQuery} with the given
-     * {@code parameters}.
-     *
-     * @deprecated Use {@link Static#executeUpdate} instead.
-     */
-    @Deprecated
-    public int executeUpdate(String sqlQuery, Object... parameters) {
-        try {
-            return Static.executeUpdateWithArray(getVendor(), getConnection(), sqlQuery, parameters);
-        } catch (SQLException ex) {
-            throw createQueryException(ex, fillPlaceholders(sqlQuery, parameters), null);
-        }
     }
 
     /**
@@ -2470,27 +2421,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
         SqlIndex.Static.updateByStates(this, connection, index, states);
     }
 
-    /** @deprecated Use {@link #index} instead. */
-    @Deprecated
-    public void fixIndexes(List<State> states) {
-        Connection connection = openConnection();
-
-        try {
-            doIndexes(connection, true, states);
-
-        } catch (SQLException ex) {
-            List<UUID> ids = new ArrayList<UUID>();
-            for (State state : states) {
-                ids.add(state.getId());
-            }
-            throw new SqlDatabaseException(this, String.format(
-                    "Can't index states! (%s)", ids));
-
-        } finally {
-            closeConnection(connection);
-        }
-    }
-
     @Override
     protected void doDeletes(Connection connection, boolean isImmediate, List<State> states) throws SQLException {
         SqlVendor vendor = getVendor();
@@ -2851,24 +2781,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
          * {@code parameters} within the given {@code connection}.
          *
          * @return Number of rows affected by the update query.
-         *
-         * @deprecated Use {@link #executeUpdateWithList(SqlVendor, Connection, String, List)} instead.
-         */
-        @Deprecated
-        public static int executeUpdateWithList(
-                Connection connection,
-                String sqlQuery,
-                List<?> parameters)
-                throws SQLException {
-
-            return executeUpdateWithList(null, connection, sqlQuery, parameters);
-        }
-
-        /**
-         * Executes the given update {@code sqlQuery} with the given
-         * {@code parameters} within the given {@code connection}.
-         *
-         * @return Number of rows affected by the update query.
          */
         public static int executeUpdateWithList(
                 SqlVendor vendor,
@@ -2884,24 +2796,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
                 Object[] array = parameters.toArray(new Object[parameters.size()]);
                 return executeUpdateWithArray(vendor, connection, sqlQuery, array);
             }
-        }
-
-        /**
-         * Executes the given update {@code sqlQuery} with the given
-         * {@code parameters} within the given {@code connection}.
-         *
-         * @return Number of rows affected by the update query.
-         *
-         * @deprecated Use {@link #executeUpdateWithArray(SqlVendor, Connection, String, Object...)} instead.
-         */
-        @Deprecated
-        public static int executeUpdateWithArray(
-                Connection connection,
-                String sqlQuery,
-                Object... parameters)
-                throws SQLException {
-
-            return executeUpdateWithArray(null, connection, sqlQuery, parameters);
         }
 
         /**
@@ -3029,30 +2923,5 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
         public static byte[] getOriginalData(Object object) {
             return (byte[]) State.getInstance(object).getExtra(ORIGINAL_DATA_EXTRA);
         }
-
-        // --- Deprecated ---
-
-        /** @deprecated Use {@link #executeUpdateWithArray} instead. */
-        @Deprecated
-        public static int executeUpdate(
-                Connection connection,
-                String sqlQuery,
-                Object... parameters)
-                throws SQLException {
-
-            return executeUpdateWithArray(connection, sqlQuery, parameters);
-        }
-    }
-
-    // --- Deprecated ---
-
-    /** @deprecated No replacement. */
-    @Deprecated
-    public void beginThreadLocalReadConnection() {
-    }
-
-    /** @deprecated No replacement. */
-    @Deprecated
-    public void endThreadLocalReadConnection() {
     }
 }
