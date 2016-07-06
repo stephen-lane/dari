@@ -109,7 +109,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
     public static final String SYMBOL_TABLE = "Symbol";
     public static final String ID_COLUMN = "id";
     public static final String TYPE_ID_COLUMN = "typeId";
-    public static final String IN_ROW_INDEX_COLUMN = "inRowIndex";
     public static final String DATA_COLUMN = "data";
     public static final String SYMBOL_ID_COLUMN = "symbolId";
     public static final String UPDATE_DATE_COLUMN = "updateDate";
@@ -373,14 +372,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
     }
 
     /**
-     * Returns {@code true} if the {@link #RECORD_TABLE} in this database
-     * has the {@link #IN_ROW_INDEX_COLUMN}.
-     */
-    public boolean hasInRowIndex() {
-        return hasInRowIndex;
-    }
-
-    /**
      * Returns {@code true} if all comparisons executed in this database
      * should ignore case by default.
      */
@@ -419,7 +410,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
         }
     }
 
-    private transient volatile boolean hasInRowIndex;
     private transient volatile boolean comparesIgnoreCase;
 
     private final transient PeriodicValue<Map<String, Set<String>>> tableColumnNames = new PeriodicValue<Map<String, Set<String>>>(0.0, 60.0) {
@@ -442,7 +432,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
 
             try {
                 SqlVendor vendor = getVendor();
-                String recordTable = null;
                 int maxStringVersion = 0;
                 Map<String, Set<String>> loweredNames = new HashMap<String, Set<String>>();
 
@@ -456,19 +445,12 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
 
                     loweredNames.put(loweredName, loweredColumnNames);
 
-                    if ("record".equals(loweredName)) {
-                        recordTable = name;
-
-                    } else if (loweredName.startsWith("recordstring")) {
+                    if (loweredName.startsWith("recordstring")) {
                         int version = ObjectUtils.to(int.class, loweredName.substring(12));
                         if (version > maxStringVersion) {
                             maxStringVersion = version;
                         }
                     }
-                }
-
-                if (recordTable != null) {
-                    hasInRowIndex = vendor.hasInRowIndex(connection, recordTable);
                 }
 
                 comparesIgnoreCase = maxStringVersion >= 3;
@@ -1926,19 +1908,15 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
         }
 
         SqlIndex.Static.deleteByStates(this, connection, indexStates);
-        Map<State, String> inRowIndexes = SqlIndex.Static.insertByStates(this, connection, indexStates);
-        boolean hasInRowIndex = hasInRowIndex();
+        SqlIndex.Static.insertByStates(this, connection, indexStates);
         SqlVendor vendor = getVendor();
         double now = System.currentTimeMillis() / 1000.0;
 
         for (State state : states) {
             boolean isNew = state.isNew();
-            boolean saveInRowIndex = hasInRowIndex && !Boolean.TRUE.equals(state.getExtra(SKIP_INDEX_STATE_EXTRA));
             UUID id = state.getId();
             UUID typeId = state.getVisibilityAwareTypeId();
             byte[] dataBytes = null;
-            String inRowIndex = inRowIndexes.get(state);
-            byte[] inRowIndexBytes = inRowIndex != null ? inRowIndex.getBytes(StandardCharsets.UTF_8) : new byte[0];
 
             while (true) {
                 if (isNew) {
@@ -1958,24 +1936,12 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
                         vendor.appendIdentifier(insertBuilder, TYPE_ID_COLUMN);
                         insertBuilder.append(',');
                         vendor.appendIdentifier(insertBuilder, DATA_COLUMN);
-
-                        if (saveInRowIndex) {
-                            insertBuilder.append(',');
-                            vendor.appendIdentifier(insertBuilder, IN_ROW_INDEX_COLUMN);
-                        }
-
                         insertBuilder.append(") VALUES (");
                         vendor.appendBindValue(insertBuilder, id, parameters);
                         insertBuilder.append(',');
                         vendor.appendBindValue(insertBuilder, typeId, parameters);
                         insertBuilder.append(',');
                         vendor.appendBindValue(insertBuilder, dataBytes, parameters);
-
-                        if (saveInRowIndex) {
-                            insertBuilder.append(',');
-                            vendor.appendBindValue(insertBuilder, inRowIndexBytes, parameters);
-                        }
-
                         insertBuilder.append(')');
                         Static.executeUpdateWithList(vendor, connection, insertBuilder.toString(), parameters);
 
@@ -2005,14 +1971,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
                         updateBuilder.append('=');
                         vendor.appendBindValue(updateBuilder, typeId, parameters);
                         updateBuilder.append(',');
-
-                        if (saveInRowIndex) {
-                            vendor.appendIdentifier(updateBuilder, IN_ROW_INDEX_COLUMN);
-                            updateBuilder.append('=');
-                            vendor.appendBindValue(updateBuilder, inRowIndexBytes, parameters);
-                            updateBuilder.append(',');
-                        }
-
                         vendor.appendIdentifier(updateBuilder, DATA_COLUMN);
                         updateBuilder.append('=');
                         vendor.appendBindValue(updateBuilder, dataBytes, parameters);
@@ -2066,14 +2024,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
                         vendor.appendIdentifier(updateBuilder, TYPE_ID_COLUMN);
                         updateBuilder.append('=');
                         vendor.appendBindValue(updateBuilder, typeId, parameters);
-
-                        if (saveInRowIndex) {
-                            updateBuilder.append(',');
-                            vendor.appendIdentifier(updateBuilder, IN_ROW_INDEX_COLUMN);
-                            updateBuilder.append('=');
-                            vendor.appendBindValue(updateBuilder, inRowIndexBytes, parameters);
-                        }
-
                         updateBuilder.append(',');
                         vendor.appendIdentifier(updateBuilder, DATA_COLUMN);
                         updateBuilder.append('=');
@@ -2167,27 +2117,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
     @Override
     protected void doIndexes(Connection connection, boolean isImmediate, List<State> states) throws SQLException {
         SqlIndex.Static.deleteByStates(this, connection, states);
-        Map<State, String> inRowIndexes = SqlIndex.Static.insertByStates(this, connection, states);
-
-        if (!hasInRowIndex()) {
-            return;
-        }
-
-        SqlVendor vendor = getVendor();
-        for (Map.Entry<State, String> entry : inRowIndexes.entrySet()) {
-            StringBuilder updateBuilder = new StringBuilder();
-            updateBuilder.append("UPDATE ");
-            vendor.appendIdentifier(updateBuilder, RECORD_TABLE);
-            updateBuilder.append(" SET ");
-            vendor.appendIdentifier(updateBuilder, IN_ROW_INDEX_COLUMN);
-            updateBuilder.append('=');
-            vendor.appendValue(updateBuilder, entry.getValue());
-            updateBuilder.append(" WHERE ");
-            vendor.appendIdentifier(updateBuilder, ID_COLUMN);
-            updateBuilder.append('=');
-            vendor.appendValue(updateBuilder, entry.getKey().getId());
-            Static.executeUpdateWithArray(vendor, connection, updateBuilder.toString());
-        }
+        SqlIndex.Static.insertByStates(this, connection, states);
     }
 
     @Override

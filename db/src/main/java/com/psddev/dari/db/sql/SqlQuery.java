@@ -47,7 +47,6 @@ class SqlQuery {
     private final SqlVendor vendor;
     private final String recordIdField;
     private final String recordTypeIdField;
-    private final String recordInRowIndexField;
     private final Map<String, Query.MappedKey> mappedKeys;
     private final Map<String, ObjectIndex> selectedIndexes;
 
@@ -90,7 +89,6 @@ class SqlQuery {
         vendor = database.getVendor();
         recordIdField = aliasedField("r", AbstractSqlDatabase.ID_COLUMN);
         recordTypeIdField = aliasedField("r", AbstractSqlDatabase.TYPE_ID_COLUMN);
-        recordInRowIndexField = aliasedField("r", AbstractSqlDatabase.IN_ROW_INDEX_COLUMN);
         mappedKeys = query.mapEmbeddedKeys(database.getEnvironment());
         selectedIndexes = new HashMap<String, ObjectIndex>();
 
@@ -1351,20 +1349,6 @@ class SqlQuery {
             } else if (Query.ANY_KEY.equals(queryKey)
                     || Query.LABEL_KEY.equals(queryKey)) {
                 throw new UnsupportedIndexException(database, queryKey);
-
-            } else if (database.hasInRowIndex() && index.isShortConstant()) {
-                needsIndexTable = false;
-                likeValuePrefix = "%;" + database.getReadSymbolId(mappedKeys.get(queryKey).getIndexKey(selectedIndexes.get(queryKey))) + "=";
-                valueField = recordInRowIndexField;
-                sqlIndexTable = this.sqlIndex.getReadTable(database, index);
-
-                table = null;
-                tableName = null;
-                idField = null;
-                typeIdField = null;
-                keyField = null;
-                needsIsNotNull = true;
-                isHaving = false;
 
             } else {
                 needsIndexTable = true;

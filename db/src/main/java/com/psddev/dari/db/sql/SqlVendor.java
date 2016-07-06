@@ -5,7 +5,6 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -218,29 +217,6 @@ public class SqlVendor {
         }
 
         return tableExists;
-    }
-
-    public boolean hasInRowIndex(Connection connection, String recordTable) throws SQLException {
-        boolean newHasInRowIndex = false;
-        String catalog = connection.getCatalog();
-        DatabaseMetaData meta = connection.getMetaData();
-        ResultSet result = meta.getColumns(catalog, null, recordTable, null);
-
-        try {
-            while (result.next()) {
-                String name = result.getString("COLUMN_NAME");
-
-                if (name != null && name.equalsIgnoreCase(AbstractSqlDatabase.IN_ROW_INDEX_COLUMN)) {
-                    newHasInRowIndex = true;
-                    break;
-                }
-            }
-
-        } finally {
-            result.close();
-        }
-
-        return newHasInRowIndex;
     }
 
     public boolean supportsDistinctBlob() {
@@ -1757,33 +1733,6 @@ public class SqlVendor {
             }
 
             return tableNames;
-        }
-
-        @Override
-        public boolean hasInRowIndex(Connection connection, String recordTable) throws SQLException {
-            PreparedStatement statement = connection.prepareStatement(
-                    "SELECT 1 FROM USER_TAB_COLS WHERE TABLE_NAME = ? AND COLUMN_NAME = ?");
-
-            try {
-                statement.setString(1, recordTable);
-                statement.setString(2, AbstractSqlDatabase.IN_ROW_INDEX_COLUMN);
-
-                ResultSet result = statement.executeQuery();
-
-                try {
-                    while (result.next()) {
-                        return true;
-                    }
-
-                } finally {
-                    result.close();
-                }
-
-            } finally {
-                statement.close();
-            }
-
-            return false;
         }
 
         @Override
