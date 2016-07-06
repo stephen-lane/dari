@@ -31,58 +31,6 @@ import com.psddev.dari.util.StringUtils;
 /** Internal representations of all SQL index tables. */
 public enum SqlIndex {
 
-    CUSTOM(
-        new AbstractTable(2, "id", "typeId", "symbolId", "value") {
-
-            @Override
-            public String getName(AbstractSqlDatabase database, ObjectIndex index) {
-                String name = AbstractSqlDatabase.Static.getIndexTable(index);
-                if (ObjectUtils.isBlank(name)) {
-                    throw new IllegalStateException(String.format(
-                            "[%s] needs @SqlDatabase.FieldIndexTable annotation!",
-                            index));
-                } else {
-                    return name;
-                }
-            }
-
-            @Override
-            public Object convertReadKey(AbstractSqlDatabase database, ObjectIndex index, String key) {
-                return database.getReadSymbolId(key);
-            }
-
-            @Override
-            public Object convertKey(AbstractSqlDatabase database, ObjectIndex index, String key) {
-                return database.getSymbolId(key);
-            }
-
-            @Override
-            public boolean isReadOnly(ObjectIndex index) {
-                List<String> indexFieldNames = index.getFields();
-                ObjectStruct parent = index.getParent();
-
-                for (String fieldName : indexFieldNames) {
-                    ObjectField field = parent.getField(fieldName);
-
-                    if (field != null) {
-                        return field.as(AbstractSqlDatabase.FieldData.class).isIndexTableReadOnly();
-                    }
-                }
-
-                return true;
-            }
-
-            @Override
-            public String getTypeIdField(AbstractSqlDatabase database, ObjectIndex index) {
-                if (database.hasColumn(getName(database, index), "typeId")) {
-                    return "typeId";
-                } else {
-                    return null;
-                }
-            }
-        }
-    ),
-
     LOCATION(
         new NameSingleValueTable(1, "RecordLocation"),
         new SymbolIdSingleValueTable(2, "RecordLocation2"),
@@ -290,28 +238,6 @@ public enum SqlIndex {
 
         @Override
         public String getValueField(AbstractSqlDatabase database, ObjectIndex index, int fieldIndex) {
-            List<String> indexFieldNames = index.getFields();
-            ObjectStruct parent = index.getParent();
-
-            for (String fieldName : indexFieldNames) {
-                ObjectField field = parent.getField(fieldName);
-
-                if (field != null
-                        && field.as(AbstractSqlDatabase.FieldData.class).isIndexTableSameColumnNames()) {
-                    String valueFieldName = indexFieldNames.get(fieldIndex);
-                    int dotAt = valueFieldName.lastIndexOf(".");
-
-                    if (dotAt > -1) {
-                        valueFieldName = valueFieldName.substring(dotAt + 1);
-                    }
-
-                    return valueFieldName;
-                } else if (field != null
-                        && field.as(AbstractSqlDatabase.FieldData.class).getIndexTableColumnName() != null) {
-                    return field.as(AbstractSqlDatabase.FieldData.class).getIndexTableColumnName();
-                }
-            }
-
             return fieldIndex > 0 ? valueField + (fieldIndex + 1) : valueField;
         }
 
@@ -706,17 +632,9 @@ public enum SqlIndex {
         public static SqlIndex getByIndex(ObjectIndex index) {
             List<String> fieldNames = index.getFields();
             ObjectField field = index.getParent().getField(fieldNames.get(0));
+            String type = field != null ? field.getInternalItemType() : index.getType();
 
-            if (fieldNames.size() > 1
-                    || (field != null
-                    && field.as(AbstractSqlDatabase.FieldData.class).getIndexTable() != null)) {
-                return SqlIndex.CUSTOM;
-
-            } else {
-                String type = field != null ? field.getInternalItemType() : index.getType();
-
-                return getByType(type);
-            }
+            return getByType(type);
         }
 
         /**
@@ -742,7 +660,6 @@ public enum SqlIndex {
             }
 
             Set<ObjectStruct> structs = new HashSet<ObjectStruct>();
-            List<ObjectIndex> customIndexes = new ArrayList<ObjectIndex>();
             SqlVendor vendor = database.getVendor();
             StringBuilder idsBuilder = new StringBuilder(" IN (");
 
@@ -760,47 +677,13 @@ public enum SqlIndex {
 
             idsBuilder.setCharAt(idsBuilder.length() - 1, ')');
 
-            for (ObjectStruct struct : structs) {
-                for (ObjectIndex index : struct.getIndexes()) {
-                    ObjectField field = index.getParent().getField(index.getFields().get(0));
-                    if (field != null
-                            && (index.getFields().size() > 1
-                            || field.as(AbstractSqlDatabase.FieldData.class).getIndexTable() != null)) {
-                        customIndexes.add(index);
-                    }
-                }
-            }
-
             for (SqlIndex sqlIndex : SqlIndex.values()) {
-                if (sqlIndex != SqlIndex.CUSTOM) {
-                    for (Table table : sqlIndex.getWriteTables(database, null)) {
-                        StringBuilder deleteBuilder = new StringBuilder();
-                        deleteBuilder.append("DELETE FROM ");
-                        vendor.appendIdentifier(deleteBuilder, table.getName(database, onlyIndex));
-                        deleteBuilder.append(" WHERE ");
-                        vendor.appendIdentifier(deleteBuilder, table.getIdField(database, onlyIndex));
-                        deleteBuilder.append(idsBuilder);
-                        if (onlyIndex != null && table.getKeyField(database, onlyIndex) != null) {
-                            deleteBuilder.append(" AND ");
-                            vendor.appendIdentifier(deleteBuilder, table.getKeyField(database, onlyIndex));
-                            deleteBuilder.append(" = ");
-                            deleteBuilder.append(database.getReadSymbolId(onlyIndex.getUniqueName()));
-                        }
-                        AbstractSqlDatabase.Static.executeUpdateWithArray(vendor, connection, deleteBuilder.toString());
-                    }
-                }
-            }
-
-            for (ObjectIndex index : customIndexes) {
-                if (onlyIndex != null && !onlyIndex.equals(index)) {
-                    continue;
-                }
-                for (Table table : CUSTOM.getWriteTables(database, index)) {
+                for (Table table : sqlIndex.getWriteTables(database, null)) {
                     StringBuilder deleteBuilder = new StringBuilder();
                     deleteBuilder.append("DELETE FROM ");
-                    vendor.appendIdentifier(deleteBuilder, table.getName(database, index));
+                    vendor.appendIdentifier(deleteBuilder, table.getName(database, onlyIndex));
                     deleteBuilder.append(" WHERE ");
-                    vendor.appendIdentifier(deleteBuilder, table.getIdField(database, index));
+                    vendor.appendIdentifier(deleteBuilder, table.getIdField(database, onlyIndex));
                     deleteBuilder.append(idsBuilder);
                     if (onlyIndex != null && table.getKeyField(database, onlyIndex) != null) {
                         deleteBuilder.append(" AND ");

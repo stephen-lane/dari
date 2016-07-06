@@ -2,11 +2,6 @@ package com.psddev.dari.db.sql;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.lang.annotation.Documented;
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -54,11 +49,8 @@ import com.psddev.dari.db.AbstractGrouping;
 import com.psddev.dari.db.AtomicOperation;
 import com.psddev.dari.db.DatabaseException;
 import com.psddev.dari.db.Grouping;
-import com.psddev.dari.db.Modification;
 import com.psddev.dari.db.ObjectField;
 import com.psddev.dari.db.ObjectIndex;
-import com.psddev.dari.db.ObjectStruct;
-import com.psddev.dari.db.ObjectType;
 import com.psddev.dari.db.Query;
 import com.psddev.dari.db.Singleton;
 import com.psddev.dari.db.State;
@@ -739,10 +731,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
         return addComment(new SqlQuery(this, query).groupStatement(groupFields), query);
     }
 
-    public String buildGroupedMetricStatement(Query<?> query, String metricFieldName, String... groupFields) {
-        return addComment(new SqlQuery(this, query).groupedMetricSql(metricFieldName, groupFields), query);
-    }
-
     /**
      * Builds an SQL statement that can be used to get when the objects
      * matching the given {@code query} were last updated.
@@ -822,18 +810,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
 
     private byte[] serializeState(State state) {
         Map<String, Object> values = state.getSimpleValues();
-
-        for (Iterator<Map.Entry<String, Object>> i = values.entrySet().iterator(); i.hasNext();) {
-            Map.Entry<String, Object> entry = i.next();
-            ObjectField field = state.getField(entry.getKey());
-
-            if (field != null) {
-                if (field.as(FieldData.class).isIndexTableSourceFromAnywhere()) {
-                    i.remove();
-                }
-            }
-        }
-
         byte[] dataBytes = ObjectUtils.toJson(values).getBytes(StandardCharsets.UTF_8);
 
         if (isCompressData()) {
@@ -984,115 +960,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
             }
         }
 
-        // Load some extra column from source index tables.
-        @SuppressWarnings("unchecked")
-        Set<UUID> unresolvedTypeIds = (Set<UUID>) query.getOptions().get(State.UNRESOLVED_TYPE_IDS_QUERY_OPTION);
-        Set<ObjectType> queryTypes = query.getConcreteTypes(getEnvironment());
-        ObjectType type = objectState.getType();
-        HashSet<ObjectField> loadExtraFields = new HashSet<ObjectField>();
-
-        if (type != null) {
-            if ((unresolvedTypeIds == null || !unresolvedTypeIds.contains(type.getId()))
-                    && !queryTypes.contains(type)) {
-                for (ObjectField field : type.getFields()) {
-                    AbstractSqlDatabase.FieldData fieldData = field.as(AbstractSqlDatabase.FieldData.class);
-
-                    if (fieldData.isIndexTableSource() && !field.isMetric()) {
-                        loadExtraFields.add(field);
-                    }
-                }
-            }
-        }
-
-        if (!loadExtraFields.isEmpty()) {
-            Connection connection = extraConnectionRef.getOrOpen(query);
-
-            for (ObjectField field : loadExtraFields) {
-                Statement extraStatement = null;
-                ResultSet extraResult = null;
-
-                try {
-                    extraStatement = connection.createStatement();
-                    extraResult = executeQueryBeforeTimeout(
-                            extraStatement,
-                            extraSourceSelectStatementById(field, objectState.getId(), objectState.getTypeId()),
-                            getQueryReadTimeout(query));
-
-                    if (extraResult.next()) {
-                        meta = extraResult.getMetaData();
-
-                        for (int i = 1, count = meta.getColumnCount(); i <= count; ++ i) {
-                            objectState.put(meta.getColumnLabel(i), extraResult.getObject(i));
-                        }
-                    }
-
-                } finally {
-                    closeResources(null, null, extraStatement, extraResult);
-                }
-            }
-        }
-
         return swapObjectType(query, object);
-    }
-
-    // Creates an SQL statement to return a single row from a FieldIndexTable
-    // used as a source table.
-    //
-    // Maybe: move this to SqlQuery and use initializeClauses() and
-    // needsRecordTable=false instead of passing id to this method. Needs
-    // countperformance branch to do this.
-    private String extraSourceSelectStatementById(ObjectField field, UUID id, UUID typeId) {
-        FieldData fieldData = field.as(FieldData.class);
-        ObjectType parentType = field.getParentType();
-        StringBuilder keyName = new StringBuilder(parentType.getInternalName());
-
-        keyName.append('/');
-        keyName.append(field.getInternalName());
-
-        Query<?> query = Query.fromType(parentType);
-        Query.MappedKey key = query.mapEmbeddedKey(getEnvironment(), keyName.toString());
-        ObjectIndex useIndex = null;
-
-        for (ObjectIndex index : key.getIndexes()) {
-            if (field.getInternalName().equals(index.getFields().get(0))) {
-                useIndex = index;
-                break;
-            }
-        }
-
-        SqlIndex useSqlIndex = SqlIndex.Static.getByIndex(useIndex);
-        SqlIndex.Table indexTable = useSqlIndex.getReadTable(this, useIndex);
-        String sourceTableName = fieldData.getIndexTable();
-        int symbolId = getReadSymbolId(key.getIndexKey(useIndex));
-        StringBuilder sql = new StringBuilder();
-        int fieldIndex = 0;
-
-        sql.append("SELECT ");
-
-        for (String indexFieldName : useIndex.getFields()) {
-            String indexColumnName = indexTable.getValueField(this, useIndex, fieldIndex);
-
-            ++ fieldIndex;
-
-            vendor.appendIdentifier(sql, indexColumnName);
-            sql.append(" AS ");
-            vendor.appendIdentifier(sql, indexFieldName);
-            sql.append(", ");
-        }
-        sql.setLength(sql.length() - 2);
-
-        sql.append(" FROM ");
-        vendor.appendIdentifier(sql, sourceTableName);
-        sql.append(" WHERE ");
-        vendor.appendIdentifier(sql, "id");
-        sql.append(" = ");
-        vendor.appendValue(sql, id);
-        sql.append(" AND ");
-        vendor.appendIdentifier(sql, "symbolId");
-        sql.append(" = ");
-        sql.append(symbolId);
-
-        return sql.toString();
     }
 
     /**
@@ -1932,19 +1800,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
                     }
                     grouping = new SqlGrouping<T>(keys, query, fields, count, groupings);
                 } else {
-                    Double amount = ObjectUtils.to(Double.class, result.getObject(1));
-                    for (int j = 0; j < fieldsLength; ++ j) {
-                        keys.add(result.getObject(j + 3));
-                    }
-                    long count = 0L;
-                    if (meta.getColumnName(2).equals("_count")) {
-                        count = ObjectUtils.to(long.class, result.getObject(2));
-                    }
-                    grouping = new SqlGrouping<T>(keys, query, fields, count, groupings);
-                    if (amount == null) {
-                        amount = 0d;
-                    }
-                    grouping.setSum(aggregateColumnName, amount);
+                    throw new UnsupportedOperationException();
                 }
                 groupings.add(grouping);
             }
@@ -2009,94 +1865,12 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
     private class SqlGrouping<T> extends AbstractGrouping<T> {
 
         private final long count;
-
-        private final Map<String, Double> metricSums = new HashMap<String, Double>();
-
         private final List<Grouping<T>> groupings;
 
         public SqlGrouping(List<Object> keys, Query<T> query, String[] fields, long count, List<Grouping<T>> groupings) {
             super(keys, query, fields);
             this.count = count;
             this.groupings = groupings;
-        }
-
-        @Override
-        public double getSum(String field) {
-            Query.MappedKey mappedKey = this.query.mapEmbeddedKey(getEnvironment(), field);
-            ObjectField sumField = mappedKey.getField();
-            if (sumField.isMetric()) {
-                if (!metricSums.containsKey(field)) {
-
-                    String sqlQuery = buildGroupedMetricStatement(query, field, fields);
-                    Connection connection = null;
-                    Statement statement = null;
-                    ResultSet result = null;
-                    try {
-                        connection = openQueryConnection(query);
-                        statement = connection.createStatement();
-                        result = executeQueryBeforeTimeout(statement, sqlQuery, getQueryReadTimeout(query));
-
-                        if (this.getKeys().size() == 0) {
-                            // Special case for .groupby() without any fields
-                            if (this.groupings.size() != 1) {
-                                throw new RuntimeException("There should only be one grouping when grouping by nothing. Something went wrong internally.");
-                            }
-                            if (result.next() && result.getBytes(1) != null) {
-                                this.setSum(field, result.getDouble(1));
-                            } else {
-                                this.setSum(field, 0);
-                            }
-                        } else {
-                            // Find the ObjectFields for the specified fields
-                            List<ObjectField> objectFields = new ArrayList<ObjectField>();
-                            for (String fieldName : fields) {
-                                objectFields.add(query.mapEmbeddedKey(getEnvironment(), fieldName).getField());
-                            }
-
-                            // index the groupings by their keys
-                            Map<List<Object>, SqlGrouping<T>> groupingMap = new HashMap<List<Object>, SqlGrouping<T>>();
-                            for (Grouping<T> grouping : groupings) {
-                                if (grouping instanceof SqlGrouping) {
-                                    ((SqlGrouping<T>) grouping).setSum(field, 0);
-                                    groupingMap.put(grouping.getKeys(), (SqlGrouping<T>) grouping);
-                                }
-                            }
-
-                            // Find the sums and set them on each grouping
-                            while (result.next()) {
-                                // TODO: limit/offset
-                                List<Object> keys = new ArrayList<Object>();
-                                for (int j = 0; j < objectFields.size(); ++ j) {
-                                    keys.add(StateValueUtils.toJavaValue(query.getDatabase(), null, objectFields.get(j), objectFields.get(j).getInternalItemType(), result.getObject(j + 3))); // 3 because _count and amount
-                                }
-                                if (groupingMap.containsKey(keys)) {
-                                    if (result.getBytes(1) != null) {
-                                        groupingMap.get(keys).setSum(field, result.getDouble(1));
-                                    } else {
-                                        groupingMap.get(keys).setSum(field, 0);
-                                    }
-                                }
-                            }
-                        }
-                    } catch (SQLException ex) {
-                        throw createQueryException(ex, sqlQuery, query);
-                    } finally {
-                        closeResources(query, connection, statement, result);
-                    }
-                }
-                if (metricSums.containsKey(field)) {
-                    return metricSums.get(field);
-                } else {
-                    return 0;
-                }
-            } else {
-                // If it's not a MetricValue, we don't need to override it.
-                return super.getSum(field);
-            }
-       }
-
-        private void setSum(String field, double sum) {
-            metricSums.put(field, sum);
         }
 
         // --- AbstractGrouping support ---
@@ -2507,109 +2281,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
                                 State.getInstance(object).getId()),
                         error);
             }
-        }
-    }
-
-    @FieldData.FieldInternalNamePrefix("sql.")
-    public static class FieldData extends Modification<ObjectField> {
-
-        private String indexTable;
-        private String indexTableColumnName;
-        private boolean indexTableReadOnly;
-        private boolean indexTableSameColumnNames;
-        private boolean indexTableSource;
-
-        public String getIndexTable() {
-            return indexTable;
-        }
-
-        public void setIndexTable(String indexTable) {
-            this.indexTable = indexTable;
-        }
-
-        public boolean isIndexTableReadOnly() {
-            return indexTableReadOnly;
-        }
-
-        public void setIndexTableReadOnly(boolean indexTableReadOnly) {
-            this.indexTableReadOnly = indexTableReadOnly;
-        }
-
-        public boolean isIndexTableSameColumnNames() {
-            return indexTableSameColumnNames;
-        }
-
-        public void setIndexTableSameColumnNames(boolean indexTableSameColumnNames) {
-            this.indexTableSameColumnNames = indexTableSameColumnNames;
-        }
-
-        public void setIndexTableColumnName(String indexTableColumnName) {
-            this.indexTableColumnName = indexTableColumnName;
-        }
-
-        public String getIndexTableColumnName() {
-            return this.indexTableColumnName;
-        }
-
-        public boolean isIndexTableSource() {
-            return indexTableSource;
-        }
-
-        public void setIndexTableSource(boolean indexTableSource) {
-            this.indexTableSource = indexTableSource;
-        }
-
-        public boolean isIndexTableSourceFromAnywhere() {
-            if (isIndexTableSource()) {
-                return true;
-            }
-
-            ObjectField field = getOriginalObject();
-            ObjectStruct parent = field.getParent();
-            String fieldName = field.getInternalName();
-
-            for (ObjectIndex index : parent.getIndexes()) {
-                List<String> indexFieldNames = index.getFields();
-
-                if (!indexFieldNames.isEmpty()
-                        && indexFieldNames.contains(fieldName)) {
-                    String firstIndexFieldName = indexFieldNames.get(0);
-
-                    if (!fieldName.equals(firstIndexFieldName)) {
-                        ObjectField firstIndexField = parent.getField(firstIndexFieldName);
-
-                        if (firstIndexField != null) {
-                            return firstIndexField.as(FieldData.class).isIndexTableSource();
-                        }
-                    }
-                }
-            }
-
-            return false;
-        }
-    }
-
-    /** Specifies the name of the table for storing target field values. */
-    @Documented
-    @ObjectField.AnnotationProcessorClass(FieldIndexTableProcessor.class)
-    @Retention(RetentionPolicy.RUNTIME)
-    @Target(ElementType.FIELD)
-    public @interface FieldIndexTable {
-        String value();
-        boolean readOnly() default false;
-        boolean sameColumnNames() default false;
-        boolean source() default false;
-    }
-
-    private static class FieldIndexTableProcessor implements ObjectField.AnnotationProcessor<FieldIndexTable> {
-        @Override
-        public void process(ObjectType type, ObjectField field, FieldIndexTable annotation) {
-            FieldData data = field.as(FieldData.class);
-
-            data.setIndexTable(annotation.value());
-            data.setIndexTableSameColumnNames(annotation.sameColumnNames());
-            data.setIndexTableSource(annotation.source());
-            data.setIndexTableReadOnly(annotation.readOnly());
         }
     }
 
