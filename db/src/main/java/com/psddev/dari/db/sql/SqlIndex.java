@@ -29,7 +29,7 @@ import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.StringUtils;
 
 /** Internal representations of all SQL index tables. */
-public enum SqlIndex {
+enum SqlIndex {
 
     LOCATION(
         new NameSingleValueTable(1, "RecordLocation"),
@@ -95,7 +95,7 @@ public enum SqlIndex {
 
     private final Table[] tables;
 
-    private SqlIndex(Table... tables) {
+    SqlIndex(Table... tables) {
         this.tables = tables;
     }
 
@@ -117,7 +117,7 @@ public enum SqlIndex {
      * values of the index in the given {@code database}.
      */
     public List<Table> getWriteTables(AbstractSqlDatabase database, ObjectIndex index) {
-        List<Table> writeTables = new ArrayList<Table>();
+        List<Table> writeTables = new ArrayList<>();
 
         if (!database.isIndexSpatial() && (LOCATION.equals(this) || REGION.equals(this))) {
             return writeTables;
@@ -142,39 +142,35 @@ public enum SqlIndex {
 
     public interface Table {
 
-        public int getVersion();
+        int getVersion();
 
-        public boolean isReadOnly(ObjectIndex index);
+        boolean isReadOnly(ObjectIndex index);
 
-        public String getName(AbstractSqlDatabase database, ObjectIndex index);
+        String getName(AbstractSqlDatabase database, ObjectIndex index);
 
-        public String getIdField(AbstractSqlDatabase database, ObjectIndex index);
+        String getIdField(AbstractSqlDatabase database, ObjectIndex index);
 
-        public String getKeyField(AbstractSqlDatabase database, ObjectIndex index);
+        String getKeyField(AbstractSqlDatabase database, ObjectIndex index);
 
-        public String getValueField(AbstractSqlDatabase database, ObjectIndex index, int fieldIndex);
+        String getValueField(AbstractSqlDatabase database, ObjectIndex index, int fieldIndex);
 
-        public String getTypeIdField(AbstractSqlDatabase database, ObjectIndex index);
+        String getTypeIdField(AbstractSqlDatabase database, ObjectIndex index);
 
-        default Object convertReadKey(AbstractSqlDatabase database, ObjectIndex index, String key) {
-            return convertKey(database, index, key);
-        }
+        Object convertReadKey(AbstractSqlDatabase database, ObjectIndex index, String key);
 
-        public Object convertKey(AbstractSqlDatabase database, ObjectIndex index, String key);
+        Object convertKey(AbstractSqlDatabase database, ObjectIndex index, String key);
 
-        public String prepareInsertStatement(
+        String prepareInsertStatement(
                 AbstractSqlDatabase database,
                 Connection connection,
                 ObjectIndex index) throws SQLException;
 
-        public default String prepareUpdateStatement(
+        String prepareUpdateStatement(
                 AbstractSqlDatabase database,
                 Connection connection,
-                ObjectIndex index) throws SQLException {
-            throw new UnsupportedOperationException();
-        }
+                ObjectIndex index) throws SQLException;
 
-        public void bindInsertValues(
+        void bindInsertValues(
                 AbstractSqlDatabase database,
                 ObjectIndex index,
                 UUID id,
@@ -183,16 +179,14 @@ public enum SqlIndex {
                 Set<String> bindKeys,
                 List<List<Object>> parameters) throws SQLException;
 
-        public default void bindUpdateValues(
+        void bindUpdateValues(
                 AbstractSqlDatabase database,
                 ObjectIndex index,
                 UUID id,
                 UUID typeId,
                 IndexValue indexValue,
                 Set<String> bindKeys,
-                List<List<Object>> parameters) throws SQLException {
-            throw new UnsupportedOperationException();
-        }
+                List<List<Object>> parameters) throws SQLException;
     }
 
     private abstract static class AbstractTable implements Table {
@@ -417,7 +411,7 @@ public enum SqlIndex {
                 String bindKey = bindKeyBuilder.toString();
 
                 if (writeIndex && !bindKeys.contains(bindKey)) {
-                    List<Object> rowData = new ArrayList<Object>();
+                    List<Object> rowData = new ArrayList<>();
 
                     vendor.appendBindValue(insertBuilder, id, rowData);
                     if (getTypeIdField(database, index) != null) {
@@ -469,7 +463,7 @@ public enum SqlIndex {
                 String bindKey = bindKeyBuilder.toString();
 
                 if (writeIndex && !bindKeys.contains(bindKey)) {
-                    List<Object> rowData = new ArrayList<Object>();
+                    List<Object> rowData = new ArrayList<>();
 
                     for (int i = 0; i < fieldsSize; i++) {
                         Object parameter = convertValue(database, index, i, valuesArray[i]);
@@ -501,6 +495,11 @@ public enum SqlIndex {
         @Override
         public String getName(AbstractSqlDatabase database, ObjectIndex index) {
             return name;
+        }
+
+        @Override
+        public Object convertReadKey(AbstractSqlDatabase database, ObjectIndex index, String key) {
+            throw new UnsupportedOperationException();
         }
     }
 
@@ -659,17 +658,11 @@ public enum SqlIndex {
                 return;
             }
 
-            Set<ObjectStruct> structs = new HashSet<ObjectStruct>();
             SqlVendor vendor = database.getVendor();
             StringBuilder idsBuilder = new StringBuilder(" IN (");
 
-            structs.add(database.getEnvironment());
-
             for (State state : states) {
                 ObjectType type = state.getType();
-                if (type != null) {
-                    structs.add(type);
-                }
 
                 vendor.appendUuid(idsBuilder, state.getId());
                 idsBuilder.append(",");
@@ -703,18 +696,18 @@ public enum SqlIndex {
                 List<State> states)
                 throws SQLException {
 
-            Map<String, String> updateQueries = new HashMap<String, String>();
-            Map<String, List<List<Object>>> updateParameters = new HashMap<String, List<List<Object>>>();
-            Map<String, Set<String>> updateBindKeys = new HashMap<String, Set<String>>();
-            Map<String, List<State>> updateStates = new HashMap<String, List<State>>();
-            Set<State> needDeletes = new HashSet<State>();
-            Set<State> needInserts = new HashSet<State>();
+            Map<String, String> updateQueries = new HashMap<>();
+            Map<String, List<List<Object>>> updateParameters = new HashMap<>();
+            Map<String, Set<String>> updateBindKeys = new HashMap<>();
+            Map<String, List<State>> updateStates = new HashMap<>();
+            Set<State> needDeletes = new HashSet<>();
+            Set<State> needInserts = new HashSet<>();
 
             for (State state : states) {
                 UUID id = state.getId();
                 UUID typeId = state.getVisibilityAwareTypeId();
 
-                List<IndexValue> indexValues = new ArrayList<IndexValue>();
+                List<IndexValue> indexValues = new ArrayList<>();
                 Map<String, Object> stateValues = state.getValues();
                 collectIndexValues(state, indexValues, null, state.getDatabase().getEnvironment(), stateValues, index);
                 ObjectType type = state.getType();
@@ -737,24 +730,24 @@ public enum SqlIndex {
                         List<State> tableStates = updateStates.get(name);
                         if (sqlQuery == null && parameters == null && tableStates == null) {
                             if (table instanceof AbstractTable) {
-                                sqlQuery = ((AbstractTable) table).prepareUpdateStatement(database, connection, index);
+                                sqlQuery = table.prepareUpdateStatement(database, connection, index);
                             } else {
                                 throw new IllegalStateException("Table " + table.getName(database, index) + " does not support updates.");
                             }
                             updateQueries.put(name, sqlQuery);
 
-                            parameters = new ArrayList<List<Object>>();
+                            parameters = new ArrayList<>();
                             updateParameters.put(name, parameters);
 
-                            bindKeys = new HashSet<String>();
+                            bindKeys = new HashSet<>();
                             updateBindKeys.put(name, bindKeys);
 
-                            tableStates = new ArrayList<State>();
+                            tableStates = new ArrayList<>();
                             updateStates.put(name, tableStates);
                         }
 
                         if (table instanceof AbstractTable) {
-                            ((AbstractTable) table).bindUpdateValues(database, index, id, typeId, indexValue, bindKeys, parameters);
+                            table.bindUpdateValues(database, index, id, typeId, indexValue, bindKeys, parameters);
                             tableStates.add(state);
                         } else {
                             throw new IllegalStateException("Table " + table.getName(database, index) + " does not support updates.");
@@ -787,10 +780,10 @@ public enum SqlIndex {
                 }
             }
             if (!needDeletes.isEmpty()) {
-                deleteByStates(database, connection, index, new ArrayList<State>(needDeletes));
+                deleteByStates(database, connection, index, new ArrayList<>(needDeletes));
             }
             if (!needInserts.isEmpty()) {
-                List<State> insertStates = new ArrayList<State>(needInserts);
+                List<State> insertStates = new ArrayList<>(needInserts);
                 deleteByStates(database, connection, index, insertStates);
                 insertByStates(database, connection, index, insertStates);
             }
@@ -815,9 +808,9 @@ public enum SqlIndex {
                 List<State> states)
                 throws SQLException {
 
-            Map<String, String> insertQueries = new HashMap<String, String>();
-            Map<String, List<List<Object>>> insertParameters = new HashMap<String, List<List<Object>>>();
-            Map<String, Set<String>> insertBindKeys = new HashMap<String, Set<String>>();
+            Map<String, String> insertQueries = new HashMap<>();
+            Map<String, List<List<Object>>> insertParameters = new HashMap<>();
+            Map<String, Set<String>> insertBindKeys = new HashMap<>();
 
             for (State state : states) {
                 UUID id = state.getId();
@@ -838,10 +831,10 @@ public enum SqlIndex {
                             sqlQuery = table.prepareInsertStatement(database, connection, index);
                             insertQueries.put(name, sqlQuery);
 
-                            parameters = new ArrayList<List<Object>>();
+                            parameters = new ArrayList<>();
                             insertParameters.put(name, parameters);
 
-                            bindKeys = new HashSet<String>();
+                            bindKeys = new HashSet<>();
                             insertBindKeys.put(name, bindKeys);
                         }
 
@@ -871,7 +864,7 @@ public enum SqlIndex {
          * consumption.
          */
         public static List<IndexValue> getIndexValues(State state) {
-            List<IndexValue> indexValues = new ArrayList<IndexValue>();
+            List<IndexValue> indexValues = new ArrayList<>();
             Map<String, Object> values = state.getValues();
 
             collectIndexValues(state, indexValues, null, state.getDatabase().getEnvironment(), values);
@@ -892,7 +885,7 @@ public enum SqlIndex {
                 Map<String, Object> stateValues,
                 ObjectIndex index) {
 
-            List<Set<Object>> valuesList = new ArrayList<Set<Object>>();
+            List<Set<Object>> valuesList = new ArrayList<>();
 
             for (String fieldName : index.getFields()) {
                 ObjectField field = struct.getField(fieldName);
@@ -900,7 +893,7 @@ public enum SqlIndex {
                     return;
                 }
 
-                Set<Object> values = new HashSet<Object>();
+                Set<Object> values = new HashSet<>();
                 Object fieldValue;
                 if (field instanceof ObjectMethod) {
                     StringBuilder path = new StringBuilder();
@@ -1037,20 +1030,6 @@ public enum SqlIndex {
             } else {
                 values.add(value);
             }
-        }
-
-        // --- Deprecated ---
-
-        /** Use {@link #getByType} instead. */
-        @Deprecated
-        public static SqlIndex getInstance(String type) {
-            return getByType(type);
-        }
-
-        /** Use {@link #getByIndex} instead. */
-        @Deprecated
-        public static SqlIndex getInstance(ObjectIndex index) {
-            return getByIndex(index);
         }
     }
 }
