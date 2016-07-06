@@ -22,7 +22,6 @@ import java.sql.Savepoint;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Date;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -84,7 +83,6 @@ import com.google.common.util.concurrent.UncheckedExecutionException;
 import com.psddev.dari.util.Lazy;
 import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.PaginatedResult;
-import com.psddev.dari.util.PeriodicValue;
 import com.psddev.dari.util.Profiler;
 import com.psddev.dari.util.Settings;
 import com.psddev.dari.util.SettingsException;
@@ -177,6 +175,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     private volatile boolean compressData;
     private volatile boolean indexSpatial;
 
+    private transient volatile boolean comparesIgnoreCase;
     protected final transient ConcurrentMap<Class<?>, UUID> singletonIds = new ConcurrentHashMap<>();
     private final List<UpdateNotifier<?>> updateNotifiers = new ArrayList<>();
 
@@ -203,6 +202,52 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         }
 
     }, 5, TimeUnit.MINUTES);
+
+    // Cache that stores all the table and column names.
+    private final transient Lazy<Map<String, Set<String>>> tableColumnNames = new Lazy<Map<String, Set<String>>>() {
+
+        @Override
+        protected Map<String, Set<String>> create() {
+            Connection connection = openAnyConnection();
+
+            try (DSLContext context = openContext(connection)) {
+                Map<String, Set<String>> names = new HashMap<>();
+                int maxStringVersion = 0;
+
+                for (Table<?> table : context.meta().getTables()) {
+                    Set<String> columnNames = new HashSet<>();
+
+                    for (Field<?> column : table.fields()) {
+                        columnNames.add(column.getName().toLowerCase(Locale.ENGLISH));
+                    }
+
+                    String name = table.getName().toLowerCase(Locale.ENGLISH);
+
+                    names.put(name, columnNames);
+
+                    // Starting with RecordString3, the default string
+                    // comparison behavior changed to ignore case.
+                    if (name.startsWith("recordstring")) {
+                        int version = ObjectUtils.to(int.class, name.substring(12));
+
+                        if (maxStringVersion < version) {
+                            maxStringVersion = version;
+                        }
+                    }
+                }
+
+                comparesIgnoreCase = maxStringVersion >= 3;
+
+                return names;
+
+            } catch (DataAccessException error) {
+                throw convertJooqError(error, null);
+
+            } finally {
+                closeConnection(connection);
+            }
+        }
+    };
 
     // Cache that stores all the symbol IDs.
     private final transient Lazy<Map<String, Integer>> symbolIds = new Lazy<Map<String, Integer>>() {
@@ -336,13 +381,11 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                     }
                 }
 
-                tableColumnNames.refresh();
-                symbolIds.reset();
+                invalidateCaches();
 
                 if (writable) {
                     vendor.setUp(this);
-                    tableColumnNames.refresh();
-                    symbolIds.reset();
+                    invalidateCaches();
                 }
 
             } catch (IOException error) {
@@ -373,8 +416,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
         try {
             getVendor().setUp(this);
-            tableColumnNames.refresh();
-            symbolIds.reset();
+            invalidateCaches();
 
         } catch (IOException error) {
             throw new IllegalStateException(error);
@@ -443,14 +485,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     }
 
     /**
-     * Returns {@code true} if all comparisons executed in this database
-     * should ignore case by default.
-     */
-    public boolean comparesIgnoreCase() {
-        return comparesIgnoreCase;
-    }
-
-    /**
      * Opens a connection to the underlying SQL server, preferably the writable
      * one that has the most up-to-date data.
      *
@@ -496,97 +530,65 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         return new SqlDatabaseException(this, sqlError, query.getSQL(), null);
     }
 
-    /**
-     * Returns {@code true} if this database contains a table with
-     * the given {@code name}.
-     */
-    public boolean hasTable(String name) {
-        if (name == null) {
-            return false;
-        } else {
-            Set<String> names = tableColumnNames.get().keySet();
-            return names != null && names.contains(name.toLowerCase(Locale.ENGLISH));
-        }
-    }
-
-    /**
-     * Returns {@code true} if the given {@code table} in this database
-     * contains the given {@code column}.
-     *
-     * @param table If {@code null}, always returns {@code false}.
-     * @param column If {@code null}, always returns {@code false}.
-     */
-    public boolean hasColumn(String table, String column) {
-        if (table == null || column == null) {
-            return false;
-
-        } else {
-            Set<String> columnNames = tableColumnNames.get().get(table.toLowerCase(Locale.ENGLISH));
-
-            return columnNames != null && columnNames.contains(column.toLowerCase(Locale.ENGLISH));
-        }
-    }
-
-    private transient volatile boolean comparesIgnoreCase;
-
-    private final transient PeriodicValue<Map<String, Set<String>>> tableColumnNames = new PeriodicValue<Map<String, Set<String>>>(0.0, 60.0) {
-
-        @Override
-        protected Map<String, Set<String>> update() {
-            if (getDataSource() == null) {
-                return Collections.emptyMap();
-            }
-
-            Connection connection;
-
-            try {
-                connection = openConnection();
-
-            } catch (DatabaseException error) {
-                LOGGER.debug("Can't read table names from the writable server!", error);
-                connection = openReadConnection();
-            }
-
-            try {
-                SqlVendor vendor = getVendor();
-                int maxStringVersion = 0;
-                Map<String, Set<String>> loweredNames = new HashMap<String, Set<String>>();
-
-                for (String name : vendor.getTables(connection)) {
-                    String loweredName = name.toLowerCase(Locale.ENGLISH);
-                    Set<String> loweredColumnNames = new HashSet<String>();
-
-                    for (String columnName : vendor.getColumns(connection, name)) {
-                        loweredColumnNames.add(columnName.toLowerCase(Locale.ENGLISH));
-                    }
-
-                    loweredNames.put(loweredName, loweredColumnNames);
-
-                    if (loweredName.startsWith("recordstring")) {
-                        int version = ObjectUtils.to(int.class, loweredName.substring(12));
-                        if (version > maxStringVersion) {
-                            maxStringVersion = version;
-                        }
-                    }
-                }
-
-                comparesIgnoreCase = maxStringVersion >= 3;
-
-                return loweredNames;
-
-            } catch (SQLException error) {
-                LOGGER.error("Can't query table names!", error);
-                return get();
-
-            } finally {
-                closeConnection(connection);
-            }
-        }
-    };
-
     @Override
     public long now() {
         return System.currentTimeMillis() - nowOffset.get();
+    }
+
+    /**
+     * Invalidates all caches.
+     *
+     * <p>This forces all metadata to be re-fetched from the database in the
+     * following methods:</p>
+     *
+     * <ul>
+     *     <li>{@link #comparesIgnoreCase()}</li>
+     *     <li>{@link #hasTable(String)}</li>
+     *     <li>{@link #hasColumn(String, String)}</li>
+     *     <li>{@link #getSymbolId(String)}</li>
+     *     <li>{@link #getReadSymbolId(String)}</li>
+     * </ul>
+     */
+    public void invalidateCaches() {
+        tableColumnNames.reset();
+        symbolIds.reset();
+    }
+
+    /**
+     * Returns {@code true} if all string comparisons should ignore case by
+     * default.
+     */
+    public boolean comparesIgnoreCase() {
+        return comparesIgnoreCase;
+    }
+
+    /**
+     * Returns {@code true} if a table exists with the given {@code name}.
+     *
+     * @param name If {@code null}, always returns {@code false}.
+     */
+    public boolean hasTable(String name) {
+        return name != null
+                && tableColumnNames.get().containsKey(name.toLowerCase(Locale.ENGLISH));
+    }
+
+    /**
+     * Returns {@code true} if the table with the given {@code tableName}
+     * contains a column with the given {@code columnName}.
+     *
+     * @param tableName If {@code null}, always returns {@code false}.
+     * @param columnName If {@code null}, always returns {@code false}.
+     */
+    public boolean hasColumn(String tableName, String columnName) {
+        if (tableName == null || columnName == null) {
+            return false;
+
+        } else {
+            Set<String> columnNames = tableColumnNames.get().get(tableName.toLowerCase(Locale.ENGLISH));
+
+            return columnNames != null
+                    && columnNames.contains(columnName.toLowerCase(Locale.ENGLISH));
+        }
     }
 
     /**
