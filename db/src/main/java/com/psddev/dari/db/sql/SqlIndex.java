@@ -35,8 +35,8 @@ public enum SqlIndex {
         new AbstractTable(2, "id", "typeId", "symbolId", "value") {
 
             @Override
-            public String getName(SqlDatabase database, ObjectIndex index) {
-                String name = SqlDatabase.Static.getIndexTable(index);
+            public String getName(AbstractSqlDatabase database, ObjectIndex index) {
+                String name = AbstractSqlDatabase.Static.getIndexTable(index);
                 if (ObjectUtils.isBlank(name)) {
                     throw new IllegalStateException(String.format(
                             "[%s] needs @SqlDatabase.FieldIndexTable annotation!",
@@ -47,12 +47,12 @@ public enum SqlIndex {
             }
 
             @Override
-            public Object convertReadKey(SqlDatabase database, ObjectIndex index, String key) {
+            public Object convertReadKey(AbstractSqlDatabase database, ObjectIndex index, String key) {
                 return database.getReadSymbolId(key);
             }
 
             @Override
-            public Object convertKey(SqlDatabase database, ObjectIndex index, String key) {
+            public Object convertKey(AbstractSqlDatabase database, ObjectIndex index, String key) {
                 return database.getSymbolId(key);
             }
 
@@ -65,7 +65,7 @@ public enum SqlIndex {
                     ObjectField field = parent.getField(fieldName);
 
                     if (field != null) {
-                        return field.as(SqlDatabase.FieldData.class).isIndexTableReadOnly();
+                        return field.as(AbstractSqlDatabase.FieldData.class).isIndexTableReadOnly();
                     }
                 }
 
@@ -73,7 +73,7 @@ public enum SqlIndex {
             }
 
             @Override
-            public String getTypeIdField(SqlDatabase database, ObjectIndex index) {
+            public String getTypeIdField(AbstractSqlDatabase database, ObjectIndex index) {
                 if (database.hasColumn(getName(database, index), "typeId")) {
                     return "typeId";
                 } else {
@@ -103,7 +103,7 @@ public enum SqlIndex {
     STRING(
         new NameSingleValueTable(1, "RecordString") {
             @Override
-            protected Object convertValue(SqlDatabase database, ObjectIndex index, int fieldIndex, Object value) {
+            protected Object convertValue(AbstractSqlDatabase database, ObjectIndex index, int fieldIndex, Object value) {
                 String string = value.toString();
                 return string.length() > 400 ? string.substring(0, 400) : string;
             }
@@ -111,14 +111,14 @@ public enum SqlIndex {
 
         new SymbolIdSingleValueTable(2, "RecordString2") {
             @Override
-            protected Object convertValue(SqlDatabase database, ObjectIndex index, int fieldIndex, Object value) {
+            protected Object convertValue(AbstractSqlDatabase database, ObjectIndex index, int fieldIndex, Object value) {
                 return stringToBytes(value.toString(), 500);
             }
         },
 
         new SymbolIdSingleValueTable(3, "RecordString3") {
             @Override
-            protected Object convertValue(SqlDatabase database, ObjectIndex index, int fieldIndex, Object value) {
+            protected Object convertValue(AbstractSqlDatabase database, ObjectIndex index, int fieldIndex, Object value) {
                 String valueString = value.toString().trim();
                 if (!index.isCaseSensitive()) {
                     valueString = valueString.toLowerCase(Locale.ENGLISH);
@@ -129,7 +129,7 @@ public enum SqlIndex {
 
         new TypeIdSymbolIdSingleValueTable(4, "RecordString4") {
             @Override
-            protected Object convertValue(SqlDatabase database, ObjectIndex index, int fieldIndex, Object value) {
+            protected Object convertValue(AbstractSqlDatabase database, ObjectIndex index, int fieldIndex, Object value) {
                 String valueString = StringUtils.trimAndCollapseWhitespaces(value.toString());
                 if (!index.isCaseSensitive()) {
                     valueString = valueString.toLowerCase(Locale.ENGLISH);
@@ -155,7 +155,7 @@ public enum SqlIndex {
      * Returns the table that can be used to read the values of the given
      * {@code index} from the given {@code database}.
      */
-    public Table getReadTable(SqlDatabase database, ObjectIndex index) {
+    public Table getReadTable(AbstractSqlDatabase database, ObjectIndex index) {
         for (Table table : tables) {
             if (database.hasTable(table.getName(database, index))) {
                 return table;
@@ -168,7 +168,7 @@ public enum SqlIndex {
      * Returns all tables that should be written to when updating the
      * values of the index in the given {@code database}.
      */
-    public List<Table> getWriteTables(SqlDatabase database, ObjectIndex index) {
+    public List<Table> getWriteTables(AbstractSqlDatabase database, ObjectIndex index) {
         List<Table> writeTables = new ArrayList<Table>();
 
         if (!database.isIndexSpatial() && (LOCATION.equals(this) || REGION.equals(this))) {
@@ -198,36 +198,36 @@ public enum SqlIndex {
 
         public boolean isReadOnly(ObjectIndex index);
 
-        public String getName(SqlDatabase database, ObjectIndex index);
+        public String getName(AbstractSqlDatabase database, ObjectIndex index);
 
-        public String getIdField(SqlDatabase database, ObjectIndex index);
+        public String getIdField(AbstractSqlDatabase database, ObjectIndex index);
 
-        public String getKeyField(SqlDatabase database, ObjectIndex index);
+        public String getKeyField(AbstractSqlDatabase database, ObjectIndex index);
 
-        public String getValueField(SqlDatabase database, ObjectIndex index, int fieldIndex);
+        public String getValueField(AbstractSqlDatabase database, ObjectIndex index, int fieldIndex);
 
-        public String getTypeIdField(SqlDatabase database, ObjectIndex index);
+        public String getTypeIdField(AbstractSqlDatabase database, ObjectIndex index);
 
-        default Object convertReadKey(SqlDatabase database, ObjectIndex index, String key) {
+        default Object convertReadKey(AbstractSqlDatabase database, ObjectIndex index, String key) {
             return convertKey(database, index, key);
         }
 
-        public Object convertKey(SqlDatabase database, ObjectIndex index, String key);
+        public Object convertKey(AbstractSqlDatabase database, ObjectIndex index, String key);
 
         public String prepareInsertStatement(
-                SqlDatabase database,
+                AbstractSqlDatabase database,
                 Connection connection,
                 ObjectIndex index) throws SQLException;
 
         public default String prepareUpdateStatement(
-                SqlDatabase database,
+                AbstractSqlDatabase database,
                 Connection connection,
                 ObjectIndex index) throws SQLException {
             throw new UnsupportedOperationException();
         }
 
         public void bindInsertValues(
-                SqlDatabase database,
+                AbstractSqlDatabase database,
                 ObjectIndex index,
                 UUID id,
                 UUID typeId,
@@ -236,7 +236,7 @@ public enum SqlIndex {
                 List<List<Object>> parameters) throws SQLException;
 
         public default void bindUpdateValues(
-                SqlDatabase database,
+                AbstractSqlDatabase database,
                 ObjectIndex index,
                 UUID id,
                 UUID typeId,
@@ -274,22 +274,22 @@ public enum SqlIndex {
         }
 
         @Override
-        public String getIdField(SqlDatabase database, ObjectIndex index) {
+        public String getIdField(AbstractSqlDatabase database, ObjectIndex index) {
             return idField;
         }
 
         @Override
-        public String getTypeIdField(SqlDatabase database, ObjectIndex index) {
+        public String getTypeIdField(AbstractSqlDatabase database, ObjectIndex index) {
             return typeIdField;
         }
 
         @Override
-        public String getKeyField(SqlDatabase database, ObjectIndex index) {
+        public String getKeyField(AbstractSqlDatabase database, ObjectIndex index) {
             return keyField;
         }
 
         @Override
-        public String getValueField(SqlDatabase database, ObjectIndex index, int fieldIndex) {
+        public String getValueField(AbstractSqlDatabase database, ObjectIndex index, int fieldIndex) {
             List<String> indexFieldNames = index.getFields();
             ObjectStruct parent = index.getParent();
 
@@ -297,7 +297,7 @@ public enum SqlIndex {
                 ObjectField field = parent.getField(fieldName);
 
                 if (field != null
-                        && field.as(SqlDatabase.FieldData.class).isIndexTableSameColumnNames()) {
+                        && field.as(AbstractSqlDatabase.FieldData.class).isIndexTableSameColumnNames()) {
                     String valueFieldName = indexFieldNames.get(fieldIndex);
                     int dotAt = valueFieldName.lastIndexOf(".");
 
@@ -307,8 +307,8 @@ public enum SqlIndex {
 
                     return valueFieldName;
                 } else if (field != null
-                        && field.as(SqlDatabase.FieldData.class).getIndexTableColumnName() != null) {
-                    return field.as(SqlDatabase.FieldData.class).getIndexTableColumnName();
+                        && field.as(AbstractSqlDatabase.FieldData.class).getIndexTableColumnName() != null) {
+                    return field.as(AbstractSqlDatabase.FieldData.class).getIndexTableColumnName();
                 }
             }
 
@@ -316,11 +316,11 @@ public enum SqlIndex {
         }
 
         @Override
-        public Object convertKey(SqlDatabase database, ObjectIndex index, String key) {
+        public Object convertKey(AbstractSqlDatabase database, ObjectIndex index, String key) {
             return key;
         }
 
-        protected Object convertValue(SqlDatabase database, ObjectIndex index, int fieldIndex, Object value) {
+        protected Object convertValue(AbstractSqlDatabase database, ObjectIndex index, int fieldIndex, Object value) {
             ObjectStruct parent = index.getParent();
             ObjectField field = parent.getField(index.getFields().get(fieldIndex));
             String type = field.getInternalItemType();
@@ -361,7 +361,7 @@ public enum SqlIndex {
 
         @Override
         public String prepareInsertStatement(
-                SqlDatabase database,
+                AbstractSqlDatabase database,
                 Connection connection,
                 ObjectIndex index) throws SQLException {
 
@@ -412,7 +412,7 @@ public enum SqlIndex {
         }
 
         public String prepareUpdateStatement(
-                SqlDatabase database,
+                AbstractSqlDatabase database,
                 Connection connection,
                 ObjectIndex index) throws SQLException {
 
@@ -459,7 +459,7 @@ public enum SqlIndex {
 
         @Override
         public void bindInsertValues(
-                SqlDatabase database,
+                AbstractSqlDatabase database,
                 ObjectIndex index,
                 UUID id,
                 UUID typeId,
@@ -511,7 +511,7 @@ public enum SqlIndex {
         }
 
         public void bindUpdateValues(
-                SqlDatabase database,
+                AbstractSqlDatabase database,
                 ObjectIndex index,
                 UUID id,
                 UUID typeId,
@@ -573,7 +573,7 @@ public enum SqlIndex {
         }
 
         @Override
-        public String getName(SqlDatabase database, ObjectIndex index) {
+        public String getName(AbstractSqlDatabase database, ObjectIndex index) {
             return name;
         }
     }
@@ -596,12 +596,12 @@ public enum SqlIndex {
         }
 
         @Override
-        public Object convertReadKey(SqlDatabase database, ObjectIndex index, String key) {
+        public Object convertReadKey(AbstractSqlDatabase database, ObjectIndex index, String key) {
             return database.getReadSymbolId(key);
         }
 
         @Override
-        public Object convertKey(SqlDatabase database, ObjectIndex index, String key) {
+        public Object convertKey(AbstractSqlDatabase database, ObjectIndex index, String key) {
             return database.getSymbolId(key);
         }
     }
@@ -709,7 +709,7 @@ public enum SqlIndex {
 
             if (fieldNames.size() > 1
                     || (field != null
-                    && field.as(SqlDatabase.FieldData.class).getIndexTable() != null)) {
+                    && field.as(AbstractSqlDatabase.FieldData.class).getIndexTable() != null)) {
                 return SqlIndex.CUSTOM;
 
             } else {
@@ -723,7 +723,7 @@ public enum SqlIndex {
          * Deletes all index rows associated with the given {@code states}.
          */
         public static void deleteByStates(
-                SqlDatabase database,
+                AbstractSqlDatabase database,
                 Connection connection,
                 List<State> states)
                 throws SQLException {
@@ -731,7 +731,7 @@ public enum SqlIndex {
         }
 
         private static void deleteByStates(
-                SqlDatabase database,
+                AbstractSqlDatabase database,
                 Connection connection,
                 ObjectIndex onlyIndex,
                 List<State> states)
@@ -765,7 +765,7 @@ public enum SqlIndex {
                     ObjectField field = index.getParent().getField(index.getFields().get(0));
                     if (field != null
                             && (index.getFields().size() > 1
-                            || field.as(SqlDatabase.FieldData.class).getIndexTable() != null)) {
+                            || field.as(AbstractSqlDatabase.FieldData.class).getIndexTable() != null)) {
                         customIndexes.add(index);
                     }
                 }
@@ -786,7 +786,7 @@ public enum SqlIndex {
                             deleteBuilder.append(" = ");
                             deleteBuilder.append(database.getReadSymbolId(onlyIndex.getUniqueName()));
                         }
-                        SqlDatabase.Static.executeUpdateWithArray(vendor, connection, deleteBuilder.toString());
+                        AbstractSqlDatabase.Static.executeUpdateWithArray(vendor, connection, deleteBuilder.toString());
                     }
                 }
             }
@@ -808,13 +808,13 @@ public enum SqlIndex {
                         deleteBuilder.append(" = ");
                         deleteBuilder.append(database.getReadSymbolId(onlyIndex.getUniqueName()));
                     }
-                    SqlDatabase.Static.executeUpdateWithArray(vendor, connection, deleteBuilder.toString());
+                    AbstractSqlDatabase.Static.executeUpdateWithArray(vendor, connection, deleteBuilder.toString());
                 }
             }
         }
 
         public static void updateByStates(
-                SqlDatabase database,
+                AbstractSqlDatabase database,
                 Connection connection,
                 ObjectIndex index,
                 List<State> states)
@@ -891,7 +891,7 @@ public enum SqlIndex {
                 List<State> tableStates = updateStates.get(name);
                 try {
                     if (!parameters.isEmpty()) {
-                        int[] rows = SqlDatabase.Static.executeBatchUpdate(connection, sqlQuery, parameters);
+                        int[] rows = AbstractSqlDatabase.Static.executeBatchUpdate(connection, sqlQuery, parameters);
                         for (int i = 0; i < rows.length; i++) {
                             if (rows[i] == 0) {
                                 needInserts.add(tableStates.get(i));
@@ -899,7 +899,7 @@ public enum SqlIndex {
                         }
                     }
                 } catch (BatchUpdateException bue) {
-                    SqlDatabase.Static.logBatchUpdateException(bue, sqlQuery, parameters);
+                    AbstractSqlDatabase.Static.logBatchUpdateException(bue, sqlQuery, parameters);
                     throw bue;
                 }
             }
@@ -917,7 +917,7 @@ public enum SqlIndex {
          * Inserts all index rows associated with the given {@code states}.
          */
         public static Map<State, String> insertByStates(
-                SqlDatabase database,
+                AbstractSqlDatabase database,
                 Connection connection,
                 List<State> states)
                 throws SQLException {
@@ -925,7 +925,7 @@ public enum SqlIndex {
         }
 
         private static Map<State, String> insertByStates(
-                SqlDatabase database,
+                AbstractSqlDatabase database,
                 Connection connection,
                 ObjectIndex onlyIndex,
                 List<State> states)
@@ -1005,10 +1005,10 @@ public enum SqlIndex {
                 List<List<Object>> parameters = insertParameters.get(name);
                 try {
                     if (!parameters.isEmpty()) {
-                        SqlDatabase.Static.executeBatchUpdate(connection, sqlQuery, parameters);
+                        AbstractSqlDatabase.Static.executeBatchUpdate(connection, sqlQuery, parameters);
                     }
                 } catch (BatchUpdateException bue) {
-                    SqlDatabase.Static.logBatchUpdateException(bue, sqlQuery, parameters);
+                    AbstractSqlDatabase.Static.logBatchUpdateException(bue, sqlQuery, parameters);
                     throw bue;
                 }
             }

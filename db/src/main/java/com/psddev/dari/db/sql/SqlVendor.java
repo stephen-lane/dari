@@ -50,13 +50,13 @@ public class SqlVendor {
 
     public static final int MAX_BYTES_SHORT_LENGTH = 500;
 
-    private SqlDatabase database;
+    private AbstractSqlDatabase database;
 
-    public SqlDatabase getDatabase() {
+    public AbstractSqlDatabase getDatabase() {
         return database;
     }
 
-    public void setDatabase(SqlDatabase database) {
+    public void setDatabase(AbstractSqlDatabase database) {
         this.database = database;
     }
 
@@ -93,7 +93,7 @@ public class SqlVendor {
      *
      * @param database Can't be {@code null}.
      */
-    public void setUp(SqlDatabase database) throws IOException, SQLException {
+    public void setUp(AbstractSqlDatabase database) throws IOException, SQLException {
         String resourcePath = getSetUpResourcePath();
 
         if (resourcePath == null) {
@@ -111,7 +111,7 @@ public class SqlVendor {
         Connection connection = database.openConnection();
 
         try {
-            if (hasTable(connection, SqlDatabase.RECORD_TABLE)) {
+            if (hasTable(connection, AbstractSqlDatabase.RECORD_TABLE)) {
                 return;
             }
 
@@ -230,7 +230,7 @@ public class SqlVendor {
             while (result.next()) {
                 String name = result.getString("COLUMN_NAME");
 
-                if (name != null && name.equalsIgnoreCase(SqlDatabase.IN_ROW_INDEX_COLUMN)) {
+                if (name != null && name.equalsIgnoreCase(AbstractSqlDatabase.IN_ROW_INDEX_COLUMN)) {
                     newHasInRowIndex = true;
                     break;
                 }
@@ -332,9 +332,9 @@ public class SqlVendor {
                 for (Region.LinearRing ring : polygon) {
                     builder.append("((");
                     for (Region.Coordinate coordinate : ring) {
-                        builder.append(SqlDatabase.quoteValue(coordinate.getLatitude())); // Latitude
+                        builder.append(AbstractSqlDatabase.quoteValue(coordinate.getLatitude())); // Latitude
                         builder.append(' ');
-                        builder.append(SqlDatabase.quoteValue(coordinate.getLongitude())); // Longitude
+                        builder.append(AbstractSqlDatabase.quoteValue(coordinate.getLongitude())); // Longitude
                         builder.append(", ");
                     }
                     builder.setLength(builder.length() - 2);
@@ -347,9 +347,9 @@ public class SqlVendor {
                     for (Region.LinearRing ring : polygon) {
                         builder.append("((");
                         for (Region.Coordinate coordinate : ring) {
-                            builder.append(SqlDatabase.quoteValue(coordinate.getLatitude())); // Latitude
+                            builder.append(AbstractSqlDatabase.quoteValue(coordinate.getLatitude())); // Latitude
                             builder.append(' ');
-                            builder.append(SqlDatabase.quoteValue(coordinate.getLongitude())); // Longitude
+                            builder.append(AbstractSqlDatabase.quoteValue(coordinate.getLongitude())); // Longitude
                             builder.append(", ");
                         }
                         builder.setLength(builder.length() - 2);
@@ -410,7 +410,7 @@ public class SqlVendor {
      */
     @Deprecated
     public void createTable(
-            SqlDatabase database,
+            AbstractSqlDatabase database,
             String tableName,
             Map<String, ColumnType> columns,
             List<String> primaryKeyColumns)
@@ -445,7 +445,7 @@ public class SqlVendor {
      */
     @Deprecated
     public void createIndex(
-            SqlDatabase database,
+            AbstractSqlDatabase database,
             String tableName,
             List<String> columns,
             boolean isUnique)
@@ -468,18 +468,18 @@ public class SqlVendor {
      * @deprecated Use {@link #setUp} instead.
      */
     @Deprecated
-    public void createRecord(SqlDatabase database) throws SQLException {
+    public void createRecord(AbstractSqlDatabase database) throws SQLException {
         if (database.hasTable(RECORD_TABLE_NAME)) {
             return;
         }
 
         Map<String, ColumnType> columns = new LinkedHashMap<String, ColumnType>();
-        columns.put(SqlDatabase.ID_COLUMN, ColumnType.UUID);
-        columns.put(SqlDatabase.TYPE_ID_COLUMN, ColumnType.UUID);
-        columns.put(SqlDatabase.DATA_COLUMN, ColumnType.BYTES_LONG);
+        columns.put(AbstractSqlDatabase.ID_COLUMN, ColumnType.UUID);
+        columns.put(AbstractSqlDatabase.TYPE_ID_COLUMN, ColumnType.UUID);
+        columns.put(AbstractSqlDatabase.DATA_COLUMN, ColumnType.BYTES_LONG);
 
-        createTable(database, RECORD_TABLE_NAME, columns, Arrays.asList(SqlDatabase.TYPE_ID_COLUMN, SqlDatabase.ID_COLUMN));
-        createIndex(database, RECORD_TABLE_NAME, Arrays.asList(SqlDatabase.ID_COLUMN), true);
+        createTable(database, RECORD_TABLE_NAME, columns, Arrays.asList(AbstractSqlDatabase.TYPE_ID_COLUMN, AbstractSqlDatabase.ID_COLUMN));
+        createIndex(database, RECORD_TABLE_NAME, Arrays.asList(AbstractSqlDatabase.ID_COLUMN), true);
     }
 
     private static final Map<SqlIndex, ColumnType> INDEX_TYPES; static {
@@ -497,7 +497,7 @@ public class SqlVendor {
      */
     @Deprecated
     public void createRecordIndex(
-            SqlDatabase database,
+            AbstractSqlDatabase database,
             String tableName,
             SqlIndex... types)
             throws SQLException {
@@ -507,54 +507,54 @@ public class SqlVendor {
         }
 
         Map<String, ColumnType> columns = new LinkedHashMap<String, ColumnType>();
-        columns.put(SqlDatabase.ID_COLUMN, ColumnType.UUID);
-        columns.put(SqlDatabase.TYPE_ID_COLUMN, ColumnType.UUID);
-        columns.put(SqlDatabase.SYMBOL_ID_COLUMN, ColumnType.INTEGER);
+        columns.put(AbstractSqlDatabase.ID_COLUMN, ColumnType.UUID);
+        columns.put(AbstractSqlDatabase.TYPE_ID_COLUMN, ColumnType.UUID);
+        columns.put(AbstractSqlDatabase.SYMBOL_ID_COLUMN, ColumnType.INTEGER);
         for (int i = 0, length = types.length; i < length; ++ i) {
-            columns.put(SqlDatabase.VALUE_COLUMN + (i == 0 ? "" : i + 1), INDEX_TYPES.get(types[i]));
+            columns.put(AbstractSqlDatabase.VALUE_COLUMN + (i == 0 ? "" : i + 1), INDEX_TYPES.get(types[i]));
         }
 
         List<String> primaryKeyColumns = new ArrayList<String>(columns.keySet());
         primaryKeyColumns.add(primaryKeyColumns.remove(0));
 
         createTable(database, tableName, columns, primaryKeyColumns);
-        createIndex(database, tableName, Arrays.asList(SqlDatabase.ID_COLUMN), false);
+        createIndex(database, tableName, Arrays.asList(AbstractSqlDatabase.ID_COLUMN), false);
     }
 
     /**
      * @deprecated Use {@link #setUp} instead.
      */
     @Deprecated
-    public void createRecordUpdate(SqlDatabase database) throws SQLException {
+    public void createRecordUpdate(AbstractSqlDatabase database) throws SQLException {
         if (database.hasTable(RECORD_UPDATE_TABLE_NAME)) {
             return;
         }
 
         Map<String, ColumnType> columns = new LinkedHashMap<String, ColumnType>();
-        columns.put(SqlDatabase.ID_COLUMN, ColumnType.UUID);
-        columns.put(SqlDatabase.TYPE_ID_COLUMN, ColumnType.UUID);
-        columns.put(SqlDatabase.UPDATE_DATE_COLUMN, ColumnType.DOUBLE);
+        columns.put(AbstractSqlDatabase.ID_COLUMN, ColumnType.UUID);
+        columns.put(AbstractSqlDatabase.TYPE_ID_COLUMN, ColumnType.UUID);
+        columns.put(AbstractSqlDatabase.UPDATE_DATE_COLUMN, ColumnType.DOUBLE);
 
-        createTable(database, RECORD_UPDATE_TABLE_NAME, columns, Arrays.asList(SqlDatabase.ID_COLUMN));
-        createIndex(database, RECORD_UPDATE_TABLE_NAME, Arrays.asList(SqlDatabase.TYPE_ID_COLUMN, SqlDatabase.UPDATE_DATE_COLUMN), false);
-        createIndex(database, RECORD_UPDATE_TABLE_NAME, Arrays.asList(SqlDatabase.UPDATE_DATE_COLUMN), false);
+        createTable(database, RECORD_UPDATE_TABLE_NAME, columns, Arrays.asList(AbstractSqlDatabase.ID_COLUMN));
+        createIndex(database, RECORD_UPDATE_TABLE_NAME, Arrays.asList(AbstractSqlDatabase.TYPE_ID_COLUMN, AbstractSqlDatabase.UPDATE_DATE_COLUMN), false);
+        createIndex(database, RECORD_UPDATE_TABLE_NAME, Arrays.asList(AbstractSqlDatabase.UPDATE_DATE_COLUMN), false);
     }
 
     /**
      * @deprecated Use {@link #setUp} instead.
      */
     @Deprecated
-    public void createSymbol(SqlDatabase database) throws SQLException {
+    public void createSymbol(AbstractSqlDatabase database) throws SQLException {
         if (database.hasTable(SYMBOL_TABLE_NAME)) {
             return;
         }
 
         Map<String, ColumnType> columns = new LinkedHashMap<String, ColumnType>();
-        columns.put(SqlDatabase.SYMBOL_ID_COLUMN, ColumnType.SERIAL);
-        columns.put(SqlDatabase.VALUE_COLUMN, ColumnType.BYTES_SHORT);
+        columns.put(AbstractSqlDatabase.SYMBOL_ID_COLUMN, ColumnType.SERIAL);
+        columns.put(AbstractSqlDatabase.VALUE_COLUMN, ColumnType.BYTES_SHORT);
 
-        createTable(database, SYMBOL_TABLE_NAME, columns, Arrays.asList(SqlDatabase.SYMBOL_ID_COLUMN));
-        createIndex(database, SYMBOL_TABLE_NAME, Arrays.asList(SqlDatabase.VALUE_COLUMN), true);
+        createTable(database, SYMBOL_TABLE_NAME, columns, Arrays.asList(AbstractSqlDatabase.SYMBOL_ID_COLUMN));
+        createIndex(database, SYMBOL_TABLE_NAME, Arrays.asList(AbstractSqlDatabase.VALUE_COLUMN), true);
     }
 
     protected void appendTablePrefix(
@@ -691,7 +691,7 @@ public class SqlVendor {
         builder.append(')');
     }
 
-    private void executeDdl(SqlDatabase database, StringBuilder ddlBuilder) throws SQLException {
+    private void executeDdl(AbstractSqlDatabase database, StringBuilder ddlBuilder) throws SQLException {
         String ddl = ddlBuilder.toString();
         ddlBuilder.setLength(0);
 
@@ -710,7 +710,7 @@ public class SqlVendor {
     }
 
     protected void appendSelectFields(StringBuilder builder, List<String> fields) {
-        appendIdentifier(builder, SqlDatabase.DATA_COLUMN);
+        appendIdentifier(builder, AbstractSqlDatabase.DATA_COLUMN);
     }
 
     public boolean isDuplicateKeyException(SQLException ex) {
@@ -930,7 +930,7 @@ public class SqlVendor {
 
         @Override
         protected void appendSelectFields(StringBuilder builder, List<String> fields) {
-            SqlDatabase database = getDatabase();
+            AbstractSqlDatabase database = getDatabase();
 
             if (hasUdfGetFields == null) {
                 Connection connection = database.openConnection();
@@ -963,7 +963,7 @@ public class SqlVendor {
 
             if (Boolean.TRUE.equals(hasUdfGetFields)) {
                 builder.append("dari_get_fields(r.");
-                appendIdentifier(builder, SqlDatabase.DATA_COLUMN);
+                appendIdentifier(builder, AbstractSqlDatabase.DATA_COLUMN);
 
                 for (ObjectField field : database.getEnvironment().getFields()) {
                     builder.append(", ");
@@ -979,7 +979,7 @@ public class SqlVendor {
 
             } else {
                 builder.append("r.");
-                appendIdentifier(builder, SqlDatabase.DATA_COLUMN);
+                appendIdentifier(builder, AbstractSqlDatabase.DATA_COLUMN);
             }
         }
 
@@ -991,7 +991,7 @@ public class SqlVendor {
         /* Spatial Support */
 
         public String getGeometryContainsMethod() {
-            SqlDatabase database = getDatabase();
+            AbstractSqlDatabase database = getDatabase();
 
             if (hasSTMethod == null) {
                 Connection connection = database.openConnection();
@@ -1038,9 +1038,9 @@ public class SqlVendor {
                     for (Region.LinearRing ring : polygon) {
                         b.append("((");
                         for (Region.Coordinate coordinate : ring) {
-                            b.append(SqlDatabase.quoteValue(coordinate.getLatitude()));
+                            b.append(AbstractSqlDatabase.quoteValue(coordinate.getLatitude()));
                             b.append(' ');
-                            b.append(SqlDatabase.quoteValue(coordinate.getLongitude()));
+                            b.append(AbstractSqlDatabase.quoteValue(coordinate.getLongitude()));
                             b.append(", ");
                         }
                         b.setLength(b.length() - 2);
@@ -1053,9 +1053,9 @@ public class SqlVendor {
                         for (Region.LinearRing ring : polygon) {
                             b.append("((");
                             for (Region.Coordinate coordinate : ring) {
-                                b.append(SqlDatabase.quoteValue(coordinate.getLatitude()));
+                                b.append(AbstractSqlDatabase.quoteValue(coordinate.getLatitude()));
                                 b.append(' ');
-                                b.append(SqlDatabase.quoteValue(coordinate.getLongitude()));
+                                b.append(AbstractSqlDatabase.quoteValue(coordinate.getLongitude()));
                                 b.append(", ");
                             }
                             b.setLength(b.length() - 2);
@@ -1076,9 +1076,9 @@ public class SqlVendor {
 
             builder.append(getGeometryContainsMethod() + "(GEOMFROMTEXT('POLYGON((");
             for (Location location : locations) {
-                builder.append(SqlDatabase.quoteValue(location.getX()));
+                builder.append(AbstractSqlDatabase.quoteValue(location.getX()));
                 builder.append(' ');
-                builder.append(SqlDatabase.quoteValue(location.getY()));
+                builder.append(AbstractSqlDatabase.quoteValue(location.getY()));
                 builder.append(", ");
             }
             builder.setLength(builder.length() - 2);
@@ -1091,9 +1091,9 @@ public class SqlVendor {
             builder.append(getGeometryContainsMethod() + "(");
             builder.append(field);
             builder.append(", GEOMFROMTEXT('POINT(");
-            builder.append(SqlDatabase.quoteValue(location.getX()));
+            builder.append(AbstractSqlDatabase.quoteValue(location.getX()));
             builder.append(' ');
-            builder.append(SqlDatabase.quoteValue(location.getY()));
+            builder.append(AbstractSqlDatabase.quoteValue(location.getY()));
             builder.append(")'))");
         }
 
@@ -1121,7 +1121,7 @@ public class SqlVendor {
         @Override
         public void appendMetricUpdateDataSql(StringBuilder sql, String columnIdentifier, List<Object> parameters, double amount, long eventDate, boolean increment, boolean updateFuture) {
 
-            SqlDatabase database = getDatabase();
+            AbstractSqlDatabase database = getDatabase();
 
             if (hasUdfIncrementMetric == null) {
                 Connection connection = database.openConnection();
@@ -1416,9 +1416,9 @@ public class SqlVendor {
             builder.append("ST_Contains(");
             builder.append(field);
             builder.append(", ST_GEOMFROMTEXT('POINT(");
-            builder.append(SqlDatabase.quoteValue(location.getX()));
+            builder.append(AbstractSqlDatabase.quoteValue(location.getX()));
             builder.append(' ');
-            builder.append(SqlDatabase.quoteValue(location.getY()));
+            builder.append(AbstractSqlDatabase.quoteValue(location.getY()));
             builder.append(")', 4326))");
         }
 
@@ -1460,9 +1460,9 @@ public class SqlVendor {
                     for (Region.LinearRing ring : polygon) {
                         b.append("((");
                         for (Region.Coordinate coordinate : ring) {
-                            b.append(SqlDatabase.quoteValue(coordinate.getLatitude()));
+                            b.append(AbstractSqlDatabase.quoteValue(coordinate.getLatitude()));
                             b.append(' ');
-                            b.append(SqlDatabase.quoteValue(coordinate.getLongitude()));
+                            b.append(AbstractSqlDatabase.quoteValue(coordinate.getLongitude()));
                             b.append(", ");
                         }
                         b.setLength(b.length() - 2);
@@ -1475,9 +1475,9 @@ public class SqlVendor {
                         for (Region.LinearRing ring : polygon) {
                             b.append("((");
                             for (Region.Coordinate coordinate : ring) {
-                                b.append(SqlDatabase.quoteValue(coordinate.getLatitude()));
+                                b.append(AbstractSqlDatabase.quoteValue(coordinate.getLatitude()));
                                 b.append(' ');
-                                b.append(SqlDatabase.quoteValue(coordinate.getLongitude()));
+                                b.append(AbstractSqlDatabase.quoteValue(coordinate.getLongitude()));
                                 b.append(", ");
                             }
                             b.setLength(b.length() - 2);
@@ -1766,7 +1766,7 @@ public class SqlVendor {
 
             try {
                 statement.setString(1, recordTable);
-                statement.setString(2, SqlDatabase.IN_ROW_INDEX_COLUMN);
+                statement.setString(2, AbstractSqlDatabase.IN_ROW_INDEX_COLUMN);
 
                 ResultSet result = statement.executeQuery();
 

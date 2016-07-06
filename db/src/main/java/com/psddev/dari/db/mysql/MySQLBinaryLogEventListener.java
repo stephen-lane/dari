@@ -11,7 +11,7 @@ import java.util.regex.Pattern;
 import com.github.shyiko.mysql.binlog.event.WriteRowsEventData;
 import com.google.common.base.Charsets;
 import com.psddev.dari.db.StateValueUtils;
-import com.psddev.dari.db.sql.SqlDatabase;
+import com.psddev.dari.db.sql.AbstractSqlDatabase;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,7 +35,7 @@ class MySQLBinaryLogEventListener implements EventListener {
     private static final Pattern DELETE_PATTERN = Pattern.compile("DELETE\\s+FROM\\s+`?(?<table>\\p{Alnum}+)`?\\s+WHERE\\s+`?id`?\\s*(?:(?:IN\\s*\\()|(?:=))\\s*(?<id>(?:(?:[^\']+'){2},?\\s*){1,})\\)?", Pattern.CASE_INSENSITIVE);
     private static final Pattern UPDATE_PATTERN = Pattern.compile("UPDATE\\s+`?(?<table>\\p{Alnum}+)`?\\s+SET\\s+`?typeId`?\\s*=\\s*(?<typeId>(?:[^\']+'){2})\\s*,\\s*`?data`?\\s*=\\s*(?<data>.+)\\s*WHERE\\s+`?id`?\\s*(?:(?:IN\\s*\\()|(?:=))\\s*(?<id>(?:[^\']+'){2}).*", Pattern.CASE_INSENSITIVE);
 
-    private final SqlDatabase database;
+    private final AbstractSqlDatabase database;
     private final Cache<UUID, Object[]> cache;
     private final String catalog;
 
@@ -44,7 +44,7 @@ class MySQLBinaryLogEventListener implements EventListener {
     private final List<Event> events = new ArrayList<Event>();
     private boolean isFlushCache = false;
 
-    public MySQLBinaryLogEventListener(SqlDatabase database, Cache<UUID, Object[]> cache, String catalog) {
+    public MySQLBinaryLogEventListener(AbstractSqlDatabase database, Cache<UUID, Object[]> cache, String catalog) {
         this.database = database;
         this.cache = cache;
         this.catalog = catalog;
@@ -73,7 +73,7 @@ class MySQLBinaryLogEventListener implements EventListener {
             UUID bid = ObjectUtils.to(UUID.class, id);
             Object[] value = new Object[3];
             value[1] = data;
-            Map<String, Object> jsonData = SqlDatabase.unserializeData(data);
+            Map<String, Object> jsonData = AbstractSqlDatabase.unserializeData(data);
             value[2] = jsonData;
             value[0] = UuidUtils.toBytes(ObjectUtils.to(UUID.class, jsonData.get(StateValueUtils.TYPE_KEY)));
 
@@ -240,7 +240,7 @@ class MySQLBinaryLogEventListener implements EventListener {
                     && statementParts[1].equalsIgnoreCase("TABLE")) {
                 table = statementParts[2];
             }
-            if (SqlDatabase.RECORD_TABLE.equalsIgnoreCase(table)) {
+            if (AbstractSqlDatabase.RECORD_TABLE.equalsIgnoreCase(table)) {
                 byte[] byteStatement = queryEventData.getStatement();
                 if (statementParts[0].equalsIgnoreCase("UPDATE")) {
                     queryEventData.setActionl(DariQueryEventData.Action.UPDATE);
@@ -322,7 +322,7 @@ class MySQLBinaryLogEventListener implements EventListener {
                         tableMapEventData = null;
                     }
                 } else if (eventType == EventType.TABLE_MAP) {
-                    if (((TableMapEventData) eventData).getDatabase().equals(catalog) && ((TableMapEventData) eventData).getTable().equalsIgnoreCase(SqlDatabase.RECORD_TABLE)) {
+                    if (((TableMapEventData) eventData).getDatabase().equals(catalog) && ((TableMapEventData) eventData).getTable().equalsIgnoreCase(AbstractSqlDatabase.RECORD_TABLE)) {
                         tableMapEventData = (TableMapEventData) eventData;
                     }
                 } else if (eventType == EventType.QUERY) {

@@ -45,7 +45,7 @@ class SqlQuery {
     private static final Pattern QUERY_KEY_PATTERN = Pattern.compile("\\$\\{([^}]+)\\}");
     //private static final Logger LOGGER = LoggerFactory.getLogger(SqlQuery.class);
 
-    private final SqlDatabase database;
+    private final AbstractSqlDatabase database;
     private final Query<?> query;
     private final String aliasPrefix;
 
@@ -95,7 +95,7 @@ class SqlQuery {
      * with the given {@code database}.
      */
     public SqlQuery(
-            SqlDatabase initialDatabase,
+            AbstractSqlDatabase initialDatabase,
             Query<?> initialQuery,
             String initialAliasPrefix) {
 
@@ -104,9 +104,9 @@ class SqlQuery {
         aliasPrefix = initialAliasPrefix;
 
         vendor = database.getVendor();
-        recordIdField = aliasedField("r", SqlDatabase.ID_COLUMN);
-        recordTypeIdField = aliasedField("r", SqlDatabase.TYPE_ID_COLUMN);
-        recordInRowIndexField = aliasedField("r", SqlDatabase.IN_ROW_INDEX_COLUMN);
+        recordIdField = aliasedField("r", AbstractSqlDatabase.ID_COLUMN);
+        recordTypeIdField = aliasedField("r", AbstractSqlDatabase.TYPE_ID_COLUMN);
+        recordInRowIndexField = aliasedField("r", AbstractSqlDatabase.IN_ROW_INDEX_COLUMN);
         mappedKeys = query.mapEmbeddedKeys(database.getEnvironment());
         selectedIndexes = new HashMap<String, ObjectIndex>();
 
@@ -150,7 +150,7 @@ class SqlQuery {
         }
     }
 
-    public SqlQuery(SqlDatabase initialDatabase, Query<?> initialQuery) {
+    public SqlQuery(AbstractSqlDatabase initialDatabase, Query<?> initialQuery) {
         this(initialDatabase, initialQuery, "");
     }
 
@@ -187,7 +187,7 @@ class SqlQuery {
 
         for (ObjectType type : queryTypes) {
             for (ObjectField field : type.getFields()) {
-                SqlDatabase.FieldData fieldData = field.as(SqlDatabase.FieldData.class);
+                AbstractSqlDatabase.FieldData fieldData = field.as(AbstractSqlDatabase.FieldData.class);
                 if (fieldData.isIndexTableSource()
                         && fieldData.getIndexTable() != null
                         && !field.isMetric()) {
@@ -210,7 +210,7 @@ class SqlQuery {
 
                 if (type != null) {
                     for (ObjectField field : type.getFields()) {
-                        SqlDatabase.FieldData fieldData = field.as(SqlDatabase.FieldData.class);
+                        AbstractSqlDatabase.FieldData fieldData = field.as(AbstractSqlDatabase.FieldData.class);
                         if (fieldData.isIndexTableSource() && fieldData.getIndexTable() != null && !field.isMetric()) {
                             sourceTables.add(field);
                         }
@@ -219,7 +219,7 @@ class SqlQuery {
             }
         }
 
-        String extraJoins = ObjectUtils.to(String.class, query.getOptions().get(SqlDatabase.EXTRA_JOINS_QUERY_OPTION));
+        String extraJoins = ObjectUtils.to(String.class, query.getOptions().get(AbstractSqlDatabase.EXTRA_JOINS_QUERY_OPTION));
 
         if (extraJoins != null) {
             Matcher queryKeyMatcher = QUERY_KEY_PATTERN.matcher(extraJoins);
@@ -247,7 +247,7 @@ class SqlQuery {
         StringBuilder whereBuilder = new StringBuilder();
         whereBuilder.append("\nWHERE ");
 
-        String extraWhere = ObjectUtils.to(String.class, query.getOptions().get(SqlDatabase.EXTRA_WHERE_QUERY_OPTION));
+        String extraWhere = ObjectUtils.to(String.class, query.getOptions().get(AbstractSqlDatabase.EXTRA_WHERE_QUERY_OPTION));
         if (!ObjectUtils.isBlank(extraWhere)) {
             whereBuilder.append('(');
         }
@@ -373,7 +373,7 @@ class SqlQuery {
         StringBuilder extraColumnsBuilder = new StringBuilder();
         Set<String> sourceTableColumns = new HashSet<String>();
         for (ObjectField field : sourceTables) {
-            SqlDatabase.FieldData fieldData = field.as(SqlDatabase.FieldData.class);
+            AbstractSqlDatabase.FieldData fieldData = field.as(AbstractSqlDatabase.FieldData.class);
             StringBuilder sourceTableNameBuilder = new StringBuilder();
             vendor.appendIdentifier(sourceTableNameBuilder, fieldData.getIndexTable());
             String sourceTableName = sourceTableNameBuilder.toString();
@@ -498,7 +498,7 @@ class SqlQuery {
             }
         }
 
-        String extraHaving = ObjectUtils.to(String.class, query.getOptions().get(SqlDatabase.EXTRA_HAVING_QUERY_OPTION));
+        String extraHaving = ObjectUtils.to(String.class, query.getOptions().get(AbstractSqlDatabase.EXTRA_HAVING_QUERY_OPTION));
         havingBuilder.append(ObjectUtils.isBlank(extraHaving) ? "" : ("\n" + (ObjectUtils.isBlank(this.havingClause) ? "HAVING" : "AND") + " " + extraHaving));
         this.havingClause = havingBuilder.toString();
 
@@ -1432,16 +1432,16 @@ class SqlQuery {
         maxData.append(')');
 
         sql.append("SELECT ");
-        appendSimpleAliasedColumn(sql, vendor, "r", SqlDatabase.ID_COLUMN);
+        appendSimpleAliasedColumn(sql, vendor, "r", AbstractSqlDatabase.ID_COLUMN);
         sql.append(", ");
-        appendSimpleAliasedColumn(sql, vendor, "r", SqlDatabase.TYPE_ID_COLUMN);
+        appendSimpleAliasedColumn(sql, vendor, "r", AbstractSqlDatabase.TYPE_ID_COLUMN);
         sql.append(", ");
         MetricAccess.Static.appendSelectCalculatedAmountSql(sql, vendor, minData.toString(), maxData.toString(), false);
         sql.append(' ');
         vendor.appendAlias(sql, metricField.getInternalName());
         sql.append(" FROM ");
 
-        vendor.appendIdentifier(sql, SqlDatabase.RECORD_TABLE);
+        vendor.appendIdentifier(sql, AbstractSqlDatabase.RECORD_TABLE);
         sql.append(" ");
         vendor.appendIdentifier(sql, "r");
 
@@ -1455,9 +1455,9 @@ class SqlQuery {
         sql.append(" ");
         vendor.appendIdentifier(sql, "m2");
         sql.append(" ON (\n");
-        appendSimpleOnClause(sql, vendor, "r", SqlDatabase.ID_COLUMN, "=", "m2", MetricAccess.METRIC_ID_FIELD);
+        appendSimpleOnClause(sql, vendor, "r", AbstractSqlDatabase.ID_COLUMN, "=", "m2", MetricAccess.METRIC_ID_FIELD);
         sql.append(" AND \n");
-        appendSimpleOnClause(sql, vendor, "r", SqlDatabase.TYPE_ID_COLUMN, "=", "m2", MetricAccess.METRIC_TYPE_FIELD);
+        appendSimpleOnClause(sql, vendor, "r", AbstractSqlDatabase.TYPE_ID_COLUMN, "=", "m2", MetricAccess.METRIC_TYPE_FIELD);
         sql.append(" AND \n");
         appendSimpleWhereClause(sql, vendor, "m2", MetricAccess.METRIC_SYMBOL_FIELD, "=", database.getReadSymbolId(actionSymbol));
         // If a dimensionId is not specified, we will append dimensionId = 00000000000000000000000000000000
@@ -1487,9 +1487,9 @@ class SqlQuery {
         sql.append(whereClause);
 
         sql.append(" GROUP BY ");
-        appendSimpleAliasedColumn(sql, vendor, "r", SqlDatabase.ID_COLUMN);
+        appendSimpleAliasedColumn(sql, vendor, "r", AbstractSqlDatabase.ID_COLUMN);
         sql.append(", ");
-        appendSimpleAliasedColumn(sql, vendor, "r", SqlDatabase.TYPE_ID_COLUMN);
+        appendSimpleAliasedColumn(sql, vendor, "r", AbstractSqlDatabase.TYPE_ID_COLUMN);
         sql.append(", ");
         appendSimpleAliasedColumn(sql, vendor, "m2", MetricAccess.METRIC_DIMENSION_FIELD);
 
@@ -1506,7 +1506,7 @@ class SqlQuery {
             havingBuilder.append(havingChildBuilder);
         }
 
-        String extraHaving = ObjectUtils.to(String.class, query.getOptions().get(SqlDatabase.EXTRA_HAVING_QUERY_OPTION));
+        String extraHaving = ObjectUtils.to(String.class, query.getOptions().get(AbstractSqlDatabase.EXTRA_HAVING_QUERY_OPTION));
         havingBuilder.append(ObjectUtils.isBlank(extraHaving) ? "" : ("\n" + (ObjectUtils.isBlank(this.havingClause) ? "HAVING" : "AND") + " " + extraHaving));
         havingClause = havingBuilder.toString();
 
@@ -1594,7 +1594,7 @@ class SqlQuery {
             }
         }
 
-        String extraColumns = ObjectUtils.to(String.class, query.getOptions().get(SqlDatabase.EXTRA_COLUMNS_QUERY_OPTION));
+        String extraColumns = ObjectUtils.to(String.class, query.getOptions().get(AbstractSqlDatabase.EXTRA_COLUMNS_QUERY_OPTION));
 
         if (extraColumns != null) {
             statementBuilder.append(", ");
@@ -1609,9 +1609,9 @@ class SqlQuery {
         if (!needsDistinct && !subSqlQueries.isEmpty()) {
             for (Map.Entry<Query<?>, SqlQuery> entry : subSqlQueries.entrySet()) {
                 SqlQuery subSqlQuery = entry.getValue();
-                statementBuilder.append(", " + subSqlQuery.aliasPrefix + "r." + SqlDatabase.ID_COLUMN + " AS " + SqlDatabase.SUB_DATA_COLUMN_ALIAS_PREFIX + subSqlQuery.aliasPrefix + "_" + SqlDatabase.ID_COLUMN);
-                statementBuilder.append(", " + subSqlQuery.aliasPrefix + "r." + SqlDatabase.TYPE_ID_COLUMN + " AS " + SqlDatabase.SUB_DATA_COLUMN_ALIAS_PREFIX + subSqlQuery.aliasPrefix + "_" + SqlDatabase.TYPE_ID_COLUMN);
-                statementBuilder.append(", " + subSqlQuery.aliasPrefix + "r." + SqlDatabase.DATA_COLUMN + " AS " + SqlDatabase.SUB_DATA_COLUMN_ALIAS_PREFIX + subSqlQuery.aliasPrefix + "_" + SqlDatabase.DATA_COLUMN);
+                statementBuilder.append(", " + subSqlQuery.aliasPrefix + "r." + AbstractSqlDatabase.ID_COLUMN + " AS " + AbstractSqlDatabase.SUB_DATA_COLUMN_ALIAS_PREFIX + subSqlQuery.aliasPrefix + "_" + AbstractSqlDatabase.ID_COLUMN);
+                statementBuilder.append(", " + subSqlQuery.aliasPrefix + "r." + AbstractSqlDatabase.TYPE_ID_COLUMN + " AS " + AbstractSqlDatabase.SUB_DATA_COLUMN_ALIAS_PREFIX + subSqlQuery.aliasPrefix + "_" + AbstractSqlDatabase.TYPE_ID_COLUMN);
+                statementBuilder.append(", " + subSqlQuery.aliasPrefix + "r." + AbstractSqlDatabase.DATA_COLUMN + " AS " + AbstractSqlDatabase.SUB_DATA_COLUMN_ALIAS_PREFIX + subSqlQuery.aliasPrefix + "_" + AbstractSqlDatabase.DATA_COLUMN);
             }
         }
 
@@ -1670,7 +1670,7 @@ class SqlQuery {
             }
 
             distinctBuilder.append(" FROM ");
-            vendor.appendIdentifier(distinctBuilder, SqlDatabase.RECORD_TABLE);
+            vendor.appendIdentifier(distinctBuilder, AbstractSqlDatabase.RECORD_TABLE);
             distinctBuilder.append(" r INNER JOIN (");
             distinctBuilder.append(statementBuilder.toString());
             distinctBuilder.append(") d0 ON (r.id = d0.id)");
@@ -1768,7 +1768,7 @@ class SqlQuery {
         String alias = "i" + joins.size();
         Join join = new Join(alias, queryKey);
         joins.add(join);
-        if (queryKey.equals(query.getOptions().get(SqlDatabase.MYSQL_INDEX_HINT_QUERY_OPTION))) {
+        if (queryKey.equals(query.getOptions().get(AbstractSqlDatabase.MYSQL_INDEX_HINT_QUERY_OPTION))) {
             mysqlIndexHint = join;
         }
         return join;
@@ -2045,7 +2045,7 @@ class SqlQuery {
         }
 
         public Object quoteIndexKey(String indexKey) {
-            return SqlDatabase.quoteValue(sqlIndexTable.convertReadKey(database, index, indexKey));
+            return AbstractSqlDatabase.quoteValue(sqlIndexTable.convertReadKey(database, index, indexKey));
         }
 
         public void appendValue(StringBuilder builder, ComparisonPredicate comparison, Object value) {

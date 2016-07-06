@@ -13,7 +13,7 @@ import java.util.regex.Pattern;
 
 import javax.sql.DataSource;
 
-import com.psddev.dari.db.sql.SqlDatabase;
+import com.psddev.dari.db.sql.AbstractSqlDatabase;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,12 +43,12 @@ public class MySQLBinaryLogReader {
     private static final Pattern MYSQL_JDBC_URL_PATTERN = Pattern.compile("(?i)jdbc:mysql://([^:/]+)(?::(\\d+))?/([^?]+).*");
     private static final SecureRandom RANDOM = new SecureRandom();
 
-    private final SqlDatabase database;
+    private final AbstractSqlDatabase database;
     private final BinaryLogClient client;
     private final MySQLBinaryLogLifecycleListener lifecycleListener;
     private final AtomicBoolean running = new AtomicBoolean();
 
-    public MySQLBinaryLogReader(SqlDatabase database, Cache<UUID, Object[]> cache, DataSource dataSource) {
+    public MySQLBinaryLogReader(AbstractSqlDatabase database, Cache<UUID, Object[]> cache, DataSource dataSource) {
         this.database = database;
 
         Class<?> dataSourceClass = dataSource.getClass();

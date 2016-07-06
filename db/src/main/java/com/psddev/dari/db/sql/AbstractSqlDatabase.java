@@ -98,7 +98,7 @@ import com.psddev.dari.util.TypeDefinition;
 import com.psddev.dari.util.UuidUtils;
 
 /** Database backed by a SQL engine. */
-public class SqlDatabase extends AbstractDatabase<Connection> {
+public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
 
     public static final String DATA_SOURCE_SETTING = "dataSource";
     public static final String DATA_SOURCE_JNDI_NAME_SETTING = "dataSourceJndiName";
@@ -162,7 +162,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
 
     public static final String SUB_DATA_COLUMN_ALIAS_PREFIX = "subData_";
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(SqlDatabase.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(AbstractSqlDatabase.class);
     private static final String SHORT_NAME = "SQL";
     private static final Stats STATS = new Stats(SHORT_NAME);
     private static final String CONNECTION_ERROR_STATS_OPERATION = "Connection Error";
@@ -178,7 +178,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
     public static final long DEFAULT_REPLICATION_CACHE_SIZE = 10000L;
     public static final long DEFAULT_DATA_CACHE_SIZE = 10000L;
 
-    private static final List<SqlDatabase> INSTANCES = new ArrayList<SqlDatabase>();
+    private static final List<AbstractSqlDatabase> INSTANCES = new ArrayList<AbstractSqlDatabase>();
 
     {
         INSTANCES.add(this);
@@ -199,7 +199,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
     private final transient ConcurrentMap<Class<?>, UUID> singletonIds = new ConcurrentHashMap<>();
     private transient volatile Cache<UUID, Object[]> replicationCache;
     private transient volatile MySQLBinaryLogReader mysqlBinaryLogReader;
-    private transient volatile FunnelCache<SqlDatabase> funnelCache;
+    private transient volatile FunnelCache<AbstractSqlDatabase> funnelCache;
     private final List<UpdateNotifier<?>> updateNotifiers = new ArrayList<>();
 
     /**
@@ -228,7 +228,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
 
     /** Closes all resources used by all instances. */
     public static void closeAll() {
-        for (SqlDatabase database : INSTANCES) {
+        for (AbstractSqlDatabase database : INSTANCES) {
             database.close();
         }
         INSTANCES.clear();
@@ -852,7 +852,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
             .build(new CacheLoader<Query<?>, String>() {
                 @Override
                 public String load(Query<?> query) throws Exception {
-                    return new SqlQuery(SqlDatabase.this, query).selectStatement();
+                    return new SqlQuery(AbstractSqlDatabase.this, query).selectStatement();
                 }
             });
 
@@ -989,7 +989,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
 
         public Connection getOrOpen(Query<?> query) {
             if (connection == null) {
-                connection = SqlDatabase.super.openQueryConnection(query);
+                connection = AbstractSqlDatabase.super.openQueryConnection(query);
             }
             return connection;
         }
@@ -1083,7 +1083,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
             if ((unresolvedTypeIds == null || !unresolvedTypeIds.contains(type.getId()))
                     && !queryTypes.contains(type)) {
                 for (ObjectField field : type.getFields()) {
-                    SqlDatabase.FieldData fieldData = field.as(SqlDatabase.FieldData.class);
+                    AbstractSqlDatabase.FieldData fieldData = field.as(AbstractSqlDatabase.FieldData.class);
 
                     if (fieldData.isIndexTableSource() && !field.isMetric()) {
                         loadExtraFields.add(field);
@@ -1907,7 +1907,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
         }
 
         if (isEnableFunnelCache()) {
-            funnelCache = new FunnelCache<SqlDatabase>(this, settings);
+            funnelCache = new FunnelCache<AbstractSqlDatabase>(this, settings);
         }
     }
 
@@ -3080,7 +3080,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
         }
     }
 
-    private static final class FunnelCacheProducer implements FunnelCachedObjectProducer<SqlDatabase> {
+    private static final class FunnelCacheProducer implements FunnelCachedObjectProducer<AbstractSqlDatabase> {
 
         private final String sqlQuery;
         private final Query<?> query;
@@ -3106,7 +3106,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
         }
 
         @Override
-        public List<FunnelCachedObject> produce(SqlDatabase db) {
+        public List<FunnelCachedObject> produce(AbstractSqlDatabase db) {
             ConnectionRef extraConnectionRef = db.new ConnectionRef();
             Connection connection = null;
             Statement statement = null;
@@ -3151,10 +3151,10 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
         }
     }
 
-    /** {@link SqlDatabase} utility methods. */
+    /** {@link AbstractSqlDatabase} utility methods. */
     public static final class Static {
 
-        public static List<SqlDatabase> getAll() {
+        public static List<AbstractSqlDatabase> getAll() {
             return INSTANCES;
         }
 

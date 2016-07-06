@@ -11,7 +11,7 @@ import com.psddev.dari.util.StringUtils;
 
 /**
  * Thrown when there's an error while executing any of the
- * {@link SqlDatabase} methods.
+ * {@link AbstractSqlDatabase} methods.
  */
 @SuppressWarnings("serial")
 public class SqlDatabaseException extends DatabaseException {
@@ -20,7 +20,7 @@ public class SqlDatabaseException extends DatabaseException {
     private final Query<?> query;
 
     public SqlDatabaseException(
-            SqlDatabase database,
+            AbstractSqlDatabase database,
             SQLException cause,
             String sqlQuery,
             Query<?> query) {
@@ -30,13 +30,13 @@ public class SqlDatabaseException extends DatabaseException {
         this.query = query;
     }
 
-    public SqlDatabaseException(SqlDatabase database, String message, SQLException cause) {
+    public SqlDatabaseException(AbstractSqlDatabase database, String message, SQLException cause) {
         super(database, message, cause);
         this.sqlQuery = null;
         this.query = null;
     }
 
-    public SqlDatabaseException(SqlDatabase database, String message) {
+    public SqlDatabaseException(AbstractSqlDatabase database, String message) {
         super(database, message);
         this.sqlQuery = null;
         this.query = null;
@@ -72,7 +72,7 @@ public class SqlDatabaseException extends DatabaseException {
             implements DatabaseException.ReadTimeout, HtmlObject {
 
         public ReadTimeout(
-                SqlDatabase database,
+                AbstractSqlDatabase database,
                 SQLException cause,
                 String sqlQuery,
                 Query<?> query) {
