@@ -11,6 +11,7 @@ import com.psddev.dari.db.Singleton;
 import com.psddev.dari.db.State;
 import com.psddev.dari.db.StateValueUtils;
 import com.psddev.dari.db.sql.AbstractSqlDatabase;
+import com.psddev.dari.db.sql.SqlSchema;
 import com.psddev.dari.db.sql.SqlVendor;
 import com.psddev.dari.util.CompactMap;
 import com.psddev.dari.util.ObjectUtils;
@@ -73,6 +74,11 @@ public class MySQLDatabase extends AbstractSqlDatabase {
     @Override
     protected SQLDialect dialect() {
         return SQLDialect.MYSQL;
+    }
+
+    @Override
+    protected SqlSchema schema() {
+        return MySQLSchema.INSTANCE;
     }
 
     @Override

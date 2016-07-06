@@ -62,7 +62,6 @@ import com.zaxxer.hikari.HikariDataSource;
 import org.iq80.snappy.Snappy;
 import org.jooq.DSLContext;
 import org.jooq.Field;
-import org.jooq.Record;
 import org.jooq.Record1;
 import org.jooq.Record2;
 import org.jooq.ResultQuery;
@@ -70,7 +69,6 @@ import org.jooq.SQLDialect;
 import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
-import org.jooq.impl.SQLDataType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -144,11 +142,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     public static final String SUB_DATA_COLUMN_ALIAS_PREFIX = "subData_";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AbstractSqlDatabase.class);
-
-    // Symbol table and its fields.
-    private static final Table<Record> SYMBOL = DSL.table(DSL.name("Symbol"));
-    private static final Field<Integer> SYMBOL_ID = DSL.field(DSL.name("symbolId"), SQLDataType.INTEGER);
-    private static final Field<byte[]> SYMBOL_VALUE = DSL.field(DSL.name("value"), SQLDataType.VARBINARY);
 
     private static final String SHORT_NAME = "SQL";
     private static final Stats STATS = new Stats(SHORT_NAME);
@@ -257,13 +250,14 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             Connection connection = openConnection();
 
             try (DSLContext context = openContext(connection)) {
-                ResultQuery<Record2<Integer, byte[]>> query = context
-                        .select(SYMBOL_ID, SYMBOL_VALUE)
-                        .from(SYMBOL);
+                SqlSchema schema = schema();
+                ResultQuery<Record2<Integer, String>> query = context
+                        .select(schema.symbolId(), schema.symbolValue())
+                        .from(schema.symbol());
 
                 try {
                     Map<String, Integer> symbolIds = new ConcurrentHashMap<>();
-                    query.fetch().forEach(r -> symbolIds.put(new String(r.value2(), StandardCharsets.UTF_8), r.value1()));
+                    query.fetch().forEach(r -> symbolIds.put(r.value2(), r.value1()));
                     return symbolIds;
 
                 } catch (DataAccessException error) {
@@ -508,6 +502,13 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     /**
      * @return Never {@code null}.
      */
+    protected SqlSchema schema() {
+        return SqlSchema.INSTANCE;
+    }
+
+    /**
+     * @return Never {@code null}.
+     */
     protected DSLContext openContext(Connection connection) {
         return DSL.using(connection, dialect());
     }
@@ -623,10 +624,12 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         Connection connection = openAnyConnection();
 
         try (DSLContext context = openContext(connection)) {
+            SqlSchema schema = schema();
+
             if (create) {
                 org.jooq.Query createQuery = context
-                        .insertInto(SYMBOL, SYMBOL_VALUE)
-                        .values(symbol.getBytes(StandardCharsets.UTF_8))
+                        .insertInto(schema.symbol(), schema.symbolValue())
+                        .values(symbol)
                         .onDuplicateKeyIgnore();
 
                 try {
@@ -638,9 +641,9 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             }
 
             ResultQuery<Record1<Integer>> selectQuery = context
-                    .select(SYMBOL_ID)
-                    .from(SYMBOL)
-                    .where(SYMBOL_VALUE.eq(symbol.getBytes(StandardCharsets.UTF_8)));
+                    .select(schema.symbolId())
+                    .from(schema.symbol())
+                    .where(schema.symbolValue().eq(symbol));
 
             try {
                 id = selectQuery
