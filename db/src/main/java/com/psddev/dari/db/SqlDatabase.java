@@ -75,7 +75,7 @@ import com.psddev.dari.util.TypeDefinition;
 import com.psddev.dari.util.UuidUtils;
 
 /** Database backed by a SQL engine. */
-public class SqlDatabase extends AbstractDatabase<Connection> {
+public class SqlDatabase extends AbstractDatabase<Connection> implements MetricSqlDatabase {
 
     public static final String DATA_SOURCE_SETTING = "dataSource";
     public static final String DATA_SOURCE_JNDI_NAME_SETTING = "dataSourceJndiName";
@@ -365,6 +365,10 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
     /** Returns the vendor-specific SQL engine information. */
     public SqlVendor getVendor() {
         return vendor;
+    }
+
+    public SqlVendor getMetricVendor() {
+        return getVendor();
     }
 
     /** Sets the vendor-specific SQL engine information. */
@@ -1164,7 +1168,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
      * Executes the given read {@code statement} (created from the given
      * {@code sqlQuery}) before the given {@code timeout} (in seconds).
      */
-    ResultSet executeQueryBeforeTimeout(
+    public ResultSet executeQueryBeforeTimeout(
             Statement statement,
             String sqlQuery,
             int timeout)

@@ -70,6 +70,11 @@ public class MySQLDatabase extends AbstractSqlDatabase {
     }
 
     @Override
+    public com.psddev.dari.db.SqlVendor getMetricVendor() {
+        return new com.psddev.dari.db.SqlVendor.MySQL();
+    }
+
+    @Override
     public void close() {
         try {
             super.close();

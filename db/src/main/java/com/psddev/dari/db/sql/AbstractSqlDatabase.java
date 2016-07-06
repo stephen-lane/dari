@@ -50,6 +50,7 @@ import com.psddev.dari.db.AtomicOperation;
 import com.psddev.dari.db.DatabaseException;
 import com.psddev.dari.db.Grouping;
 import com.psddev.dari.db.MetricAccess;
+import com.psddev.dari.db.MetricSqlDatabase;
 import com.psddev.dari.db.ObjectField;
 import com.psddev.dari.db.ObjectIndex;
 import com.psddev.dari.db.Query;
@@ -80,7 +81,7 @@ import com.psddev.dari.util.StringUtils;
 import com.psddev.dari.util.TypeDefinition;
 
 /** Database backed by a SQL engine. */
-public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
+public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> implements MetricSqlDatabase {
 
     public static final String DATA_SOURCE_SETTING = "dataSource";
     public static final String DATA_SOURCE_JNDI_NAME_SETTING = "dataSourceJndiName";
@@ -950,7 +951,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
      * Executes the given read {@code statement} (created from the given
      * {@code sqlQuery}) before the given {@code timeout} (in seconds).
      */
-    protected ResultSet executeQueryBeforeTimeout(
+    public ResultSet executeQueryBeforeTimeout(
             Statement statement,
             String sqlQuery,
             int timeout)
