@@ -33,7 +33,7 @@ import com.psddev.dari.util.CompactMap;
 import com.psddev.dari.util.Task;
 import com.psddev.dari.util.UuidUtils;
 
-class MetricAccess {
+public class MetricAccess {
 
     protected static final Logger LOGGER = LoggerFactory.getLogger(MetricAccess.class);
 

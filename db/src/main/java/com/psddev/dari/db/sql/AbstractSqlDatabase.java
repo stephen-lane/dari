@@ -49,6 +49,7 @@ import com.psddev.dari.db.AbstractGrouping;
 import com.psddev.dari.db.AtomicOperation;
 import com.psddev.dari.db.DatabaseException;
 import com.psddev.dari.db.Grouping;
+import com.psddev.dari.db.MetricAccess;
 import com.psddev.dari.db.ObjectField;
 import com.psddev.dari.db.ObjectIndex;
 import com.psddev.dari.db.Query;

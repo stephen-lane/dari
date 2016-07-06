@@ -1999,9 +1999,10 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
                                 + "\n\turl={}"
                                 + "\n\tusername={}"
                                 + "\n\tpoolSize={}",
-                        url,
-                        user,
-                        poolSize);
+                        new Object[] {
+                                url,
+                                user,
+                                poolSize });
 
                 HikariDataSource ds = new HikariDataSource();
 

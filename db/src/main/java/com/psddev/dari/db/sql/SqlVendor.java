@@ -20,6 +20,8 @@ import java.util.Set;
 import java.util.UUID;
 
 import com.psddev.dari.db.Location;
+import com.psddev.dari.db.MetricAccess;
+import com.psddev.dari.db.MetricInterval;
 import com.psddev.dari.db.ObjectField;
 import com.psddev.dari.db.Region;
 import com.psddev.dari.db.UnsupportedIndexException;
@@ -1253,7 +1255,7 @@ public class SqlVendor {
             str.append('*');
             appendValue(str, (MetricAccess.DATE_DECIMAL_SHIFT / 1000L));
             str.append("),");
-            appendValue(str, metricInterval.getSqlTruncatedDateFormat(this));
+            appendValue(str, metricInterval.getSqlTruncatedDateFormat(new com.psddev.dari.db.SqlVendor.MySQL()));
             str.append(')');
         }
 
@@ -1601,7 +1603,7 @@ public class SqlVendor {
             str.append('*');
             appendValue(str, (MetricAccess.DATE_DECIMAL_SHIFT / 1000L));
             str.append(")::TIMESTAMP,");
-            appendValue(str, metricInterval.getSqlTruncatedDateFormat(this));
+            appendValue(str, metricInterval.getSqlTruncatedDateFormat(new com.psddev.dari.db.SqlVendor.MySQL()));
             str.append(')');
         }
 
