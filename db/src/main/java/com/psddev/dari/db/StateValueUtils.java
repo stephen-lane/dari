@@ -21,7 +21,7 @@ import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.StorageItem;
 
 /** State value utility methods. */
-abstract class StateValueUtils {
+public abstract class StateValueUtils {
 
     /** Key for the embedded object's unique ID. */
     public static final String ID_KEY = "_id";

@@ -13,7 +13,7 @@ public class FunnelCachedObject {
     private final Map<String, Object> values;
     private final Map<String, Object> extras;
 
-    FunnelCachedObject(UUID id, UUID typeId, Map<String, Object> values, Map<String, Object> extras) {
+    public FunnelCachedObject(UUID id, UUID typeId, Map<String, Object> values, Map<String, Object> extras) {
         this.id = id;
         this.typeId = typeId;
         this.values = values;
