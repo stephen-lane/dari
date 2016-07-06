@@ -44,6 +44,7 @@ import javax.naming.InitialContext;
 import javax.naming.NamingException;
 import javax.sql.DataSource;
 
+import com.google.common.base.Preconditions;
 import com.psddev.dari.db.AbstractDatabase;
 import com.psddev.dari.db.AbstractGrouping;
 import com.psddev.dari.db.AtomicOperation;
@@ -61,8 +62,16 @@ import com.psddev.dari.db.UpdateNotifier;
 import com.zaxxer.hikari.HikariDataSource;
 import org.iq80.snappy.Snappy;
 import org.jooq.DSLContext;
+import org.jooq.Field;
+import org.jooq.Record;
+import org.jooq.Record1;
+import org.jooq.Record2;
+import org.jooq.ResultQuery;
 import org.jooq.SQLDialect;
+import org.jooq.Table;
+import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
+import org.jooq.impl.SQLDataType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -137,6 +146,12 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     public static final String SUB_DATA_COLUMN_ALIAS_PREFIX = "subData_";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AbstractSqlDatabase.class);
+
+    // Symbol table and its fields.
+    private static final Table<Record> SYMBOL = DSL.table(DSL.name("Symbol"));
+    private static final Field<Integer> SYMBOL_ID = DSL.field(DSL.name("symbolId"), SQLDataType.INTEGER);
+    private static final Field<byte[]> SYMBOL_VALUE = DSL.field(DSL.name("value"), SQLDataType.VARBINARY);
+
     private static final String SHORT_NAME = "SQL";
     private static final Stats STATS = new Stats(SHORT_NAME);
     private static final String CONNECTION_ERROR_STATS_OPERATION = "Connection Error";
@@ -188,6 +203,33 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         }
 
     }, 5, TimeUnit.MINUTES);
+
+    // Cache that stores all the symbol IDs.
+    private final transient Lazy<Map<String, Integer>> symbolIds = new Lazy<Map<String, Integer>>() {
+
+        @Override
+        protected Map<String, Integer> create() {
+            Connection connection = openConnection();
+
+            try (DSLContext context = openContext(connection)) {
+                ResultQuery<Record2<Integer, byte[]>> query = context
+                        .select(SYMBOL_ID, SYMBOL_VALUE)
+                        .from(SYMBOL);
+
+                try {
+                    Map<String, Integer> symbolIds = new ConcurrentHashMap<>();
+                    query.fetch().forEach(r -> symbolIds.put(new String(r.value2(), StandardCharsets.UTF_8), r.value1()));
+                    return symbolIds;
+
+                } catch (DataAccessException error) {
+                    throw convertJooqError(error, query);
+                }
+
+            } finally {
+                closeConnection(connection);
+            }
+        }
+    };
 
     /**
      * Quotes the given {@code identifier} so that it's safe to use
@@ -295,12 +337,12 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                 }
 
                 tableColumnNames.refresh();
-                symbols.reset();
+                symbolIds.reset();
 
                 if (writable) {
                     vendor.setUp(this);
                     tableColumnNames.refresh();
-                    symbols.reset();
+                    symbolIds.reset();
                 }
 
             } catch (IOException error) {
@@ -332,7 +374,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         try {
             getVendor().setUp(this);
             tableColumnNames.refresh();
-            symbols.reset();
+            symbolIds.reset();
 
         } catch (IOException error) {
             throw new IllegalStateException(error);
@@ -409,6 +451,22 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     }
 
     /**
+     * Opens a connection to the underlying SQL server, preferably the writable
+     * one that has the most up-to-date data.
+     *
+     * @return Never {@code null}.
+     */
+    protected Connection openAnyConnection() {
+        try {
+            return openConnection();
+
+        } catch (DatabaseException error) {
+            LOGGER.debug("Can't open a writable connection! Trying a readable one instead...", error);
+            return openReadConnection();
+        }
+    }
+
+    /**
      * @return Never {@code null}.
      */
     protected abstract SQLDialect dialect();
@@ -418,6 +476,24 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
      */
     protected DSLContext openContext(Connection connection) {
         return DSL.using(connection, dialect());
+    }
+
+    private SqlDatabaseException convertJooqError(DataAccessException error, org.jooq.Query query) {
+        Throwable cause = error.getCause();
+        SQLException sqlError = cause instanceof SQLException ? (SQLException) cause : null;
+
+        if (sqlError != null) {
+            String message = sqlError.getMessage();
+
+            if (sqlError instanceof SQLTimeoutException
+                    || (message != null
+                    && message.contains("timeout"))) {
+
+                return new SqlDatabaseException.ReadTimeout(this, sqlError, query.getSQL(), null);
+            }
+        }
+
+        return new SqlDatabaseException(this, sqlError, query.getSQL(), null);
     }
 
     /**
@@ -508,162 +584,94 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         }
     };
 
-    /**
-     * Returns an unique numeric ID for the given {@code symbol},
-     * or {@code -1} if it's not available.
-     */
-    public int getReadSymbolId(String symbol) {
-        Integer id = symbols.get().get(symbol);
-
-        if (id == null) {
-            Connection connection = openConnection();
-            try {
-                id = selectSymbolId(connection, symbol);
-                if (id != null) {
-                    symbols.get().put(symbol, id);
-                }
-            } finally {
-                closeConnection(connection);
-            }
-            sqlQueryCache.invalidateAll();
-        }
-
-        return id != null ? id : -1;
-    }
-
-    /**
-     * Returns an unique numeric ID for the given {@code symbol}.
-     */
-    public int getSymbolId(String symbol) {
-        Integer id = symbols.get().get(symbol);
-        if (id == null) {
-
-            SqlVendor vendor = getVendor();
-            Connection connection = openConnection();
-
-            try {
-                List<Object> parameters = new ArrayList<Object>();
-                StringBuilder insertBuilder = new StringBuilder();
-
-                insertBuilder.append("INSERT /*! IGNORE */ INTO ");
-                vendor.appendIdentifier(insertBuilder, SYMBOL_TABLE);
-                insertBuilder.append(" (");
-                vendor.appendIdentifier(insertBuilder, VALUE_COLUMN);
-                insertBuilder.append(") VALUES (");
-                vendor.appendBindValue(insertBuilder, symbol, parameters);
-                insertBuilder.append(')');
-
-                String insertSql = insertBuilder.toString();
-                try {
-                    Static.executeUpdateWithList(vendor, connection, insertSql, parameters);
-
-                } catch (SQLException ex) {
-                    if (!Static.isIntegrityConstraintViolation(ex)) {
-                        throw createQueryException(ex, insertSql, null);
-                    }
-                }
-
-                id = selectSymbolId(connection, symbol);
-                symbols.get().put(symbol, id);
-
-            } finally {
-                closeConnection(connection);
-            }
-        }
-
-        return id;
-    }
-
-    private Integer selectSymbolId(Connection connection, String symbol) {
-        Integer id = null;
-
-        try {
-            StringBuilder selectBuilder = new StringBuilder();
-            selectBuilder.append("SELECT ");
-            vendor.appendIdentifier(selectBuilder, SYMBOL_ID_COLUMN);
-            selectBuilder.append(" FROM ");
-            vendor.appendIdentifier(selectBuilder, SYMBOL_TABLE);
-            selectBuilder.append(" WHERE ");
-            vendor.appendIdentifier(selectBuilder, VALUE_COLUMN);
-            selectBuilder.append('=');
-            vendor.appendValue(selectBuilder, symbol);
-
-            String selectSql = selectBuilder.toString();
-            Statement statement = null;
-            ResultSet result = null;
-
-            try {
-                statement = connection.createStatement();
-                result = statement.executeQuery(selectSql);
-                if (result.next()) {
-                    id = result.getInt(1);
-                }
-
-            } catch (SQLException ex) {
-                throw createQueryException(ex, selectSql, null);
-
-            } finally {
-                closeResources(null, null, statement, result);
-            }
-
-        } finally {
-            closeConnection(connection);
-        }
-
-        return id;
-    }
-
     @Override
     public long now() {
         return System.currentTimeMillis() - nowOffset.get();
     }
 
-    // Cache of all internal symbols.
-    private final transient Lazy<Map<String, Integer>> symbols = new Lazy<Map<String, Integer>>() {
+    /**
+     * Returns a unique ID for the given {@code symbol}, creating one if
+     * necessary.
+     *
+     * @param symbol Can't be {@code null}.
+     */
+    public int getSymbolId(String symbol) {
+        return findSymbolId(symbol, true);
+    }
 
-        @Override
-        protected Map<String, Integer> create() {
-            SqlVendor vendor = getVendor();
-            StringBuilder selectBuilder = new StringBuilder();
-            selectBuilder.append("SELECT ");
-            vendor.appendIdentifier(selectBuilder, SYMBOL_ID_COLUMN);
-            selectBuilder.append(',');
-            vendor.appendIdentifier(selectBuilder, VALUE_COLUMN);
-            selectBuilder.append(" FROM ");
-            vendor.appendIdentifier(selectBuilder, SYMBOL_TABLE);
+    /**
+     * Returns a unique ID for the given {@code symbol}, or {@code -1} if
+     * it's not available.
+     *
+     * @param symbol Can't be {@code null}.
+     */
+    public int getReadSymbolId(String symbol) {
+        return findSymbolId(symbol, false);
+    }
 
-            String selectSql = selectBuilder.toString();
-            Connection connection;
-            Statement statement = null;
-            ResultSet result = null;
+    private int findSymbolId(String symbol, boolean create) {
+        Preconditions.checkNotNull(symbol);
 
-            try {
-                connection = openConnection();
+        Integer id = symbolIds.get().get(symbol);
 
-            } catch (DatabaseException error) {
-                LOGGER.debug("Can't read symbols from the writable server!", error);
-                connection = openReadConnection();
+        if (id != null) {
+            return id;
+        }
+
+        Connection connection = openAnyConnection();
+
+        try (DSLContext context = openContext(connection)) {
+            if (create) {
+                org.jooq.Query createQuery = context
+                        .insertInto(SYMBOL, SYMBOL_VALUE)
+                        .values(symbol.getBytes(StandardCharsets.UTF_8))
+                        .onDuplicateKeyIgnore();
+
+                try {
+                    createQuery.execute();
+
+                } catch (DataAccessException error) {
+                    throw convertJooqError(error, createQuery);
+                }
             }
 
-            try {
-                statement = connection.createStatement();
-                result = statement.executeQuery(selectSql);
+            ResultQuery<Record1<Integer>> selectQuery = context
+                    .select(SYMBOL_ID)
+                    .from(SYMBOL)
+                    .where(SYMBOL_VALUE.eq(symbol.getBytes(StandardCharsets.UTF_8)));
 
-                Map<String, Integer> symbols = new ConcurrentHashMap<String, Integer>();
-                while (result.next()) {
-                    symbols.put(new String(result.getBytes(2), StandardCharsets.UTF_8), result.getInt(1));
+            try {
+                id = selectQuery
+                        .fetchOptional()
+                        .map(Record1::value1)
+                        .orElse(null);
+
+                if (id != null) {
+                    symbolIds.get().put(symbol, id);
+                    onSymbolIdUpdate(symbol, id);
+                    return id;
+
+                } else {
+                    return -1;
                 }
 
-                return symbols;
-
-            } catch (SQLException ex) {
-                throw createQueryException(ex, selectSql, null);
-
-            } finally {
-                closeResources(null, connection, statement, result);
+            } catch (DataAccessException error) {
+                throw convertJooqError(error, selectQuery);
             }
+
+        } finally {
+            closeConnection(connection);
         }
-    };
+    }
+
+    /**
+     * Called when the given {@code symbol}'s {@code id} is updated.
+     *
+     * @param symbol Can't be {@code null}.
+     * @param id Can't be {@code null}.
+     */
+    protected void onSymbolIdUpdate(String symbol, int id) {
+    }
 
     /** Closes any resources used by this database. */
     public void close() {
