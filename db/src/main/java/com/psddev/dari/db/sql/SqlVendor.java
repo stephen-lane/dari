@@ -364,7 +364,7 @@ public class SqlVendor {
         }
     }
 
-    protected void appendUuid(StringBuilder builder, UUID value) {
+    public void appendUuid(StringBuilder builder, UUID value) {
         builder.append('{');
         builder.append(value);
         builder.append('}');
@@ -785,7 +785,7 @@ public class SqlVendor {
         }
 
         @Override
-        protected void appendUuid(StringBuilder builder, UUID value) {
+        public void appendUuid(StringBuilder builder, UUID value) {
             builder.append('\'');
             builder.append(value);
             builder.append('\'');
@@ -893,7 +893,7 @@ public class SqlVendor {
         }
 
         @Override
-        protected void appendUuid(StringBuilder builder, UUID value) {
+        public void appendUuid(StringBuilder builder, UUID value) {
             appendBytes(builder, UuidUtils.toBytes(value));
         }
 
@@ -1371,7 +1371,7 @@ public class SqlVendor {
         }
 
         @Override
-        protected void appendUuid(StringBuilder builder, UUID value) {
+        public void appendUuid(StringBuilder builder, UUID value) {
             builder.append("'" + value.toString() + "'");
         }
 
@@ -1684,7 +1684,7 @@ public class SqlVendor {
         }
 
         @Override
-        protected void appendUuid(StringBuilder builder, UUID value) {
+        public void appendUuid(StringBuilder builder, UUID value) {
             appendBytes(builder, UuidUtils.toBytes(value));
         }
 

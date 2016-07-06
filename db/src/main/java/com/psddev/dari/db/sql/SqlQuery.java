@@ -31,6 +31,7 @@ import com.psddev.dari.db.State;
 import com.psddev.dari.db.UnsupportedIndexException;
 import com.psddev.dari.db.UnsupportedPredicateException;
 import com.psddev.dari.db.UnsupportedSorterException;
+import com.psddev.dari.db.mysql.MySQLDatabase;
 import org.joda.time.DateTime;
 
 import com.psddev.dari.util.ObjectUtils;
@@ -1768,7 +1769,7 @@ class SqlQuery {
         String alias = "i" + joins.size();
         Join join = new Join(alias, queryKey);
         joins.add(join);
-        if (queryKey.equals(query.getOptions().get(AbstractSqlDatabase.MYSQL_INDEX_HINT_QUERY_OPTION))) {
+        if (queryKey.equals(query.getOptions().get(MySQLDatabase.MYSQL_INDEX_HINT_QUERY_OPTION))) {
             mysqlIndexHint = join;
         }
         return join;

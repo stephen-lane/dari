@@ -52,7 +52,6 @@ import javax.sql.DataSource;
 import com.psddev.dari.db.AbstractDatabase;
 import com.psddev.dari.db.AbstractGrouping;
 import com.psddev.dari.db.AtomicOperation;
-import com.psddev.dari.db.CompoundPredicate;
 import com.psddev.dari.db.DatabaseException;
 import com.psddev.dari.db.Grouping;
 import com.psddev.dari.db.Modification;
@@ -60,14 +59,11 @@ import com.psddev.dari.db.ObjectField;
 import com.psddev.dari.db.ObjectIndex;
 import com.psddev.dari.db.ObjectStruct;
 import com.psddev.dari.db.ObjectType;
-import com.psddev.dari.db.Predicate;
-import com.psddev.dari.db.PredicateParser;
 import com.psddev.dari.db.Query;
 import com.psddev.dari.db.Singleton;
 import com.psddev.dari.db.State;
 import com.psddev.dari.db.StateValueUtils;
 import com.psddev.dari.db.UpdateNotifier;
-import com.psddev.dari.db.mysql.MySQLBinaryLogReader;
 import com.zaxxer.hikari.HikariDataSource;
 import org.iq80.snappy.Snappy;
 import org.slf4j.Logger;
@@ -75,12 +71,10 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
-import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.util.concurrent.UncheckedExecutionException;
-import com.psddev.dari.util.CompactMap;
 import com.psddev.dari.util.Lazy;
 import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.PaginatedResult;
@@ -91,7 +85,6 @@ import com.psddev.dari.util.SettingsException;
 import com.psddev.dari.util.Stats;
 import com.psddev.dari.util.StringUtils;
 import com.psddev.dari.util.TypeDefinition;
-import com.psddev.dari.util.UuidUtils;
 
 /** Database backed by a SQL engine. */
 public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
@@ -123,8 +116,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
     @Deprecated
     public static final String DATA_CACHE_SIZE_SUB_SETTING = "dataCacheSize";
 
-    public static final String ENABLE_REPLICATION_CACHE_SUB_SETTING = "enableReplicationCache";
-    public static final String REPLICATION_CACHE_SIZE_SUB_SETTING = "replicationCacheSize";
     public static final String INDEX_SPATIAL_SUB_SETTING = "indexSpatial";
 
     public static final String RECORD_TABLE = "Record";
@@ -143,11 +134,9 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
     public static final String EXTRA_JOINS_QUERY_OPTION = "sql.extraJoins";
     public static final String EXTRA_WHERE_QUERY_OPTION = "sql.extraWhere";
     public static final String EXTRA_HAVING_QUERY_OPTION = "sql.extraHaving";
-    public static final String MYSQL_INDEX_HINT_QUERY_OPTION = "sql.mysqlIndexHint";
     public static final String RETURN_ORIGINAL_DATA_QUERY_OPTION = "sql.returnOriginalData";
     public static final String USE_JDBC_FETCH_SIZE_QUERY_OPTION = "sql.useJdbcFetchSize";
     public static final String USE_READ_DATA_SOURCE_QUERY_OPTION = "sql.useReadDataSource";
-    public static final String DISABLE_REPLICATION_CACHE_QUERY_OPTION = "sql.disableReplicationCache";
     public static final String SKIP_INDEX_STATE_EXTRA = "sql.skipIndex";
 
     public static final String INDEX_TABLE_INDEX_OPTION = "sql.indexTable";
@@ -165,10 +154,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
     private static final String UPDATE_STATS_OPERATION = "Update";
     private static final String QUERY_PROFILER_EVENT = SHORT_NAME + " " + QUERY_STATS_OPERATION;
     private static final String UPDATE_PROFILER_EVENT = SHORT_NAME + " " + UPDATE_STATS_OPERATION;
-    private static final String REPLICATION_CACHE_GET_PROFILER_EVENT = SHORT_NAME + " Replication Cache Get";
-    private static final String REPLICATION_CACHE_PUT_PROFILER_EVENT = SHORT_NAME + " Replication Cache Put";
     private static final long NOW_EXPIRATION_SECONDS = 300;
-    public static final long DEFAULT_REPLICATION_CACHE_SIZE = 10000L;
     public static final long DEFAULT_DATA_CACHE_SIZE = 10000L;
 
     private static final List<AbstractSqlDatabase> INSTANCES = new ArrayList<AbstractSqlDatabase>();
@@ -184,13 +170,9 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
     private transient volatile String defaultCatalog;
     private volatile SqlVendor vendor;
     private volatile boolean compressData;
-    private volatile boolean enableReplicationCache;
-    private volatile long replicationCacheMaximumSize;
     private volatile boolean indexSpatial;
 
-    private final transient ConcurrentMap<Class<?>, UUID> singletonIds = new ConcurrentHashMap<>();
-    private transient volatile Cache<UUID, Object[]> replicationCache;
-    private transient volatile MySQLBinaryLogReader mysqlBinaryLogReader;
+    protected final transient ConcurrentMap<Class<?>, UUID> singletonIds = new ConcurrentHashMap<>();
     private final List<UpdateNotifier<?>> updateNotifiers = new ArrayList<>();
 
     /**
@@ -229,7 +211,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
      * Creates an {@link SqlDatabaseException} that occurred during
      * an execution of a query.
      */
-    private SqlDatabaseException createQueryException(
+    protected SqlDatabaseException createQueryException(
             SQLException error,
             String sqlQuery,
             Query<?> query) {
@@ -412,22 +394,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
 
     @Deprecated
     public void setDataCacheMaximumSize(long dataCacheMaximumSize) {
-    }
-
-    public boolean isEnableReplicationCache() {
-        return enableReplicationCache;
-    }
-
-    public void setEnableReplicationCache(boolean enableReplicationCache) {
-        this.enableReplicationCache = enableReplicationCache;
-    }
-
-    public void setReplicationCacheMaximumSize(long replicationCacheMaximumSize) {
-        this.replicationCacheMaximumSize = replicationCacheMaximumSize;
-    }
-
-    public long getReplicationCacheMaximumSize() {
-        return this.replicationCacheMaximumSize;
     }
 
     public boolean isIndexSpatial() {
@@ -769,12 +735,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
 
         setDataSource(null);
         setReadDataSource(null);
-
-        if (mysqlBinaryLogReader != null) {
-            LOGGER.info("Stopping MySQL binary log reader");
-            mysqlBinaryLogReader.stop();
-            mysqlBinaryLogReader = null;
-        }
     }
 
     private String addComment(String sql, Query<?> query) {
@@ -966,9 +926,12 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
                 "Unknown format! ([%s])", format));
     }
 
-    private class ConnectionRef {
+    protected class ConnectionRef {
 
         private Connection connection;
+
+        public ConnectionRef() {
+        }
 
         public Connection getOrOpen(Query<?> query) {
             if (connection == null) {
@@ -1170,7 +1133,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
      * Executes the given read {@code statement} (created from the given
      * {@code sqlQuery}) before the given {@code timeout} (in seconds).
      */
-    ResultSet executeQueryBeforeTimeout(
+    protected ResultSet executeQueryBeforeTimeout(
             Statement statement,
             String sqlQuery,
             int timeout)
@@ -1194,213 +1157,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
                     "Read from the SQL database using [{}] in [{}]ms",
                     sqlQuery, duration * 1000.0);
         }
-    }
-
-    // Creates a previously saved object from the replication cache.
-    public <T> T createSavedObjectFromReplicationCache(byte[] typeId, UUID id, byte[] data, Map<String, Object> dataJson, Query<T> query) {
-        T object = createSavedObject(typeId, id, query);
-        State objectState = State.getInstance(object);
-
-        objectState.setValues(cloneDataJson(dataJson));
-
-        Boolean returnOriginal = query != null ? ObjectUtils.to(Boolean.class, query.getOptions().get(RETURN_ORIGINAL_DATA_QUERY_OPTION)) : null;
-
-        if (returnOriginal == null) {
-            returnOriginal = Boolean.FALSE;
-        }
-
-        if (returnOriginal) {
-            objectState.getExtras().put(ORIGINAL_DATA_EXTRA, data);
-        }
-
-        return swapObjectType(query, object);
-    }
-
-    @SuppressWarnings("unchecked")
-    private static Map<String, Object> cloneDataJson(Map<String, Object> dataJson) {
-        return (Map<String, Object>) cloneDataJsonRecursively(dataJson);
-    }
-
-    private static Object cloneDataJsonRecursively(Object object) {
-        if (object instanceof Map) {
-            Map<?, ?> objectMap = (Map<?, ?>) object;
-            int objectMapSize = objectMap.size();
-            Map<String, Object> clone = objectMapSize <= 8
-                    ? new CompactMap<String, Object>()
-                    : new LinkedHashMap<String, Object>(objectMapSize);
-
-            for (Map.Entry<?, ?> entry : objectMap.entrySet()) {
-                clone.put((String) entry.getKey(), cloneDataJsonRecursively(entry.getValue()));
-            }
-
-            return clone;
-
-        } else if (object instanceof List) {
-            List<?> objectList = (List<?>) object;
-            List<Object> clone = new ArrayList<Object>(objectList.size());
-
-            for (Object item : objectList) {
-                clone.add(cloneDataJsonRecursively(item));
-            }
-
-            return clone;
-
-        } else {
-            return object;
-        }
-    }
-
-    // Tries to find objects by the given ids from the replication cache.
-    // If not found, execute the given query to populate it.
-    private <T> List<T> findObjectsFromReplicationCache(List<Object> ids, Query<T> query) {
-        List<T> objects = null;
-
-        if (ids == null || ids.isEmpty()) {
-            return objects;
-        }
-
-        List<UUID> missingIds = null;
-
-        Profiler.Static.startThreadEvent(REPLICATION_CACHE_GET_PROFILER_EVENT);
-
-        String queryGroup = query != null ? query.getGroup() : null;
-        Class queryObjectClass = query != null ? query.getObjectClass() : null;
-
-        try {
-            for (Object idObject : ids) {
-                UUID id = ObjectUtils.to(UUID.class, idObject);
-
-                if (id == null) {
-                    continue;
-                }
-
-                Object[] value = replicationCache.getIfPresent(id);
-
-                if (value == null) {
-                    if (missingIds == null) {
-                        missingIds = new ArrayList<UUID>();
-                    }
-
-                    missingIds.add(id);
-                    continue;
-                }
-
-                UUID typeId = ObjectUtils.to(UUID.class, (byte[]) value[0]);
-
-                ObjectType type = typeId != null ? ObjectType.getInstance(typeId) : null;
-
-                // Restrict objects based on the class provided to the Query
-                if (type != null && queryObjectClass != null && !query.getObjectClass().isAssignableFrom(type.getObjectClass())) {
-                    continue;
-                }
-
-                // Restrict objects based on the group provided to the Query
-                if (type != null && queryGroup != null && !type.getGroups().contains(queryGroup)) {
-                    continue;
-                }
-
-                @SuppressWarnings("unchecked")
-                T object = createSavedObjectFromReplicationCache((byte[]) value[0], id, (byte[]) value[1], (Map<String, Object>) value[2], query);
-
-                if (object != null) {
-                    if (objects == null) {
-                        objects = new ArrayList<T>();
-                    }
-
-                    objects.add(object);
-                }
-            }
-
-        } finally {
-            Profiler.Static.stopThreadEvent((objects != null ? objects.size() : 0) + " Objects");
-        }
-
-        if (missingIds != null && !missingIds.isEmpty()) {
-            Profiler.Static.startThreadEvent(REPLICATION_CACHE_PUT_PROFILER_EVENT);
-
-            try {
-                SqlVendor vendor = getVendor();
-                StringBuilder sqlQuery = new StringBuilder();
-
-                sqlQuery.append("SELECT ");
-                vendor.appendIdentifier(sqlQuery, TYPE_ID_COLUMN);
-                sqlQuery.append(", ");
-                vendor.appendIdentifier(sqlQuery, DATA_COLUMN);
-                sqlQuery.append(", ");
-                vendor.appendIdentifier(sqlQuery, ID_COLUMN);
-                sqlQuery.append(" FROM ");
-                vendor.appendIdentifier(sqlQuery, RECORD_TABLE);
-                sqlQuery.append(" WHERE ");
-                vendor.appendIdentifier(sqlQuery, ID_COLUMN);
-                sqlQuery.append(" IN (");
-
-                for (UUID missingId : missingIds) {
-                    vendor.appendUuid(sqlQuery, missingId);
-                    sqlQuery.append(", ");
-                }
-
-                sqlQuery.setLength(sqlQuery.length() - 2);
-                sqlQuery.append(")");
-
-                Connection connection = null;
-                ConnectionRef extraConnectionRef = new ConnectionRef();
-                Statement statement = null;
-                ResultSet result = null;
-
-                try {
-                    connection = extraConnectionRef.getOrOpen(query);
-                    statement = connection.createStatement();
-                    result = executeQueryBeforeTimeout(statement, sqlQuery.toString(), 0);
-
-                    while (result.next()) {
-                        UUID id = ObjectUtils.to(UUID.class, result.getBytes(3));
-                        byte[] data = result.getBytes(2);
-                        Map<String, Object> dataJson = unserializeData(data);
-                        byte[] typeIdBytes = UuidUtils.toBytes(ObjectUtils.to(UUID.class, dataJson.get(StateValueUtils.TYPE_KEY)));
-
-                        if (!Arrays.equals(typeIdBytes, UuidUtils.ZERO_BYTES) && id != null) {
-                            replicationCache.put(id, new Object[] { typeIdBytes, data, dataJson });
-                        }
-
-                        UUID typeId = ObjectUtils.to(UUID.class, typeIdBytes);
-
-                        ObjectType type = typeId != null ? ObjectType.getInstance(typeId) : null;
-
-                        // Restrict objects based on the class provided to the Query
-                        if (type != null && queryObjectClass != null && !query.getObjectClass().isAssignableFrom(type.getObjectClass())) {
-                            continue;
-                        }
-
-                        // Restrict objects based on the group provided to the Query
-                        if (type != null && queryGroup != null && !type.getGroups().contains(queryGroup)) {
-                            continue;
-                        }
-
-                        T object = createSavedObjectFromReplicationCache(typeIdBytes, id, data, dataJson, query);
-
-                        if (object != null) {
-                            if (objects == null) {
-                                objects = new ArrayList<T>();
-                            }
-
-                            objects.add(object);
-                        }
-                    }
-
-                } catch (SQLException error) {
-                    throw createQueryException(error, sqlQuery.toString(), query);
-
-                } finally {
-                    closeResources(query, connection, statement, result);
-                    extraConnectionRef.close();
-                }
-
-            } finally {
-                Profiler.Static.stopThreadEvent(missingIds.size() + " Objects");
-            }
-        }
-
-        return objects;
     }
 
     /**
@@ -1832,28 +1588,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
             setCompressData(compressData);
         }
 
-        setEnableReplicationCache(ObjectUtils.to(boolean.class, settings.get(ENABLE_REPLICATION_CACHE_SUB_SETTING)));
-        Long replicationCacheMaxSize = ObjectUtils.to(Long.class, settings.get(REPLICATION_CACHE_SIZE_SUB_SETTING));
-        setReplicationCacheMaximumSize(replicationCacheMaxSize != null ? replicationCacheMaxSize : DEFAULT_REPLICATION_CACHE_SIZE);
         setIndexSpatial(ObjectUtils.firstNonNull(ObjectUtils.to(Boolean.class, settings.get(INDEX_SPATIAL_SUB_SETTING)), Boolean.TRUE));
-
-        if (isEnableReplicationCache()
-                && vendor instanceof SqlVendor.MySQL
-                && (mysqlBinaryLogReader == null
-                || !mysqlBinaryLogReader.isRunning())) {
-
-            replicationCache = CacheBuilder.newBuilder().maximumSize(getReplicationCacheMaximumSize()).build();
-
-            try {
-                LOGGER.info("Starting MySQL binary log reader");
-                mysqlBinaryLogReader = new MySQLBinaryLogReader(this, replicationCache, ObjectUtils.firstNonNull(getReadDataSource(), getDataSource()));
-                mysqlBinaryLogReader.start();
-
-            } catch (IllegalArgumentException error) {
-                setEnableReplicationCache(false);
-                LOGGER.warn("Can't start MySQL binary log reader!", error);
-            }
-        }
     }
 
     private static final Map<String, String> DRIVER_CLASS_NAMES; static {
@@ -1998,26 +1733,8 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
         return 0;
     }
 
-    private boolean checkReplicationCache(Query<?> query) {
-        return query.isCache()
-                && isEnableReplicationCache()
-                && !Boolean.TRUE.equals(query.getOptions().get(DISABLE_REPLICATION_CACHE_QUERY_OPTION))
-                && mysqlBinaryLogReader != null
-                && mysqlBinaryLogReader.isConnected();
-    }
-
     @Override
     public <T> List<T> readAll(Query<T> query) {
-        if (checkReplicationCache(query)) {
-            List<Object> ids = query.findIdOnlyQueryValues();
-
-            if (ids != null && !ids.isEmpty()) {
-                List<T> objects = findObjectsFromReplicationCache(ids, query);
-
-                return objects != null ? objects : new ArrayList<T>();
-            }
-        }
-
         return selectListWithOptions(buildSelectStatement(query), query);
     }
 
@@ -2052,51 +1769,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
 
     @Override
     public <T> T readFirst(Query<T> query) {
-        if (query.getSorters().isEmpty()) {
-
-            Predicate predicate = query.getPredicate();
-            if (predicate instanceof CompoundPredicate) {
-
-                CompoundPredicate compoundPredicate = (CompoundPredicate) predicate;
-                if (PredicateParser.OR_OPERATOR.equals(compoundPredicate.getOperator())) {
-
-                    for (Predicate child : compoundPredicate.getChildren()) {
-                        Query<T> childQuery = query.clone();
-                        childQuery.setPredicate(child);
-
-                        T first = readFirst(childQuery);
-                        if (first != null) {
-                            return first;
-                        }
-                    }
-
-                    return null;
-                }
-            }
-        }
-
-        if (checkReplicationCache(query)) {
-            Class<?> objectClass = query.getObjectClass();
-            List<Object> ids;
-
-            if (objectClass != null
-                    && Singleton.class.isAssignableFrom(objectClass)
-                    && query.getPredicate() == null) {
-
-                UUID id = singletonIds.get(objectClass);
-                ids = id != null ? Collections.singletonList(id) : null;
-
-            } else {
-                ids = query.findIdOnlyQueryValues();
-            }
-
-            if (ids != null && !ids.isEmpty()) {
-                List<T> objects = findObjectsFromReplicationCache(ids, query);
-
-                return objects == null || objects.isEmpty() ? null : objects.get(0);
-            }
-        }
-
         return selectFirstWithOptions(buildSelectStatement(query), query);
     }
 
@@ -2487,13 +2159,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
         public long getCount() {
             return count;
         }
-    }
-
-    /**
-     * Invalidates all entries in the replication cache.
-     */
-    public void invalidateReplicationCache() {
-        replicationCache.invalidateAll();
     }
 
     @Override
