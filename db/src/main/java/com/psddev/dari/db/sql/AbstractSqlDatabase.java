@@ -44,6 +44,7 @@ import javax.naming.NamingException;
 import javax.sql.DataSource;
 
 import com.google.common.base.Preconditions;
+import com.google.common.base.Throwables;
 import com.psddev.dari.db.AbstractDatabase;
 import com.psddev.dari.db.AbstractGrouping;
 import com.psddev.dari.db.AtomicOperation;
@@ -67,6 +68,7 @@ import org.jooq.Record2;
 import org.jooq.ResultQuery;
 import org.jooq.SQLDialect;
 import org.jooq.Table;
+import org.jooq.conf.ParamType;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 import org.slf4j.Logger;
@@ -1907,6 +1909,63 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         connection.setAutoCommit(true);
     }
 
+    /**
+     * Returns {@code true} if the writes should use {@link Savepoint}s.
+     */
+    protected boolean shouldUseSavepoint() {
+        return true;
+    }
+
+    private int execute(Connection connection, DSLContext context, org.jooq.Query query) throws SQLException {
+        boolean useSavepoint = shouldUseSavepoint();
+        Savepoint savepoint = null;
+        Integer affected = null;
+
+        Stats.Timer timer = STATS.startTimer();
+        Profiler.Static.startThreadEvent(UPDATE_PROFILER_EVENT);
+
+        try {
+            if (useSavepoint && !connection.getAutoCommit()) {
+                savepoint = connection.setSavepoint();
+            }
+
+            affected = query.execute();
+
+            if (savepoint != null) {
+                connection.releaseSavepoint(savepoint);
+            }
+
+            return affected;
+
+        } catch (DataAccessException error) {
+            if (savepoint != null) {
+                connection.rollback(savepoint);
+            }
+
+            Throwables.propagateIfInstanceOf(error.getCause(), SQLException.class);
+            throw error;
+
+        } finally {
+            double time = timer.stop(UPDATE_STATS_OPERATION);
+            java.util.function.Supplier<String> sqlSupplier = () -> context
+                    .renderContext()
+                    .paramType(ParamType.INLINED)
+                    .render(query);
+
+            Profiler.Static.stopThreadEvent(sqlSupplier);
+
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug(
+                        "SQL update: [{}], Affected: [{}], Time: [{}]ms",
+                        new Object[] {
+                                sqlSupplier.get(),
+                                affected,
+                                time * 1000.0
+                        });
+            }
+        }
+    }
+
     @Override
     protected void doSaves(Connection connection, boolean isImmediate, List<State> states) throws SQLException {
         List<State> indexStates = null;
@@ -1926,8 +1985,10 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             indexStates = states;
         }
 
+        // Update all indexes.
         SqlIndex.Static.deleteByStates(this, connection, indexStates);
         SqlIndex.Static.insertByStates(this, connection, indexStates);
+
         SqlVendor vendor = getVendor();
         double now = System.currentTimeMillis() / 1000.0;
 
@@ -1935,75 +1996,66 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             boolean isNew = state.isNew();
             UUID id = state.getId();
             UUID typeId = state.getVisibilityAwareTypeId();
-            byte[] dataBytes = null;
+            byte[] data = null;
 
             while (true) {
+
+                // Looks like a new object so try to INSERT.
                 if (isNew) {
                     try {
-                        if (dataBytes == null) {
-                            dataBytes = serializeState(state);
+                        if (data == null) {
+                            data = serializeState(state);
                         }
 
-                        List<Object> parameters = new ArrayList<Object>();
-                        StringBuilder insertBuilder = new StringBuilder();
+                        try (DSLContext context = openContext(connection)) {
+                            SqlSchema schema = schema();
 
-                        insertBuilder.append("INSERT INTO ");
-                        vendor.appendIdentifier(insertBuilder, RECORD_TABLE);
-                        insertBuilder.append(" (");
-                        vendor.appendIdentifier(insertBuilder, ID_COLUMN);
-                        insertBuilder.append(',');
-                        vendor.appendIdentifier(insertBuilder, TYPE_ID_COLUMN);
-                        insertBuilder.append(',');
-                        vendor.appendIdentifier(insertBuilder, DATA_COLUMN);
-                        insertBuilder.append(") VALUES (");
-                        vendor.appendBindValue(insertBuilder, id, parameters);
-                        insertBuilder.append(',');
-                        vendor.appendBindValue(insertBuilder, typeId, parameters);
-                        insertBuilder.append(',');
-                        vendor.appendBindValue(insertBuilder, dataBytes, parameters);
-                        insertBuilder.append(')');
-                        Static.executeUpdateWithList(vendor, connection, insertBuilder.toString(), parameters);
+                            execute(connection, context, context
+                                    .insertInto(schema.record())
+                                    .set(schema.recordId(), id)
+                                    .set(schema.recordTypeId(), typeId)
+                                    .set(schema.recordData(), data));
+                        }
 
-                    } catch (SQLException ex) {
-                        if (Static.isIntegrityConstraintViolation(ex)) {
+                    } catch (SQLException error) {
+
+                        // INSERT failed so retry with UPDATE.
+                        if (Static.isIntegrityConstraintViolation(error)) {
                             isNew = false;
                             continue;
+
                         } else {
-                            throw ex;
+                            throw error;
                         }
                     }
 
                 } else {
                     List<AtomicOperation> atomicOperations = state.getAtomicOperations();
+
+                    // Normal update.
                     if (atomicOperations.isEmpty()) {
-                        if (dataBytes == null) {
-                            dataBytes = serializeState(state);
+                        if (data == null) {
+                            data = serializeState(state);
                         }
 
-                        List<Object> parameters = new ArrayList<Object>();
-                        StringBuilder updateBuilder = new StringBuilder();
+                        try (DSLContext context = openContext(connection)) {
+                            SqlSchema schema = schema();
 
-                        updateBuilder.append("UPDATE ");
-                        vendor.appendIdentifier(updateBuilder, RECORD_TABLE);
-                        updateBuilder.append(" SET ");
-                        vendor.appendIdentifier(updateBuilder, TYPE_ID_COLUMN);
-                        updateBuilder.append('=');
-                        vendor.appendBindValue(updateBuilder, typeId, parameters);
-                        updateBuilder.append(',');
-                        vendor.appendIdentifier(updateBuilder, DATA_COLUMN);
-                        updateBuilder.append('=');
-                        vendor.appendBindValue(updateBuilder, dataBytes, parameters);
-                        updateBuilder.append(" WHERE ");
-                        vendor.appendIdentifier(updateBuilder, ID_COLUMN);
-                        updateBuilder.append('=');
-                        vendor.appendBindValue(updateBuilder, id, parameters);
+                            if (execute(connection, context, context
+                                    .update(schema.record())
+                                    .set(schema.recordTypeId(), typeId)
+                                    .set(schema.recordData(), data)
+                                    .where(schema.recordId().eq(id))) < 1) {
 
-                        if (Static.executeUpdateWithList(vendor, connection, updateBuilder.toString(), parameters) < 1) {
-                            isNew = true;
-                            continue;
+                                // UPDATE failed so retry with INSERT.
+                                isNew = true;
+                                continue;
+                            }
                         }
 
                     } else {
+
+                        // Atomic operations requested, so find the old object.
                         Object oldObject = Query
                                 .from(Object.class)
                                 .where("_id = ?", id)
@@ -2012,17 +2064,20 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                                 .option(RETURN_ORIGINAL_DATA_QUERY_OPTION, Boolean.TRUE)
                                 .option(USE_READ_DATA_SOURCE_QUERY_OPTION, Boolean.FALSE)
                                 .first();
+
                         if (oldObject == null) {
                             retryWrites();
                             break;
                         }
 
+                        // Restore the data from the old object.
                         State oldState = State.getInstance(oldObject);
                         UUID oldTypeId = oldState.getVisibilityAwareTypeId();
                         byte[] oldData = Static.getOriginalData(oldObject);
 
                         state.setValues(oldState.getValues());
 
+                        // Apply all the atomic operations.
                         for (AtomicOperation operation : atomicOperations) {
                             String field = operation.getField();
                             state.putByPath(field, oldState.getByPath(field));
@@ -2032,41 +2087,28 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                             operation.execute(state);
                         }
 
-                        dataBytes = serializeState(state);
+                        data = serializeState(state);
 
-                        List<Object> parameters = new ArrayList<Object>();
-                        StringBuilder updateBuilder = new StringBuilder();
+                        try (DSLContext context = openContext(connection)) {
+                            SqlSchema schema = schema();
 
-                        updateBuilder.append("UPDATE ");
-                        vendor.appendIdentifier(updateBuilder, RECORD_TABLE);
-                        updateBuilder.append(" SET ");
-                        vendor.appendIdentifier(updateBuilder, TYPE_ID_COLUMN);
-                        updateBuilder.append('=');
-                        vendor.appendBindValue(updateBuilder, typeId, parameters);
-                        updateBuilder.append(',');
-                        vendor.appendIdentifier(updateBuilder, DATA_COLUMN);
-                        updateBuilder.append('=');
-                        vendor.appendBindValue(updateBuilder, dataBytes, parameters);
-                        updateBuilder.append(" WHERE ");
-                        vendor.appendIdentifier(updateBuilder, ID_COLUMN);
-                        updateBuilder.append('=');
-                        vendor.appendBindValue(updateBuilder, id, parameters);
-                        updateBuilder.append(" AND ");
-                        vendor.appendIdentifier(updateBuilder, TYPE_ID_COLUMN);
-                        updateBuilder.append('=');
-                        vendor.appendBindValue(updateBuilder, oldTypeId, parameters);
-                        updateBuilder.append(" AND ");
-                        vendor.appendIdentifier(updateBuilder, DATA_COLUMN);
-                        updateBuilder.append('=');
-                        vendor.appendBindValue(updateBuilder, oldData, parameters);
+                            if (execute(connection, context, context
+                                    .update(schema.record())
+                                    .set(schema.recordTypeId(), typeId)
+                                    .set(schema.recordData(), data)
+                                    .where(schema.recordId().eq(id))
+                                    .and(schema.recordTypeId().eq(oldTypeId))
+                                    .and(schema.recordData().eq(oldData))) < 1) {
 
-                        if (Static.executeUpdateWithList(vendor, connection, updateBuilder.toString(), parameters) < 1) {
-                            retryWrites();
-                            break;
+                                // UPDATE failed so start over.
+                                retryWrites();
+                                break;
+                            }
                         }
                     }
                 }
 
+                // Success!
                 break;
             }
 

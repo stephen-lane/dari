@@ -18,13 +18,14 @@ public class SqlSchema {
     private final Table<Record> record;
     private final Field<UUID> recordId;
     private final Field<UUID> recordTypeId;
-    private final Field<String> recordData;
+    private final Field<byte[]> recordData;
 
     private final Table<Record> symbol;
     private final Field<Integer> symbolId;
     private final Field<String> symbolValue;
 
     protected SqlSchema() {
+        DataType<byte[]> byteArray = byteArray();
         DataType<Integer> integer = integer();
         DataType<String> string = string();
         DataType<UUID> uuid = uuid();
@@ -32,11 +33,15 @@ public class SqlSchema {
         record = DSL.table(DSL.name("Record"));
         recordId = DSL.field(DSL.name("id"), uuid);
         recordTypeId = DSL.field(DSL.name("typeId"), uuid);
-        recordData = DSL.field(DSL.name("data"), string);
+        recordData = DSL.field(DSL.name("data"), byteArray);
 
         symbol = DSL.table(DSL.name("Symbol"));
         symbolId = DSL.field(DSL.name("symbolId"), integer);
         symbolValue = DSL.field(DSL.name("value"), string);
+    }
+
+    protected DataType<byte[]> byteArray() {
+        return SQLDataType.LONGVARBINARY;
     }
 
     protected DataType<Integer> integer() {
@@ -84,7 +89,7 @@ public class SqlSchema {
         return recordTypeId;
     }
 
-    public Field<String> recordData() {
+    public Field<byte[]> recordData() {
         return recordData;
     }
 

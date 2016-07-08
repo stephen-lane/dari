@@ -412,4 +412,9 @@ public class MySQLDatabase extends AbstractSqlDatabase {
 
         return super.readFirst(query);
     }
+
+    @Override
+    protected boolean shouldUseSavepoint() {
+        return false;
+    }
 }
