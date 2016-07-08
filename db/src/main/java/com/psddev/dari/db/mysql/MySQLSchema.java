@@ -17,7 +17,7 @@ public class MySQLSchema extends SqlSchema {
     }
 
     @Override
-    protected DataType<UUID> uuid() {
+    protected DataType<UUID> uuidDataType() {
         return MySQLDataType.BINARY.asConvertedDataType(new Converter<byte[], UUID>() {
 
             @Override

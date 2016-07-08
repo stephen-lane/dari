@@ -1998,6 +1998,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             UUID typeId = state.getVisibilityAwareTypeId();
             byte[] data = null;
 
+            // Update Record.
             while (true) {
 
                 // Looks like a new object so try to INSERT.
@@ -2112,61 +2113,46 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                 break;
             }
 
+            // Update RecordUpdate.
             while (true) {
                 if (isNew) {
-                    List<Object> parameters = new ArrayList<Object>();
-                    StringBuilder insertBuilder = new StringBuilder();
+                    try (DSLContext context = openContext(connection)) {
+                        SqlSchema schema = schema();
 
-                    insertBuilder.append("INSERT INTO ");
-                    vendor.appendIdentifier(insertBuilder, RECORD_UPDATE_TABLE);
-                    insertBuilder.append(" (");
-                    vendor.appendIdentifier(insertBuilder, ID_COLUMN);
-                    insertBuilder.append(',');
-                    vendor.appendIdentifier(insertBuilder, TYPE_ID_COLUMN);
-                    insertBuilder.append(',');
-                    vendor.appendIdentifier(insertBuilder, UPDATE_DATE_COLUMN);
-                    insertBuilder.append(") VALUES (");
-                    vendor.appendBindValue(insertBuilder, id, parameters);
-                    insertBuilder.append(',');
-                    vendor.appendBindValue(insertBuilder, typeId, parameters);
-                    insertBuilder.append(',');
-                    vendor.appendBindValue(insertBuilder, now, parameters);
-                    insertBuilder.append(')');
+                        try {
+                            execute(connection, context, context
+                                    .insertInto(schema.recordUpdate())
+                                    .set(schema.recordUpdateId(), id)
+                                    .set(schema.recordUpdateTypeId(), typeId)
+                                    .set(schema.recordUpdateDate(), now));
 
-                    try {
-                        Static.executeUpdateWithList(vendor, connection, insertBuilder.toString(), parameters);
+                        } catch (SQLException error) {
 
-                    } catch (SQLException ex) {
-                        if (Static.isIntegrityConstraintViolation(ex)) {
-                            isNew = false;
-                            continue;
-                        } else {
-                            throw ex;
+                            // INSERT failed so retry with UPDATE.
+                            if (Static.isIntegrityConstraintViolation(error)) {
+                                isNew = false;
+                                continue;
+
+                            } else {
+                                throw error;
+                            }
                         }
                     }
 
                 } else {
-                    List<Object> parameters = new ArrayList<Object>();
-                    StringBuilder updateBuilder = new StringBuilder();
+                    try (DSLContext context = openContext(connection)) {
+                        SqlSchema schema = schema();
 
-                    updateBuilder.append("UPDATE ");
-                    vendor.appendIdentifier(updateBuilder, RECORD_UPDATE_TABLE);
-                    updateBuilder.append(" SET ");
-                    vendor.appendIdentifier(updateBuilder, TYPE_ID_COLUMN);
-                    updateBuilder.append('=');
-                    vendor.appendBindValue(updateBuilder, typeId, parameters);
-                    updateBuilder.append(',');
-                    vendor.appendIdentifier(updateBuilder, UPDATE_DATE_COLUMN);
-                    updateBuilder.append('=');
-                    vendor.appendBindValue(updateBuilder, now, parameters);
-                    updateBuilder.append(" WHERE ");
-                    vendor.appendIdentifier(updateBuilder, ID_COLUMN);
-                    updateBuilder.append('=');
-                    vendor.appendBindValue(updateBuilder, id, parameters);
+                        if (execute(connection, context, context
+                                .update(schema.recordUpdate())
+                                .set(schema.recordUpdateTypeId(), typeId)
+                                .set(schema.recordUpdateDate(), now)
+                                .where(schema.recordUpdateId().eq(id))) < 1) {
 
-                    if (Static.executeUpdateWithList(vendor, connection, updateBuilder.toString(), parameters) < 1) {
-                        isNew = true;
-                        continue;
+                            // UPDATE failed so retry with INSERT.
+                            isNew = true;
+                            continue;
+                        }
                     }
                 }
 
