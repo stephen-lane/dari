@@ -1986,8 +1986,8 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         }
 
         // Save all indexes.
-        SqlIndex.Static.deleteByStates(this, connection, indexStates);
-        SqlIndex.Static.insertByStates(this, connection, indexStates);
+        SqlIndex.deleteByStates(this, connection, indexStates);
+        SqlIndex.insertByStates(this, connection, indexStates);
 
         SqlVendor vendor = getVendor();
         double now = System.currentTimeMillis() / 1000.0;
@@ -2163,20 +2163,20 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
     @Override
     protected void doIndexes(Connection connection, boolean isImmediate, List<State> states) throws SQLException {
-        SqlIndex.Static.deleteByStates(this, connection, states);
-        SqlIndex.Static.insertByStates(this, connection, states);
+        SqlIndex.deleteByStates(this, connection, states);
+        SqlIndex.insertByStates(this, connection, states);
     }
 
     @Override
     public void doRecalculations(Connection connection, boolean isImmediate, ObjectIndex index, List<State> states) throws SQLException {
-        SqlIndex.Static.updateByStates(this, connection, index, states);
+        SqlIndex.updateByStates(this, connection, index, states);
     }
 
     @Override
     protected void doDeletes(Connection connection, boolean isImmediate, List<State> states) throws SQLException {
 
         // Delete all indexes.
-        SqlIndex.Static.deleteByStates(this, connection, states);
+        SqlIndex.deleteByStates(this, connection, states);
 
         try (DSLContext context = openContext(connection)) {
             SqlSchema schema = schema();

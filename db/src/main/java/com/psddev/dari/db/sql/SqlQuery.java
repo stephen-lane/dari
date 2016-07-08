@@ -449,7 +449,7 @@ class SqlQuery {
                     && PredicateParser.OR_OPERATOR.equals(((CompoundPredicate) parentPredicate).getOperator())) {
                 for (Join j : joins) {
                     if (j.parent == parentPredicate
-                            && j.sqlIndex.equals(SqlIndex.Static.getByType(mappedKeys.get(queryKey).getInternalType()))) {
+                            && j.sqlIndex.equals(SqlIndex.getByType(mappedKeys.get(queryKey).getInternalType()))) {
                         join = j;
                         join.addIndexKey(queryKey);
                         needsDistinct = true;
@@ -1278,7 +1278,7 @@ class SqlQuery {
         private final String tableName;
         private final ObjectIndex index;
         private final SqlIndex sqlIndex;
-        private final SqlIndex.Table sqlIndexTable;
+        private final SqlIndexTable sqlIndexTable;
         private final String valueField;
         private final String hashAttribute;
         private final boolean isHaving;
@@ -1293,8 +1293,8 @@ class SqlQuery {
 
             this.indexType = mappedKey.getInternalType();
             this.sqlIndex = this.index != null
-                    ? SqlIndex.Static.getByIndex(this.index)
-                    : SqlIndex.Static.getByType(this.indexType);
+                    ? SqlIndex.getByIndex(this.index)
+                    : SqlIndex.getByType(this.indexType);
 
             ObjectField joinField = null;
             if (this.index != null) {
@@ -1404,7 +1404,7 @@ class SqlQuery {
             ObjectField field = mappedKey.getField();
             ObjectIndex index = selectedIndexes.get(queryKey);
             SqlIndex fieldSqlIndex = field != null
-                    ? SqlIndex.Static.getByType(field.getInternalItemType())
+                    ? SqlIndex.getByType(field.getInternalItemType())
                     : sqlIndex;
 
             if (fieldSqlIndex == SqlIndex.UUID) {
