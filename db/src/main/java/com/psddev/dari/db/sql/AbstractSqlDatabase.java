@@ -38,6 +38,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
+import java.util.stream.Collectors;
 
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
@@ -117,7 +118,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     public static final String INDEX_SPATIAL_SUB_SETTING = "indexSpatial";
 
     public static final String RECORD_TABLE = "Record";
-    public static final String RECORD_UPDATE_TABLE = "RecordUpdate";
     public static final String SYMBOL_TABLE = "Symbol";
     public static final String ID_COLUMN = "id";
     public static final String TYPE_ID_COLUMN = "typeId";
@@ -1985,7 +1985,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             indexStates = states;
         }
 
-        // Update all indexes.
+        // Save all indexes.
         SqlIndex.Static.deleteByStates(this, connection, indexStates);
         SqlIndex.Static.insertByStates(this, connection, indexStates);
 
@@ -1998,7 +1998,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             UUID typeId = state.getVisibilityAwareTypeId();
             byte[] data = null;
 
-            // Update Record.
+            // Save data.
             while (true) {
 
                 // Looks like a new object so try to INSERT.
@@ -2113,7 +2113,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                 break;
             }
 
-            // Update RecordUpdate.
+            // Save update date.
             while (true) {
                 if (isNew) {
                     try (DSLContext context = openContext(connection)) {
@@ -2174,37 +2174,27 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
     @Override
     protected void doDeletes(Connection connection, boolean isImmediate, List<State> states) throws SQLException {
-        SqlVendor vendor = getVendor();
 
-        StringBuilder whereBuilder = new StringBuilder();
-        whereBuilder.append(" WHERE ");
-        vendor.appendIdentifier(whereBuilder, ID_COLUMN);
-        whereBuilder.append(" IN (");
-
-        for (State state : states) {
-            vendor.appendValue(whereBuilder, state.getId());
-            whereBuilder.append(',');
-        }
-
-        whereBuilder.setCharAt(whereBuilder.length() - 1, ')');
-
-        StringBuilder deleteBuilder = new StringBuilder();
-        deleteBuilder.append("DELETE FROM ");
-        vendor.appendIdentifier(deleteBuilder, RECORD_TABLE);
-        deleteBuilder.append(whereBuilder);
-        Static.executeUpdateWithArray(vendor, connection, deleteBuilder.toString());
-
+        // Delete all indexes.
         SqlIndex.Static.deleteByStates(this, connection, states);
 
-        StringBuilder updateBuilder = new StringBuilder();
-        updateBuilder.append("UPDATE ");
-        vendor.appendIdentifier(updateBuilder, RECORD_UPDATE_TABLE);
-        updateBuilder.append(" SET ");
-        vendor.appendIdentifier(updateBuilder, UPDATE_DATE_COLUMN);
-        updateBuilder.append('=');
-        vendor.appendValue(updateBuilder, System.currentTimeMillis() / 1000.0);
-        updateBuilder.append(whereBuilder);
-        Static.executeUpdateWithArray(vendor, connection, updateBuilder.toString());
+        try (DSLContext context = openContext(connection)) {
+            SqlSchema schema = schema();
+            Set<UUID> stateIds = states.stream()
+                    .map(State::getId)
+                    .collect(Collectors.toSet());
+
+            // Delete data.
+            execute(connection, context, context
+                    .delete(schema.record())
+                    .where(schema.recordId().in(stateIds)));
+
+            // Save delete date.
+            execute(connection, context, context
+                    .update(schema.recordUpdate())
+                    .set(schema.recordUpdateDate(), System.currentTimeMillis() / 1000.0)
+                    .where(schema.recordUpdateId().in(stateIds)));
+        }
     }
 
     @Override
