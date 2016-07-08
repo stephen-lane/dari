@@ -2420,28 +2420,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
          *
          * @return Number of rows affected by the update query.
          */
-        public static int executeUpdateWithList(
-                SqlVendor vendor,
-                Connection connection,
-                String sqlQuery,
-                List<?> parameters)
-                throws SQLException {
-
-            if (parameters == null) {
-                return executeUpdateWithArray(vendor, connection, sqlQuery);
-
-            } else {
-                Object[] array = parameters.toArray(new Object[parameters.size()]);
-                return executeUpdateWithArray(vendor, connection, sqlQuery, array);
-            }
-        }
-
-        /**
-         * Executes the given update {@code sqlQuery} with the given
-         * {@code parameters} within the given {@code connection}.
-         *
-         * @return Number of rows affected by the update query.
-         */
         public static int executeUpdateWithArray(
                 SqlVendor vendor,
                 Connection connection,
@@ -2536,26 +2514,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                 String state = error.getSQLState();
                 return state != null && state.startsWith("23");
             }
-        }
-
-        /**
-         * Returns the name of the table for storing the values of the
-         * given {@code index}.
-         */
-        public static String getIndexTable(ObjectIndex index) {
-            return ObjectUtils.to(String.class, index.getOptions().get(INDEX_TABLE_INDEX_OPTION));
-        }
-
-        /**
-         * Sets the name of the table for storing the values of the
-         * given {@code index}.
-         */
-        public static void setIndexTable(ObjectIndex index, String table) {
-            index.getOptions().put(INDEX_TABLE_INDEX_OPTION, table);
-        }
-
-        public static Object getExtraColumn(Object object, String name) {
-            return State.getInstance(object).getExtra(EXTRA_COLUMN_EXTRA_PREFIX + name);
         }
 
         public static byte[] getOriginalData(Object object) {
