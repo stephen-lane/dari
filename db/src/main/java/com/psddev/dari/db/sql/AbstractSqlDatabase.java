@@ -1985,62 +1985,58 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             indexStates = states;
         }
 
-        // Save all indexes.
-        SqlIndex.deleteByStates(this, connection, indexStates);
-        SqlIndex.insertByStates(this, connection, indexStates);
+        try (DSLContext context = openContext(connection)) {
+            SqlSchema schema = schema();
 
-        SqlVendor vendor = getVendor();
-        double now = System.currentTimeMillis() / 1000.0;
+            // Save all indexes.
+            SqlIndex.deleteByStates(this, schema, connection, context, indexStates);
+            SqlIndex.insertByStates(this, schema, connection, context, indexStates);
 
-        for (State state : states) {
-            boolean isNew = state.isNew();
-            UUID id = state.getId();
-            UUID typeId = state.getVisibilityAwareTypeId();
-            byte[] data = null;
+            SqlVendor vendor = getVendor();
+            double now = System.currentTimeMillis() / 1000.0;
 
-            // Save data.
-            while (true) {
+            for (State state : states) {
+                boolean isNew = state.isNew();
+                UUID id = state.getId();
+                UUID typeId = state.getVisibilityAwareTypeId();
+                byte[] data = null;
 
-                // Looks like a new object so try to INSERT.
-                if (isNew) {
-                    try {
-                        if (data == null) {
-                            data = serializeState(state);
-                        }
+                // Save data.
+                while (true) {
 
-                        try (DSLContext context = openContext(connection)) {
-                            SqlSchema schema = schema();
+                    // Looks like a new object so try to INSERT.
+                    if (isNew) {
+                        try {
+                            if (data == null) {
+                                data = serializeState(state);
+                            }
 
                             execute(connection, context, context
                                     .insertInto(schema.record())
                                     .set(schema.recordId(), id)
                                     .set(schema.recordTypeId(), typeId)
                                     .set(schema.recordData(), data));
+
+                        } catch (SQLException error) {
+
+                            // INSERT failed so retry with UPDATE.
+                            if (Static.isIntegrityConstraintViolation(error)) {
+                                isNew = false;
+                                continue;
+
+                            } else {
+                                throw error;
+                            }
                         }
 
-                    } catch (SQLException error) {
+                    } else {
+                        List<AtomicOperation> atomicOperations = state.getAtomicOperations();
 
-                        // INSERT failed so retry with UPDATE.
-                        if (Static.isIntegrityConstraintViolation(error)) {
-                            isNew = false;
-                            continue;
-
-                        } else {
-                            throw error;
-                        }
-                    }
-
-                } else {
-                    List<AtomicOperation> atomicOperations = state.getAtomicOperations();
-
-                    // Normal update.
-                    if (atomicOperations.isEmpty()) {
-                        if (data == null) {
-                            data = serializeState(state);
-                        }
-
-                        try (DSLContext context = openContext(connection)) {
-                            SqlSchema schema = schema();
+                        // Normal update.
+                        if (atomicOperations.isEmpty()) {
+                            if (data == null) {
+                                data = serializeState(state);
+                            }
 
                             if (execute(connection, context, context
                                     .update(schema.record())
@@ -2052,46 +2048,42 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                                 isNew = true;
                                 continue;
                             }
-                        }
 
-                    } else {
+                        } else {
 
-                        // Atomic operations requested, so find the old object.
-                        Object oldObject = Query
-                                .from(Object.class)
-                                .where("_id = ?", id)
-                                .using(this)
-                                .option(CONNECTION_QUERY_OPTION, connection)
-                                .option(RETURN_ORIGINAL_DATA_QUERY_OPTION, Boolean.TRUE)
-                                .option(USE_READ_DATA_SOURCE_QUERY_OPTION, Boolean.FALSE)
-                                .first();
+                            // Atomic operations requested, so find the old object.
+                            Object oldObject = Query
+                                    .from(Object.class)
+                                    .where("_id = ?", id)
+                                    .using(this)
+                                    .option(CONNECTION_QUERY_OPTION, connection)
+                                    .option(RETURN_ORIGINAL_DATA_QUERY_OPTION, Boolean.TRUE)
+                                    .option(USE_READ_DATA_SOURCE_QUERY_OPTION, Boolean.FALSE)
+                                    .first();
 
-                        if (oldObject == null) {
-                            retryWrites();
-                            break;
-                        }
+                            if (oldObject == null) {
+                                retryWrites();
+                                break;
+                            }
 
-                        // Restore the data from the old object.
-                        State oldState = State.getInstance(oldObject);
-                        UUID oldTypeId = oldState.getVisibilityAwareTypeId();
-                        byte[] oldData = Static.getOriginalData(oldObject);
+                            // Restore the data from the old object.
+                            State oldState = State.getInstance(oldObject);
+                            UUID oldTypeId = oldState.getVisibilityAwareTypeId();
+                            byte[] oldData = Static.getOriginalData(oldObject);
 
-                        state.setValues(oldState.getValues());
+                            state.setValues(oldState.getValues());
 
-                        // Apply all the atomic operations.
-                        for (AtomicOperation operation : atomicOperations) {
-                            String field = operation.getField();
-                            state.putByPath(field, oldState.getByPath(field));
-                        }
+                            // Apply all the atomic operations.
+                            for (AtomicOperation operation : atomicOperations) {
+                                String field = operation.getField();
+                                state.putByPath(field, oldState.getByPath(field));
+                            }
 
-                        for (AtomicOperation operation : atomicOperations) {
-                            operation.execute(state);
-                        }
+                            for (AtomicOperation operation : atomicOperations) {
+                                operation.execute(state);
+                            }
 
-                        data = serializeState(state);
-
-                        try (DSLContext context = openContext(connection)) {
-                            SqlSchema schema = schema();
+                            data = serializeState(state);
 
                             if (execute(connection, context, context
                                     .update(schema.record())
@@ -2107,18 +2099,14 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                             }
                         }
                     }
+
+                    // Success!
+                    break;
                 }
 
-                // Success!
-                break;
-            }
-
-            // Save update date.
-            while (true) {
-                if (isNew) {
-                    try (DSLContext context = openContext(connection)) {
-                        SqlSchema schema = schema();
-
+                // Save update date.
+                while (true) {
+                    if (isNew) {
                         try {
                             execute(connection, context, context
                                     .insertInto(schema.recordUpdate())
@@ -2137,12 +2125,8 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                                 throw error;
                             }
                         }
-                    }
 
-                } else {
-                    try (DSLContext context = openContext(connection)) {
-                        SqlSchema schema = schema();
-
+                    } else {
                         if (execute(connection, context, context
                                 .update(schema.recordUpdate())
                                 .set(schema.recordUpdateTypeId(), typeId)
@@ -2154,32 +2138,38 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                             continue;
                         }
                     }
-                }
 
-                break;
+                    break;
+                }
             }
         }
     }
 
     @Override
     protected void doIndexes(Connection connection, boolean isImmediate, List<State> states) throws SQLException {
-        SqlIndex.deleteByStates(this, connection, states);
-        SqlIndex.insertByStates(this, connection, states);
+        try (DSLContext context = openContext(connection)) {
+            SqlSchema schema = schema();
+
+            SqlIndex.deleteByStates(this, schema, connection, context, states);
+            SqlIndex.insertByStates(this, schema, connection, context, states);
+        }
     }
 
     @Override
     public void doRecalculations(Connection connection, boolean isImmediate, ObjectIndex index, List<State> states) throws SQLException {
-        SqlIndex.updateByStates(this, connection, index, states);
+        try (DSLContext context = openContext(connection)) {
+            SqlIndex.updateByStates(this, schema(), connection, context, index, states);
+        }
     }
 
     @Override
     protected void doDeletes(Connection connection, boolean isImmediate, List<State> states) throws SQLException {
-
-        // Delete all indexes.
-        SqlIndex.deleteByStates(this, connection, states);
-
         try (DSLContext context = openContext(connection)) {
             SqlSchema schema = schema();
+
+            // Delete all indexes.
+            SqlIndex.deleteByStates(this, schema, connection, context, states);
+
             Set<UUID> stateIds = states.stream()
                     .map(State::getId)
                     .collect(Collectors.toSet());

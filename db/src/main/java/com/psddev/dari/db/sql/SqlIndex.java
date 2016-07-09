@@ -24,6 +24,7 @@ import com.psddev.dari.db.Recordable;
 import com.psddev.dari.db.State;
 import com.psddev.dari.util.ObjectToIterable;
 import com.psddev.dari.util.StringUtils;
+import org.jooq.DSLContext;
 
 /** Internal representations of all SQL index tables. */
 enum SqlIndex {
@@ -137,15 +138,20 @@ enum SqlIndex {
      */
     public static void deleteByStates(
             AbstractSqlDatabase database,
+            SqlSchema schema,
             Connection connection,
+            DSLContext context,
             List<State> states)
             throws SQLException {
-        deleteByStates(database, connection, null, states);
+
+        deleteByStates(database, schema, connection, context, null, states);
     }
 
     private static void deleteByStates(
             AbstractSqlDatabase database,
+            SqlSchema schema,
             Connection connection,
+            DSLContext context,
             ObjectIndex onlyIndex,
             List<State> states)
             throws SQLException {
@@ -187,7 +193,9 @@ enum SqlIndex {
 
     public static void updateByStates(
             AbstractSqlDatabase database,
+            SqlSchema schema,
             Connection connection,
+            DSLContext context,
             ObjectIndex index,
             List<State> states)
             throws SQLException {
@@ -268,12 +276,12 @@ enum SqlIndex {
             }
         }
         if (!needDeletes.isEmpty()) {
-            deleteByStates(database, connection, index, new ArrayList<>(needDeletes));
+            deleteByStates(database, schema, connection, context, index, new ArrayList<>(needDeletes));
         }
         if (!needInserts.isEmpty()) {
             List<State> insertStates = new ArrayList<>(needInserts);
-            deleteByStates(database, connection, index, insertStates);
-            insertByStates(database, connection, index, insertStates);
+            deleteByStates(database, schema, connection, context, index, insertStates);
+            insertByStates(database, schema, connection, context, index, insertStates);
         }
     }
 
@@ -282,16 +290,20 @@ enum SqlIndex {
      */
     public static void insertByStates(
             AbstractSqlDatabase database,
+            SqlSchema schema,
             Connection connection,
+            DSLContext context,
             List<State> states)
             throws SQLException {
 
-        insertByStates(database, connection, null, states);
+        insertByStates(database, schema, connection, context, null, states);
     }
 
     private static void insertByStates(
             AbstractSqlDatabase database,
+            SqlSchema schema,
             Connection connection,
+            DSLContext context,
             ObjectIndex onlyIndex,
             List<State> states)
             throws SQLException {
