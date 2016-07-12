@@ -1,5 +1,7 @@
 package com.psddev.dari.db.sql;
 
+import com.psddev.dari.db.Location;
+import com.psddev.dari.db.Region;
 import org.jooq.Converter;
 import org.jooq.DataType;
 import org.jooq.Field;
@@ -9,6 +11,7 @@ import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.UUID;
 
 public class SqlSchema {
@@ -90,6 +93,22 @@ public class SqlSchema {
 
     protected DataType<UUID> uuidDataType() {
         return SQLDataType.UUID;
+    }
+
+    public Field<Object> locationParam() {
+        throw new UnsupportedOperationException();
+    }
+
+    public void bindLocation(Map<String, Object> bindValues, Location location) {
+        throw new UnsupportedOperationException();
+    }
+
+    public Field<Object> regionParam() {
+        throw new UnsupportedOperationException();
+    }
+
+    public void bindRegion(Map<String, Object> bindValues, Region region) {
+        throw new UnsupportedOperationException();
     }
 
     public Table<Record> record() {

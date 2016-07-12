@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import com.google.common.base.Throwables;
 import com.psddev.dari.db.ObjectField;
 import com.psddev.dari.db.ObjectIndex;
 import com.psddev.dari.db.ObjectMethod;
@@ -24,56 +25,32 @@ import com.psddev.dari.db.Recordable;
 import com.psddev.dari.db.State;
 import com.psddev.dari.util.ObjectToIterable;
 import com.psddev.dari.util.StringUtils;
+import org.jooq.BatchBindStep;
 import org.jooq.DSLContext;
+import org.jooq.DataType;
+import org.jooq.InsertSetMoreStep;
+import org.jooq.Param;
+import org.jooq.Record;
+import org.jooq.exception.DataAccessException;
+import org.jooq.impl.DSL;
 
 /** Internal representations of all SQL index tables. */
 enum SqlIndex {
 
     LOCATION(
-        new SqlIndexTable.NameSingleValue(1, "RecordLocation"),
-        new SqlIndexTable.SymbolIdSingleValue(2, "RecordLocation2"),
-        new SqlIndexTable.TypeIdSymbolIdSingleValue(3, "RecordLocation3")
+        new LocationSqlIndexTable(3, "RecordLocation3")
     ),
 
     REGION(
-        new SqlIndexTable.SymbolIdSingleValue(1, "RecordRegion"),
-        new SqlIndexTable.TypeIdSymbolIdSingleValue(2, "RecordRegion2")
+        new RegionSqlIndexTable(2, "RecordRegion2")
     ),
 
     NUMBER(
-        new SqlIndexTable.NameSingleValue(1, "RecordNumber"),
-        new SqlIndexTable.SymbolIdSingleValue(2, "RecordNumber2"),
-        new SqlIndexTable.TypeIdSymbolIdSingleValue(3, "RecordNumber3")
+        new SqlIndexTable(3, "RecordNumber3")
     ),
 
     STRING(
-        new SqlIndexTable.NameSingleValue(1, "RecordString") {
-            @Override
-            protected Object convertValue(AbstractSqlDatabase database, ObjectIndex index, int fieldIndex, Object value) {
-                String string = value.toString();
-                return string.length() > 400 ? string.substring(0, 400) : string;
-            }
-        },
-
-        new SqlIndexTable.SymbolIdSingleValue(2, "RecordString2") {
-            @Override
-            protected Object convertValue(AbstractSqlDatabase database, ObjectIndex index, int fieldIndex, Object value) {
-                return stringToBytes(value.toString(), 500);
-            }
-        },
-
-        new SqlIndexTable.SymbolIdSingleValue(3, "RecordString3") {
-            @Override
-            protected Object convertValue(AbstractSqlDatabase database, ObjectIndex index, int fieldIndex, Object value) {
-                String valueString = value.toString().trim();
-                if (!index.isCaseSensitive()) {
-                    valueString = valueString.toLowerCase(Locale.ENGLISH);
-                }
-                return stringToBytes(valueString, 500);
-            }
-        },
-
-        new SqlIndexTable.TypeIdSymbolIdSingleValue(4, "RecordString4") {
+        new SqlIndexTable(4, "RecordString4") {
             @Override
             protected Object convertValue(AbstractSqlDatabase database, ObjectIndex index, int fieldIndex, Object value) {
                 String valueString = StringUtils.trimAndCollapseWhitespaces(value.toString());
@@ -86,9 +63,7 @@ enum SqlIndex {
     ),
 
     UUID(
-        new SqlIndexTable.NameSingleValue(1, "RecordUuid"),
-        new SqlIndexTable.SymbolIdSingleValue(2, "RecordUuid2"),
-        new SqlIndexTable.TypeIdSymbolIdSingleValue(3, "RecordUuid3")
+        new SqlIndexTable(3, "RecordUuid3")
     );
 
     private final SqlIndexTable[] tables;
@@ -293,24 +268,18 @@ enum SqlIndex {
             SqlSchema schema,
             Connection connection,
             DSLContext context,
-            List<State> states)
-            throws SQLException {
-
-        insertByStates(database, schema, connection, context, null, states);
-    }
-
-    private static void insertByStates(
-            AbstractSqlDatabase database,
-            SqlSchema schema,
-            Connection connection,
-            DSLContext context,
             ObjectIndex onlyIndex,
             List<State> states)
             throws SQLException {
 
-        Map<String, String> insertQueries = new HashMap<>();
-        Map<String, List<List<Object>>> insertParameters = new HashMap<>();
-        Map<String, Set<String>> insertBindKeys = new HashMap<>();
+        Map<String, BatchBindStep> batches = new HashMap<>();
+
+        DataType<Integer> integerDataType = schema.integerDataType();
+        DataType<UUID> uuidDataType = schema.uuidDataType();
+
+        Param<UUID> idParam = DSL.param("id", uuidDataType);
+        Param<UUID> typeIdParam = DSL.param("typeId", uuidDataType);
+        Param<Integer> symbolIdParam = DSL.param("symbolId", integerDataType);
 
         for (State state : states) {
             UUID id = state.getId();
@@ -318,42 +287,63 @@ enum SqlIndex {
 
             for (SqlIndexValue indexValue : getIndexValues(state)) {
                 ObjectIndex index = indexValue.getIndex();
+
                 if (onlyIndex != null && !onlyIndex.equals(index)) {
                     continue;
                 }
 
                 for (SqlIndexTable table : getByIndex(index).getWriteTables(database, index)) {
                     String name = table.getName(database, index);
-                    String sqlQuery = insertQueries.get(name);
-                    List<List<Object>> parameters = insertParameters.get(name);
-                    Set<String> bindKeys = insertBindKeys.get(name);
-                    if (sqlQuery == null && parameters == null) {
-                        sqlQuery = table.prepareInsertStatement(database, connection, index);
-                        insertQueries.put(name, sqlQuery);
+                    String typeIdField = table.getTypeIdField(database, index);
+                    boolean hasTypeIdField = typeIdField != null;
+                    BatchBindStep batch = batches.get(name);
 
-                        parameters = new ArrayList<>();
-                        insertParameters.put(name, parameters);
+                    if (batch == null) {
+                        InsertSetMoreStep<Record> insert = context.insertInto(DSL.table(DSL.name(table.getName(database, index))))
+                                .set(DSL.field(DSL.name(table.getIdField(database, index)), uuidDataType), idParam)
+                                .set(DSL.field(DSL.name(table.getKeyField(database, index)), integerDataType), symbolIdParam)
+                                .set(DSL.field(DSL.name(table.getValueField(database, index, 0))), table.valueParam(schema));
 
-                        bindKeys = new HashSet<>();
-                        insertBindKeys.put(name, bindKeys);
+                        if (hasTypeIdField) {
+                            insert = insert.set(DSL.field(DSL.name(typeIdField), uuidDataType), typeIdParam);
+                        }
+
+                        batch = context.batch(insert.onDuplicateKeyIgnore());
                     }
 
-                    table.bindInsertValues(database, index, id, typeId, indexValue, bindKeys, parameters);
+                    Object key = table.convertKey(database, index, indexValue.getUniqueName());
+                    boolean bound = false;
+
+                    for (Object[] valuesArray : indexValue.getValuesArray()) {
+                        Map<String, Object> bindValues = table.createBindValues(database, schema, index, 0, valuesArray[0]);
+
+                        if (bindValues != null) {
+                            bindValues.put(idParam.getName(), id);
+                            bindValues.put(symbolIdParam.getName(), key);
+
+                            if (hasTypeIdField) {
+                                bindValues.put(typeIdParam.getName(), typeId);
+                            }
+
+                            batch = batch.bind(bindValues);
+                            bound = true;
+                        }
+                    }
+
+                    if (bound) {
+                        batches.put(name, batch);
+                    }
                 }
             }
         }
 
-        for (Map.Entry<String, String> entry : insertQueries.entrySet()) {
-            String name = entry.getKey();
-            String sqlQuery = entry.getValue();
-            List<List<Object>> parameters = insertParameters.get(name);
+        for (BatchBindStep batch : batches.values()) {
             try {
-                if (!parameters.isEmpty()) {
-                    AbstractSqlDatabase.Static.executeBatchUpdate(connection, sqlQuery, parameters);
-                }
-            } catch (BatchUpdateException bue) {
-                AbstractSqlDatabase.Static.logBatchUpdateException(bue, sqlQuery, parameters);
-                throw bue;
+                batch.execute();
+
+            } catch (DataAccessException error) {
+                Throwables.propagateIfInstanceOf(error.getCause(), SQLException.class);
+                throw error;
             }
         }
     }

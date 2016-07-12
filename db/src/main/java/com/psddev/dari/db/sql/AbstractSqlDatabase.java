@@ -1990,7 +1990,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
             // Save all indexes.
             SqlIndex.deleteByStates(this, schema, connection, context, indexStates);
-            SqlIndex.insertByStates(this, schema, connection, context, indexStates);
+            SqlIndex.insertByStates(this, schema, connection, context, null, indexStates);
 
             SqlVendor vendor = getVendor();
             double now = System.currentTimeMillis() / 1000.0;
@@ -2151,7 +2151,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             SqlSchema schema = schema();
 
             SqlIndex.deleteByStates(this, schema, connection, context, states);
-            SqlIndex.insertByStates(this, schema, connection, context, states);
+            SqlIndex.insertByStates(this, schema, connection, context, null, states);
         }
     }
 
