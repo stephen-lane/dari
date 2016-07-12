@@ -1,24 +1,36 @@
 package com.psddev.dari.db.sql;
 
+import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.psddev.dari.db.Location;
 import com.psddev.dari.db.ObjectField;
 import com.psddev.dari.db.ObjectIndex;
 import com.psddev.dari.db.Region;
+import com.psddev.dari.db.State;
+import org.jooq.BatchBindStep;
 import org.jooq.Converter;
+import org.jooq.DSLContext;
 import org.jooq.DataType;
+import org.jooq.DeleteConditionStep;
 import org.jooq.Field;
+import org.jooq.Param;
 import org.jooq.Record;
 import org.jooq.Table;
+import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
 
 import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 public class SqlSchema {
 
@@ -296,11 +308,114 @@ public class SqlSchema {
     }
 
     /**
-     * Finds all the index tables that should be used with DELETE SQL queries.
-     *
-     * @return Never {@code null}.
+     * Inserts indexes associated with the given {@code states}.
      */
-    public List<SqlIndexTable> findDeleteIndexTables() {
-        return deleteTables;
+    public void insertIndexes(
+            AbstractSqlDatabase database,
+            Connection connection,
+            DSLContext context,
+            ObjectIndex onlyIndex,
+            List<State> states)
+            throws SQLException {
+
+        Map<Table<Record>, BatchBindStep> batches = new HashMap<>();
+
+        for (State state : states) {
+            UUID id = state.getId();
+            UUID typeId = state.getVisibilityAwareTypeId();
+
+            for (SqlIndexValue indexValue : SqlIndex.getIndexValues(state)) {
+                ObjectIndex index = indexValue.getIndex();
+
+                if (onlyIndex != null && !onlyIndex.equals(index)) {
+                    continue;
+                }
+
+                for (SqlIndexTable table : findUpdateIndexTables(index)) {
+                    Table<Record> jooqTable = table.table();
+                    BatchBindStep batch = batches.get(jooqTable);
+                    Param<UUID> idParam = table.idParam();
+                    Param<UUID> typeIdParam = table.typeIdParam();
+                    Param<Integer> symbolIdParam = table.symbolIdParam();
+
+                    if (batch == null) {
+                        batch = context.batch(context.insertInto(jooqTable)
+                                .set(table.id(), idParam)
+                                .set(table.typeId(), typeIdParam)
+                                .set(table.symbolId(), symbolIdParam)
+                                .set(table.value(), table.valueParam())
+                                .onDuplicateKeyIgnore());
+                    }
+
+                    Object key = table.convertKey(database, index, indexValue.getUniqueName());
+                    boolean bound = false;
+
+                    for (Object[] valuesArray : indexValue.getValuesArray()) {
+                        Map<String, Object> bindValues = table.createBindValues(database, this, index, 0, valuesArray[0]);
+
+                        if (bindValues != null) {
+                            bindValues.put(idParam.getName(), id);
+                            bindValues.put(typeIdParam.getName(), typeId);
+                            bindValues.put(symbolIdParam.getName(), key);
+
+                            batch = batch.bind(bindValues);
+                            bound = true;
+                        }
+                    }
+
+                    if (bound) {
+                        batches.put(jooqTable, batch);
+                    }
+                }
+            }
+        }
+
+        for (BatchBindStep batch : batches.values()) {
+            try {
+                batch.execute();
+
+            } catch (DataAccessException error) {
+                Throwables.propagateIfInstanceOf(error.getCause(), SQLException.class);
+                throw error;
+            }
+        }
+    }
+
+    /**
+     * Deletes indexes associated with the given {@code states}.
+     */
+    public void deleteIndexes(
+            AbstractSqlDatabase database,
+            Connection connection,
+            DSLContext context,
+            ObjectIndex onlyIndex,
+            List<State> states)
+            throws SQLException {
+
+        if (states == null || states.isEmpty()) {
+            return;
+        }
+
+        Set<UUID> stateIds = states.stream()
+                .map(State::getId)
+                .collect(Collectors.toSet());
+
+        for (SqlIndexTable table : deleteTables) {
+            try {
+                DeleteConditionStep<Record> delete = context
+                        .deleteFrom(table.table())
+                        .where(table.id().in(stateIds));
+
+                if (onlyIndex != null) {
+                    delete = delete.and(table.symbolId().eq(database.getReadSymbolId(onlyIndex.getUniqueName())));
+                }
+
+                context.execute(delete);
+
+            } catch (DataAccessException error) {
+                Throwables.propagateIfInstanceOf(error, SQLException.class);
+                throw error;
+            }
+        }
     }
 }

@@ -1987,8 +1987,8 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             SqlSchema schema = schema();
 
             // Save all indexes.
-            SqlIndex.deleteByStates(this, schema, connection, context, null, indexStates);
-            SqlIndex.insertByStates(this, schema, connection, context, null, indexStates);
+            schema.deleteIndexes(this, connection, context, null, indexStates);
+            schema.insertIndexes(this, connection, context, null, indexStates);
 
             SqlVendor vendor = getVendor();
             double now = System.currentTimeMillis() / 1000.0;
@@ -2148,8 +2148,8 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         try (DSLContext context = openContext(connection)) {
             SqlSchema schema = schema();
 
-            SqlIndex.deleteByStates(this, schema, connection, context, null, states);
-            SqlIndex.insertByStates(this, schema, connection, context, null, states);
+            schema.deleteIndexes(this, connection, context, null, states);
+            schema.insertIndexes(this, connection, context, null, states);
         }
     }
 
@@ -2166,7 +2166,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             SqlSchema schema = schema();
 
             // Delete all indexes.
-            SqlIndex.deleteByStates(this, schema, connection, context, null, states);
+            schema.deleteIndexes(this, connection, context, null, states);
 
             Set<UUID> stateIds = states.stream()
                     .map(State::getId)
