@@ -14,6 +14,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import com.google.common.base.Throwables;
 import com.psddev.dari.db.ObjectField;
@@ -27,6 +28,7 @@ import com.psddev.dari.util.ObjectToIterable;
 import org.jooq.BatchBindStep;
 import org.jooq.DSLContext;
 import org.jooq.DataType;
+import org.jooq.DeleteConditionStep;
 import org.jooq.InsertSetMoreStep;
 import org.jooq.Param;
 import org.jooq.Record;
@@ -44,17 +46,6 @@ class SqlIndex {
             SqlSchema schema,
             Connection connection,
             DSLContext context,
-            List<State> states)
-            throws SQLException {
-
-        deleteByStates(database, schema, connection, context, null, states);
-    }
-
-    private static void deleteByStates(
-            AbstractSqlDatabase database,
-            SqlSchema schema,
-            Connection connection,
-            DSLContext context,
             ObjectIndex onlyIndex,
             List<State> states)
             throws SQLException {
@@ -63,32 +54,26 @@ class SqlIndex {
             return;
         }
 
-        SqlVendor vendor = database.getVendor();
-        StringBuilder idsBuilder = new StringBuilder(" IN (");
-
-        for (State state : states) {
-            ObjectType type = state.getType();
-
-            vendor.appendUuid(idsBuilder, state.getId());
-            idsBuilder.append(",");
-        }
-
-        idsBuilder.setCharAt(idsBuilder.length() - 1, ')');
+        Set<UUID> stateIds = states.stream()
+                .map(State::getId)
+                .collect(Collectors.toSet());
 
         for (SqlIndexTable table : schema.findDeleteIndexTables(database)) {
-            StringBuilder deleteBuilder = new StringBuilder();
-            deleteBuilder.append("DELETE FROM ");
-            vendor.appendIdentifier(deleteBuilder, table.getName());
-            deleteBuilder.append(" WHERE ");
-            vendor.appendIdentifier(deleteBuilder, table.getIdField(database, onlyIndex));
-            deleteBuilder.append(idsBuilder);
-            if (onlyIndex != null && table.getKeyField(database, onlyIndex) != null) {
-                deleteBuilder.append(" AND ");
-                vendor.appendIdentifier(deleteBuilder, table.getKeyField(database, onlyIndex));
-                deleteBuilder.append(" = ");
-                deleteBuilder.append(database.getReadSymbolId(onlyIndex.getUniqueName()));
+            try {
+                DeleteConditionStep<Record> delete = context
+                        .deleteFrom(table.table())
+                        .where(table.id().in(stateIds));
+
+                if (onlyIndex != null) {
+                    delete = delete.and(table.symbolId().eq(database.getReadSymbolId(onlyIndex.getUniqueName())));
+                }
+
+                context.execute(delete);
+
+            } catch (DataAccessException error) {
+                Throwables.propagateIfInstanceOf(error, SQLException.class);
+                throw error;
             }
-            AbstractSqlDatabase.Static.executeUpdateWithArray(vendor, connection, deleteBuilder.toString());
         }
     }
 

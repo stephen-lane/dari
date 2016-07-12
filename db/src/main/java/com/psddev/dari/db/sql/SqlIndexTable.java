@@ -6,7 +6,10 @@ import com.psddev.dari.db.ObjectStruct;
 import com.psddev.dari.util.CompactMap;
 import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.StringUtils;
+import org.jooq.DataType;
 import org.jooq.Field;
+import org.jooq.Record;
+import org.jooq.Table;
 import org.jooq.impl.DSL;
 
 import java.nio.charset.StandardCharsets;
@@ -24,6 +27,11 @@ class SqlIndexTable {
     private static final String VALUE_PARAM_NAME = "value";
     private static final Field<Object> VALUE_PARAM = DSL.param(VALUE_PARAM_NAME);
 
+    private final Table<Record> table;
+    private final Field<UUID> id;
+    private final Field<UUID> typeId;
+    private final Field<Integer> symbolId;
+
     private final String namePrefix;
     private final int version;
     private final String idField;
@@ -32,6 +40,14 @@ class SqlIndexTable {
     private final String valueField;
 
     protected SqlIndexTable(SqlSchema schema, String namePrefix, int version, String idField, String typeIdField, String keyField, String valueField) {
+        DataType<Integer> integerType = schema.integerDataType();
+        DataType<UUID> uuidType = schema.uuidDataType();
+
+        this.table = DSL.table(DSL.name(namePrefix + version));
+        this.id = DSL.field(DSL.name("id"), uuidType);
+        this.typeId = DSL.field(DSL.name("typeId"), uuidType);
+        this.symbolId = DSL.field(DSL.name("symbolId"), integerType);
+
         this.namePrefix = namePrefix;
         this.version = version;
         this.idField = idField;
@@ -42,6 +58,22 @@ class SqlIndexTable {
 
     public SqlIndexTable(SqlSchema schema, String namePrefix, int version) {
         this(schema, namePrefix, version, "id", "typeId", "symbolId", "value");
+    }
+
+    public Table<Record> table() {
+        return table;
+    }
+
+    public Field<UUID> id() {
+        return id;
+    }
+
+    public Field<UUID> typeId() {
+        return typeId;
+    }
+
+    public Field<Integer> symbolId() {
+        return symbolId;
     }
 
     public String getName() {
