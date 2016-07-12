@@ -9,13 +9,17 @@ import java.util.Map;
 
 class LocationSqlIndexTable extends SqlIndexTable {
 
+    private Field<?> locationParam;
+
     public LocationSqlIndexTable(SqlSchema schema, String namePrefix, int version) {
         super(schema, namePrefix, version);
+
+        this.locationParam = schema.locationParam();
     }
 
     @Override
-    public Field<?> valueParam(SqlSchema schema) {
-        return schema.locationParam();
+    public Field<?> valueParam() {
+        return locationParam;
     }
 
     @Override

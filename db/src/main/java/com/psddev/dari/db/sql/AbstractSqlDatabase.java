@@ -504,9 +504,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     /**
      * @return Never {@code null}.
      */
-    protected SqlSchema schema() {
-        return SqlSchema.INSTANCE;
-    }
+    protected abstract SqlSchema schema();
 
     /**
      * @return Never {@code null}.

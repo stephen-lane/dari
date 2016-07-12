@@ -8,6 +8,7 @@ import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.StringUtils;
 import org.jooq.DataType;
 import org.jooq.Field;
+import org.jooq.Param;
 import org.jooq.Record;
 import org.jooq.Table;
 import org.jooq.impl.DSL;
@@ -24,13 +25,15 @@ import java.util.UUID;
 
 class SqlIndexTable {
 
-    private static final String VALUE_PARAM_NAME = "value";
-    private static final Field<Object> VALUE_PARAM = DSL.param(VALUE_PARAM_NAME);
-
     private final Table<Record> table;
     private final Field<UUID> id;
+    private final Param<UUID> idParam;
     private final Field<UUID> typeId;
+    private final Param<UUID> typeIdParam;
     private final Field<Integer> symbolId;
+    private final Param<Integer> symbolIdParam;
+    private final Field<Object> value;
+    private final Field<?> valueParam;
 
     private final String namePrefix;
     private final int version;
@@ -45,8 +48,13 @@ class SqlIndexTable {
 
         this.table = DSL.table(DSL.name(namePrefix + version));
         this.id = DSL.field(DSL.name("id"), uuidType);
+        this.idParam = DSL.param(id.getName(), uuidType);
         this.typeId = DSL.field(DSL.name("typeId"), uuidType);
+        this.typeIdParam = DSL.param(typeId.getName(), uuidType);
         this.symbolId = DSL.field(DSL.name("symbolId"), integerType);
+        this.symbolIdParam = DSL.param(symbolId.getName(), integerType);
+        this.value = DSL.field(DSL.name("value"));
+        this.valueParam = DSL.param(value.getName());
 
         this.namePrefix = namePrefix;
         this.version = version;
@@ -68,12 +76,46 @@ class SqlIndexTable {
         return id;
     }
 
+    public Param<UUID> idParam() {
+        return idParam;
+    }
+
     public Field<UUID> typeId() {
         return typeId;
     }
 
+    public Param<UUID> typeIdParam() {
+        return typeIdParam;
+    }
+
     public Field<Integer> symbolId() {
         return symbolId;
+    }
+
+    public Param<Integer> symbolIdParam() {
+        return symbolIdParam;
+    }
+
+    public Field<Object> value() {
+        return value;
+    }
+
+    public Field<?> valueParam() {
+        return valueParam;
+    }
+
+    public Map<String, Object> createBindValues(AbstractSqlDatabase database, SqlSchema schema, ObjectIndex index, int fieldIndex, Object value) {
+        value = convertValue(database, index, fieldIndex, value);
+
+        if (ObjectUtils.isBlank(value)) {
+            return null;
+        }
+
+        Map<String, Object> bindValues = new CompactMap<>();
+
+        bindValues.put(valueParam().getName(), value);
+
+        return bindValues;
     }
 
     public String getName() {
@@ -98,24 +140,6 @@ class SqlIndexTable {
 
     public String getValueField(AbstractSqlDatabase database, ObjectIndex index, int fieldIndex) {
         return fieldIndex > 0 ? valueField + (fieldIndex + 1) : valueField;
-    }
-
-    public Field<?> valueParam(SqlSchema schema) {
-        return VALUE_PARAM;
-    }
-
-    public Map<String, Object> createBindValues(AbstractSqlDatabase database, SqlSchema schema, ObjectIndex index, int fieldIndex, Object value) {
-        value = convertValue(database, index, fieldIndex, value);
-
-        if (ObjectUtils.isBlank(value)) {
-            return null;
-        }
-
-        Map<String, Object> bindValues = new CompactMap<>();
-
-        bindValues.put("value", value);
-
-        return bindValues;
     }
 
     public Object convertReadKey(AbstractSqlDatabase database, ObjectIndex index, String key) {
@@ -182,7 +206,7 @@ class SqlIndexTable {
             vendor.appendIdentifier(updateBuilder, getValueField(database, index, i));
             updateBuilder.append(" = ");
 
-            String tableName = database.schema().findSelectIndexTable(database, index).getName();
+            String tableName = database.schema().findSelectIndexTable(index).getName();
 
             if (tableName.startsWith("RecordLocation")) {
                 vendor.appendBindLocation(updateBuilder, null, null);

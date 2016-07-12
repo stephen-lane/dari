@@ -451,7 +451,7 @@ class SqlQuery {
                     && PredicateParser.OR_OPERATOR.equals(((CompoundPredicate) parentPredicate).getOperator())) {
                 for (Join j : joins) {
                     if (j.parent == parentPredicate
-                            && j.sqlIndexTable.equals(schema.findSelectIndexTable(database, mappedKeys.get(queryKey).getInternalType()))) {
+                            && j.sqlIndexTable.equals(schema.findSelectIndexTable(mappedKeys.get(queryKey).getInternalType()))) {
                         join = j;
                         join.addIndexKey(queryKey);
                         needsDistinct = true;
@@ -1353,7 +1353,7 @@ class SqlQuery {
                 likeValuePrefix = null;
                 addIndexKey(queryKey);
                 valueField = null;
-                sqlIndexTable = schema.findSelectIndexTable(database, index);
+                sqlIndexTable = schema.findSelectIndexTable(index);
 
                 StringBuilder tableBuilder = new StringBuilder();
                 tableName = sqlIndexTable.getName();
@@ -1402,7 +1402,7 @@ class SqlQuery {
             ObjectField field = mappedKey.getField();
             ObjectIndex index = selectedIndexes.get(queryKey);
             SqlIndexTable fieldSqlIndexTable = field != null
-                    ? schema.findSelectIndexTable(database, field.getInternalItemType())
+                    ? schema.findSelectIndexTable(field.getInternalItemType())
                     : sqlIndexTable;
 
             String tableName = fieldSqlIndexTable != null ? fieldSqlIndexTable.getName() : null;

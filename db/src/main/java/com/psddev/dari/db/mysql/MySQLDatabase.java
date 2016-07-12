@@ -14,6 +14,7 @@ import com.psddev.dari.db.sql.AbstractSqlDatabase;
 import com.psddev.dari.db.sql.SqlSchema;
 import com.psddev.dari.db.sql.SqlVendor;
 import com.psddev.dari.util.CompactMap;
+import com.psddev.dari.util.Lazy;
 import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.Profiler;
 import com.psddev.dari.util.UuidUtils;
@@ -55,6 +56,14 @@ public class MySQLDatabase extends AbstractSqlDatabase {
     private transient volatile Cache<UUID, Object[]> replicationCache;
     private transient volatile MySQLBinaryLogReader mysqlBinaryLogReader;
 
+    private final transient Lazy<MySQLSchema> schema = new Lazy<MySQLSchema>() {
+
+        @Override
+        protected MySQLSchema create() {
+            return new MySQLSchema(MySQLDatabase.this);
+        }
+    };
+
     public boolean isEnableReplicationCache() {
         return enableReplicationCache;
     }
@@ -78,7 +87,7 @@ public class MySQLDatabase extends AbstractSqlDatabase {
 
     @Override
     protected SqlSchema schema() {
-        return MySQLSchema.INSTANCE;
+        return schema.get();
     }
 
     @Override

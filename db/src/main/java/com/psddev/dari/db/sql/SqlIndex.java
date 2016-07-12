@@ -27,13 +27,11 @@ import com.psddev.dari.db.State;
 import com.psddev.dari.util.ObjectToIterable;
 import org.jooq.BatchBindStep;
 import org.jooq.DSLContext;
-import org.jooq.DataType;
 import org.jooq.DeleteConditionStep;
-import org.jooq.InsertSetMoreStep;
 import org.jooq.Param;
 import org.jooq.Record;
+import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
-import org.jooq.impl.DSL;
 
 /** Internal representations of all SQL index tables. */
 class SqlIndex {
@@ -58,7 +56,7 @@ class SqlIndex {
                 .map(State::getId)
                 .collect(Collectors.toSet());
 
-        for (SqlIndexTable table : schema.findDeleteIndexTables(database)) {
+        for (SqlIndexTable table : schema.findDeleteIndexTables()) {
             try {
                 DeleteConditionStep<Record> delete = context
                         .deleteFrom(table.table())
@@ -111,7 +109,7 @@ class SqlIndex {
             }
 
             for (SqlIndexValue indexValue : indexValues) {
-                for (SqlIndexTable table : schema.findUpdateIndexTables(database, index)) {
+                for (SqlIndexTable table : schema.findUpdateIndexTables(index)) {
 
                     String name = table.getName();
                     String sqlQuery = updateQueries.get(name);
@@ -183,14 +181,7 @@ class SqlIndex {
             List<State> states)
             throws SQLException {
 
-        Map<String, BatchBindStep> batches = new HashMap<>();
-
-        DataType<Integer> integerDataType = schema.integerDataType();
-        DataType<UUID> uuidDataType = schema.uuidDataType();
-
-        Param<UUID> idParam = DSL.param("id", uuidDataType);
-        Param<UUID> typeIdParam = DSL.param("typeId", uuidDataType);
-        Param<Integer> symbolIdParam = DSL.param("symbolId", integerDataType);
+        Map<Table<Record>, BatchBindStep> batches = new HashMap<>();
 
         for (State state : states) {
             UUID id = state.getId();
@@ -203,23 +194,20 @@ class SqlIndex {
                     continue;
                 }
 
-                for (SqlIndexTable table : schema.findUpdateIndexTables(database, index)) {
-                    String name = table.getName();
-                    String typeIdField = table.getTypeIdField(database, index);
-                    boolean hasTypeIdField = typeIdField != null;
-                    BatchBindStep batch = batches.get(name);
+                for (SqlIndexTable table : schema.findUpdateIndexTables(index)) {
+                    Table<Record> jooqTable = table.table();
+                    BatchBindStep batch = batches.get(jooqTable);
+                    Param<UUID> idParam = table.idParam();
+                    Param<UUID> typeIdParam = table.typeIdParam();
+                    Param<Integer> symbolIdParam = table.symbolIdParam();
 
                     if (batch == null) {
-                        InsertSetMoreStep<Record> insert = context.insertInto(DSL.table(DSL.name(name)))
-                                .set(DSL.field(DSL.name(table.getIdField(database, index)), uuidDataType), idParam)
-                                .set(DSL.field(DSL.name(table.getKeyField(database, index)), integerDataType), symbolIdParam)
-                                .set(DSL.field(DSL.name(table.getValueField(database, index, 0))), table.valueParam(schema));
-
-                        if (hasTypeIdField) {
-                            insert = insert.set(DSL.field(DSL.name(typeIdField), uuidDataType), typeIdParam);
-                        }
-
-                        batch = context.batch(insert.onDuplicateKeyIgnore());
+                        batch = context.batch(context.insertInto(jooqTable)
+                                .set(table.id(), idParam)
+                                .set(table.typeId(), typeIdParam)
+                                .set(table.symbolId(), symbolIdParam)
+                                .set(table.value(), table.valueParam())
+                                .onDuplicateKeyIgnore());
                     }
 
                     Object key = table.convertKey(database, index, indexValue.getUniqueName());
@@ -230,11 +218,8 @@ class SqlIndex {
 
                         if (bindValues != null) {
                             bindValues.put(idParam.getName(), id);
+                            bindValues.put(typeIdParam.getName(), typeId);
                             bindValues.put(symbolIdParam.getName(), key);
-
-                            if (hasTypeIdField) {
-                                bindValues.put(typeIdParam.getName(), typeId);
-                            }
 
                             batch = batch.bind(bindValues);
                             bound = true;
@@ -242,7 +227,7 @@ class SqlIndex {
                     }
 
                     if (bound) {
-                        batches.put(name, batch);
+                        batches.put(jooqTable, batch);
                     }
                 }
             }

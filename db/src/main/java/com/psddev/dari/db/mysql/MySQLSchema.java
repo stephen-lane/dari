@@ -16,13 +16,11 @@ import java.util.UUID;
 
 public class MySQLSchema extends SqlSchema {
 
-    public static final MySQLSchema INSTANCE = new MySQLSchema();
-
     private static final String LOCATION_PARAM_NAME = "location";
     private static final String REGION_PARAM_NAME = "region";
 
-    protected MySQLSchema() {
-        super();
+    protected MySQLSchema(MySQLDatabase database) {
+        super(database);
     }
 
     @Override

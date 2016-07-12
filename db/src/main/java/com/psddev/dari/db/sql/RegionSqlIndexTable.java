@@ -9,13 +9,17 @@ import java.util.Map;
 
 class RegionSqlIndexTable extends SqlIndexTable {
 
+    private final Field<?> regionParam;
+
     public RegionSqlIndexTable(SqlSchema schema, String namePrefix, int version) {
         super(schema, namePrefix, version);
+
+        this.regionParam = schema.regionParam();
     }
 
     @Override
-    public Field<?> valueParam(SqlSchema schema) {
-        return schema.regionParam();
+    public Field<?> valueParam() {
+        return regionParam;
     }
 
     @Override
