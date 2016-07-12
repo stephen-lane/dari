@@ -24,7 +24,6 @@ import com.psddev.dari.db.ObjectType;
 import com.psddev.dari.db.Recordable;
 import com.psddev.dari.db.State;
 import com.psddev.dari.util.ObjectToIterable;
-import com.psddev.dari.util.StringUtils;
 import org.jooq.BatchBindStep;
 import org.jooq.DSLContext;
 import org.jooq.DataType;
@@ -35,78 +34,7 @@ import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
 /** Internal representations of all SQL index tables. */
-enum SqlIndex {
-
-    LOCATION(
-        new LocationSqlIndexTable(3, "RecordLocation3")
-    ),
-
-    REGION(
-        new RegionSqlIndexTable(2, "RecordRegion2")
-    ),
-
-    NUMBER(
-        new SqlIndexTable(3, "RecordNumber3")
-    ),
-
-    STRING(
-        new SqlIndexTable(4, "RecordString4") {
-            @Override
-            protected Object convertValue(AbstractSqlDatabase database, ObjectIndex index, int fieldIndex, Object value) {
-                String valueString = StringUtils.trimAndCollapseWhitespaces(value.toString());
-                if (!index.isCaseSensitive()) {
-                    valueString = valueString.toLowerCase(Locale.ENGLISH);
-                }
-                return stringToBytes(valueString, 500);
-            }
-        }
-    ),
-
-    UUID(
-        new SqlIndexTable(3, "RecordUuid3")
-    );
-
-    private final SqlIndexTable[] tables;
-
-    SqlIndex(SqlIndexTable... tables) {
-        this.tables = tables;
-    }
-
-    /**
-     * Returns the instance that should be used to index values
-     * of the given field {@code type}.
-     */
-    public static SqlIndex getByType(String type) {
-        if (ObjectField.DATE_TYPE.equals(type)
-                || ObjectField.NUMBER_TYPE.equals(type)) {
-            return SqlIndex.NUMBER;
-
-        } else if (ObjectField.LOCATION_TYPE.equals(type)) {
-            return SqlIndex.LOCATION;
-
-        } else if (ObjectField.REGION_TYPE.equals(type)) {
-            return SqlIndex.REGION;
-
-        } else if (ObjectField.RECORD_TYPE.equals(type)
-                || ObjectField.UUID_TYPE.equals(type)) {
-            return SqlIndex.UUID;
-
-        } else {
-            return SqlIndex.STRING;
-        }
-    }
-
-    /**
-     * Returns the instance that should be used to index values
-     * of the given {@code index}.
-     */
-    public static SqlIndex getByIndex(ObjectIndex index) {
-        List<String> fieldNames = index.getFields();
-        ObjectField field = index.getParent().getField(fieldNames.get(0));
-        String type = field != null ? field.getInternalItemType() : index.getType();
-
-        return getByType(type);
-    }
+class SqlIndex {
 
     /**
      * Deletes all index rows associated with the given {@code states}.
@@ -147,22 +75,20 @@ enum SqlIndex {
 
         idsBuilder.setCharAt(idsBuilder.length() - 1, ')');
 
-        for (SqlIndex sqlIndex : SqlIndex.values()) {
-            for (SqlIndexTable table : sqlIndex.getWriteTables(database, null)) {
-                StringBuilder deleteBuilder = new StringBuilder();
-                deleteBuilder.append("DELETE FROM ");
-                vendor.appendIdentifier(deleteBuilder, table.getName(database, onlyIndex));
-                deleteBuilder.append(" WHERE ");
-                vendor.appendIdentifier(deleteBuilder, table.getIdField(database, onlyIndex));
-                deleteBuilder.append(idsBuilder);
-                if (onlyIndex != null && table.getKeyField(database, onlyIndex) != null) {
-                    deleteBuilder.append(" AND ");
-                    vendor.appendIdentifier(deleteBuilder, table.getKeyField(database, onlyIndex));
-                    deleteBuilder.append(" = ");
-                    deleteBuilder.append(database.getReadSymbolId(onlyIndex.getUniqueName()));
-                }
-                AbstractSqlDatabase.Static.executeUpdateWithArray(vendor, connection, deleteBuilder.toString());
+        for (SqlIndexTable table : schema.findDeleteIndexTables(database)) {
+            StringBuilder deleteBuilder = new StringBuilder();
+            deleteBuilder.append("DELETE FROM ");
+            vendor.appendIdentifier(deleteBuilder, table.getName());
+            deleteBuilder.append(" WHERE ");
+            vendor.appendIdentifier(deleteBuilder, table.getIdField(database, onlyIndex));
+            deleteBuilder.append(idsBuilder);
+            if (onlyIndex != null && table.getKeyField(database, onlyIndex) != null) {
+                deleteBuilder.append(" AND ");
+                vendor.appendIdentifier(deleteBuilder, table.getKeyField(database, onlyIndex));
+                deleteBuilder.append(" = ");
+                deleteBuilder.append(database.getReadSymbolId(onlyIndex.getUniqueName()));
             }
+            AbstractSqlDatabase.Static.executeUpdateWithArray(vendor, connection, deleteBuilder.toString());
         }
     }
 
@@ -200,9 +126,9 @@ enum SqlIndex {
             }
 
             for (SqlIndexValue indexValue : indexValues) {
-                for (SqlIndexTable table : getByIndex(index).getWriteTables(database, index)) {
+                for (SqlIndexTable table : schema.findUpdateIndexTables(database, index)) {
 
-                    String name = table.getName(database, index);
+                    String name = table.getName();
                     String sqlQuery = updateQueries.get(name);
                     List<List<Object>> parameters = updateParameters.get(name);
                     Set<String> bindKeys = updateBindKeys.get(name);
@@ -292,14 +218,14 @@ enum SqlIndex {
                     continue;
                 }
 
-                for (SqlIndexTable table : getByIndex(index).getWriteTables(database, index)) {
-                    String name = table.getName(database, index);
+                for (SqlIndexTable table : schema.findUpdateIndexTables(database, index)) {
+                    String name = table.getName();
                     String typeIdField = table.getTypeIdField(database, index);
                     boolean hasTypeIdField = typeIdField != null;
                     BatchBindStep batch = batches.get(name);
 
                     if (batch == null) {
-                        InsertSetMoreStep<Record> insert = context.insertInto(DSL.table(DSL.name(table.getName(database, index))))
+                        InsertSetMoreStep<Record> insert = context.insertInto(DSL.table(DSL.name(name)))
                                 .set(DSL.field(DSL.name(table.getIdField(database, index)), uuidDataType), idParam)
                                 .set(DSL.field(DSL.name(table.getKeyField(database, index)), integerDataType), symbolIdParam)
                                 .set(DSL.field(DSL.name(table.getValueField(database, index, 0))), table.valueParam(schema));
@@ -520,42 +446,5 @@ enum SqlIndex {
         } else {
             values.add(value);
         }
-    }
-
-    /**
-     * Returns the table that can be used to read the values of the given
-     * {@code index} from the given {@code database}.
-     */
-    public SqlIndexTable getReadTable(AbstractSqlDatabase database, ObjectIndex index) {
-        for (SqlIndexTable table : tables) {
-            if (database.hasTable(table.getName(database, index))) {
-                return table;
-            }
-        }
-        return tables[tables.length - 1];
-    }
-
-    /**
-     * Returns all tables that should be written to when updating the
-     * values of the index in the given {@code database}.
-     */
-    public List<SqlIndexTable> getWriteTables(AbstractSqlDatabase database, ObjectIndex index) {
-        List<SqlIndexTable> writeTables = new ArrayList<>();
-
-        if (!database.isIndexSpatial() && (LOCATION.equals(this) || REGION.equals(this))) {
-            return writeTables;
-        }
-
-        for (SqlIndexTable table : tables) {
-            if (database.hasTable(table.getName(database, index))) {
-                writeTables.add(table);
-            }
-        }
-
-        if (writeTables.isEmpty()) {
-            writeTables.add(tables[tables.length - 1]);
-        }
-
-        return writeTables;
     }
 }

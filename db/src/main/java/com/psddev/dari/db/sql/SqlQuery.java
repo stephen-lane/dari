@@ -41,6 +41,7 @@ class SqlQuery {
     //private static final Logger LOGGER = LoggerFactory.getLogger(SqlQuery.class);
 
     private final AbstractSqlDatabase database;
+    private final SqlSchema schema;
     private final Query<?> query;
     private final String aliasPrefix;
 
@@ -83,6 +84,7 @@ class SqlQuery {
             String initialAliasPrefix) {
 
         database = initialDatabase;
+        schema = database.schema();
         query = initialQuery;
         aliasPrefix = initialAliasPrefix;
 
@@ -269,15 +271,15 @@ class SqlQuery {
             if (join.type == JoinType.INNER && join.equals(mysqlIndexHint)) {
                 fromBuilder.append(" /*! USE INDEX (k_name_value) */");
 
-            } else if (join.sqlIndex == SqlIndex.LOCATION
+            } else if (join.sqlIndexTable.getName().startsWith("RecordLocation")
                     && join.sqlIndexTable.getVersion() >= 2) {
                 fromBuilder.append(" /*! IGNORE INDEX (PRIMARY) */");
             }
 
-            if ((join.sqlIndex == SqlIndex.LOCATION && join.sqlIndexTable.getVersion() < 3)
-                    || (join.sqlIndex == SqlIndex.NUMBER && join.sqlIndexTable.getVersion() < 3)
-                    || (join.sqlIndex == SqlIndex.STRING && join.sqlIndexTable.getVersion() < 4)
-                    || (join.sqlIndex == SqlIndex.UUID && join.sqlIndexTable.getVersion() < 3)) {
+            if ((join.sqlIndexTable.getName().startsWith("RecordLocation") && join.sqlIndexTable.getVersion() < 3)
+                    || (join.sqlIndexTable.getName().startsWith("RecordNumber") && join.sqlIndexTable.getVersion() < 3)
+                    || (join.sqlIndexTable.getName().startsWith("RecordString") && join.sqlIndexTable.getVersion() < 4)
+                    || (join.sqlIndexTable.getName().startsWith("RecordUuid") && join.sqlIndexTable.getVersion() < 3)) {
                 mysqlIgnoreIndexPrimaryDisabled = true;
             }
 
@@ -449,7 +451,7 @@ class SqlQuery {
                     && PredicateParser.OR_OPERATOR.equals(((CompoundPredicate) parentPredicate).getOperator())) {
                 for (Join j : joins) {
                     if (j.parent == parentPredicate
-                            && j.sqlIndex.equals(SqlIndex.getByType(mappedKeys.get(queryKey).getInternalType()))) {
+                            && j.sqlIndexTable.equals(schema.findSelectIndexTable(database, mappedKeys.get(queryKey).getInternalType()))) {
                         join = j;
                         join.addIndexKey(queryKey);
                         needsDistinct = true;
@@ -1277,7 +1279,6 @@ class SqlQuery {
         private final String alias;
         private final String tableName;
         private final ObjectIndex index;
-        private final SqlIndex sqlIndex;
         private final SqlIndexTable sqlIndexTable;
         private final String valueField;
         private final String hashAttribute;
@@ -1292,9 +1293,6 @@ class SqlQuery {
             this.index = selectedIndexes.get(queryKey);
 
             this.indexType = mappedKey.getInternalType();
-            this.sqlIndex = this.index != null
-                    ? SqlIndex.getByIndex(this.index)
-                    : SqlIndex.getByType(this.indexType);
 
             ObjectField joinField = null;
             if (this.index != null) {
@@ -1355,10 +1353,10 @@ class SqlQuery {
                 likeValuePrefix = null;
                 addIndexKey(queryKey);
                 valueField = null;
-                sqlIndexTable = this.sqlIndex.getReadTable(database, index);
+                sqlIndexTable = schema.findSelectIndexTable(database, index);
 
                 StringBuilder tableBuilder = new StringBuilder();
-                tableName = sqlIndexTable.getName(database, index);
+                tableName = sqlIndexTable.getName();
                 vendor.appendIdentifier(tableBuilder, tableName);
                 tableBuilder.append(' ');
                 tableBuilder.append(aliasPrefix);
@@ -1403,14 +1401,16 @@ class SqlQuery {
             Query.MappedKey mappedKey = mappedKeys.get(comparison.getKey());
             ObjectField field = mappedKey.getField();
             ObjectIndex index = selectedIndexes.get(queryKey);
-            SqlIndex fieldSqlIndex = field != null
-                    ? SqlIndex.getByType(field.getInternalItemType())
-                    : sqlIndex;
+            SqlIndexTable fieldSqlIndexTable = field != null
+                    ? schema.findSelectIndexTable(database, field.getInternalItemType())
+                    : sqlIndexTable;
 
-            if (fieldSqlIndex == SqlIndex.UUID) {
+            String tableName = fieldSqlIndexTable != null ? fieldSqlIndexTable.getName() : null;
+
+            if (tableName != null && tableName.startsWith("RecordUuid")) {
                 value = ObjectUtils.to(UUID.class, value);
 
-            } else if (fieldSqlIndex == SqlIndex.NUMBER
+            } else if (tableName != null && tableName.startsWith("RecordNumber")
                     && !PredicateParser.STARTS_WITH_OPERATOR.equals(comparison.getOperator())) {
                 if (value != null) {
                     Long valueLong = ObjectUtils.to(Long.class, value);
@@ -1421,7 +1421,7 @@ class SqlQuery {
                     }
                 }
 
-            } else if (fieldSqlIndex == SqlIndex.STRING) {
+            } else if (tableName != null && tableName.startsWith("RecordString")) {
                 if (comparison.isIgnoreCase()) {
                     value = value.toString().toLowerCase(Locale.ENGLISH);
                 } else if (database.comparesIgnoreCase()) {
@@ -1448,7 +1448,7 @@ class SqlQuery {
 
             if (comparison != null
                     && comparison.isIgnoreCase()
-                    && (sqlIndex != SqlIndex.STRING
+                    && (!sqlIndexTable.getName().startsWith("RecordString")
                     || sqlIndexTable.getVersion() < 3)) {
 
                 field = "LOWER(" + vendor.convertRawToStringSql(field) + ")";

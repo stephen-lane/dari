@@ -9,8 +9,8 @@ import java.util.Map;
 
 class LocationSqlIndexTable extends SqlIndexTable {
 
-    public LocationSqlIndexTable(int version, String name) {
-        super(version, name);
+    public LocationSqlIndexTable(SqlSchema schema, String namePrefix, int version) {
+        super(schema, namePrefix, version);
     }
 
     @Override

@@ -24,28 +24,28 @@ class SqlIndexTable {
     private static final String VALUE_PARAM_NAME = "value";
     private static final Field<Object> VALUE_PARAM = DSL.param(VALUE_PARAM_NAME);
 
+    private final String namePrefix;
     private final int version;
-    private final String name;
     private final String idField;
     private final String typeIdField;
     private final String keyField;
     private final String valueField;
 
-    protected SqlIndexTable(int version, String name, String idField, String typeIdField, String keyField, String valueField) {
+    protected SqlIndexTable(SqlSchema schema, String namePrefix, int version, String idField, String typeIdField, String keyField, String valueField) {
+        this.namePrefix = namePrefix;
         this.version = version;
-        this.name = name;
         this.idField = idField;
         this.typeIdField = typeIdField;
         this.keyField = keyField;
         this.valueField = valueField;
     }
 
-    public SqlIndexTable(int version, String name) {
-        this(version, name, "id", "typeId", "symbolId", "value");
+    public SqlIndexTable(SqlSchema schema, String namePrefix, int version) {
+        this(schema, namePrefix, version, "id", "typeId", "symbolId", "value");
     }
 
-    public String getName(AbstractSqlDatabase database, ObjectIndex index) {
-        return name;
+    public String getName() {
+        return namePrefix + version;
     }
 
     public int getVersion() {
@@ -143,15 +143,18 @@ class SqlIndexTable {
         StringBuilder updateBuilder = new StringBuilder();
 
         updateBuilder.append("UPDATE ");
-        vendor.appendIdentifier(updateBuilder, getName(database, index));
+        vendor.appendIdentifier(updateBuilder, getName());
         updateBuilder.append(" SET ");
 
         for (int i = 0; i < fieldsSize; ++ i) {
             vendor.appendIdentifier(updateBuilder, getValueField(database, index, i));
             updateBuilder.append(" = ");
-            if (SqlIndex.getByIndex(index) == SqlIndex.LOCATION) {
+
+            String tableName = database.schema().findSelectIndexTable(database, index).getName();
+
+            if (tableName.startsWith("RecordLocation")) {
                 vendor.appendBindLocation(updateBuilder, null, null);
-            } else if (SqlIndex.getByIndex(index) == SqlIndex.REGION) {
+            } else if (tableName.startsWith("RecordRegion")) {
                 vendor.appendBindRegion(updateBuilder, null, null);
             } else {
                 updateBuilder.append("?");

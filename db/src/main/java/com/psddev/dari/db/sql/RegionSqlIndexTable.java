@@ -9,8 +9,8 @@ import java.util.Map;
 
 class RegionSqlIndexTable extends SqlIndexTable {
 
-    public RegionSqlIndexTable(int version, String name) {
-        super(version, name);
+    public RegionSqlIndexTable(SqlSchema schema, String namePrefix, int version) {
+        super(schema, namePrefix, version);
     }
 
     @Override
