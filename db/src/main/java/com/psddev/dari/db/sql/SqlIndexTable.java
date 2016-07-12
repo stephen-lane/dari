@@ -52,10 +52,6 @@ class SqlIndexTable {
         return version;
     }
 
-    public boolean isReadOnly(ObjectIndex index) {
-        return false;
-    }
-
     public String getIdField(AbstractSqlDatabase database, ObjectIndex index) {
         return idField;
     }

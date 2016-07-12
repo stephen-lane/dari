@@ -547,17 +547,13 @@ enum SqlIndex {
         }
 
         for (SqlIndexTable table : tables) {
-            if (database.hasTable(table.getName(database, index)) && !table.isReadOnly(index)) {
+            if (database.hasTable(table.getName(database, index))) {
                 writeTables.add(table);
             }
         }
 
         if (writeTables.isEmpty()) {
-            SqlIndexTable lastTable = tables[tables.length - 1];
-
-            if (!lastTable.isReadOnly(index)) {
-                writeTables.add(lastTable);
-            }
+            writeTables.add(tables[tables.length - 1]);
         }
 
         return writeTables;
