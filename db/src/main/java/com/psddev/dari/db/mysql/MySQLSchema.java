@@ -22,12 +22,12 @@ public class MySQLSchema extends SqlSchema {
 
             @Override
             public UUID from(byte[] bytes) {
-                return UuidUtils.fromBytes(bytes);
+                return bytes != null ? UuidUtils.fromBytes(bytes) : null;
             }
 
             @Override
             public byte[] to(UUID uuid) {
-                return UuidUtils.toBytes(uuid);
+                return uuid != null ? UuidUtils.toBytes(uuid) : null;
             }
 
             @Override
