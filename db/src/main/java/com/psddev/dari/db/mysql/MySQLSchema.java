@@ -15,6 +15,29 @@ import java.util.UUID;
 
 public class MySQLSchema extends SqlSchema {
 
+    private static final DataType<UUID> UUID_TYPE = MySQLDataType.BINARY.asConvertedDataType(new Converter<byte[], UUID>() {
+
+        @Override
+        public UUID from(byte[] bytes) {
+            return bytes != null ? UuidUtils.fromBytes(bytes) : null;
+        }
+
+        @Override
+        public byte[] to(UUID uuid) {
+            return uuid != null ? UuidUtils.toBytes(uuid) : null;
+        }
+
+        @Override
+        public Class<byte[]> fromType() {
+            return byte[].class;
+        }
+
+        @Override
+        public Class<UUID> toType() {
+            return UUID.class;
+        }
+    });
+
     private static final String LOCATION_PARAM_NAME = "location";
     private static final Object LOCATION_PARAM = DSL.field("GeomFromText({0})", DSL.param(LOCATION_PARAM_NAME, String.class));
     private static final String REGION_PARAM_NAME = "region";
@@ -26,28 +49,7 @@ public class MySQLSchema extends SqlSchema {
 
     @Override
     protected DataType<UUID> uuidDataType() {
-        return MySQLDataType.BINARY.asConvertedDataType(new Converter<byte[], UUID>() {
-
-            @Override
-            public UUID from(byte[] bytes) {
-                return bytes != null ? UuidUtils.fromBytes(bytes) : null;
-            }
-
-            @Override
-            public byte[] to(UUID uuid) {
-                return uuid != null ? UuidUtils.toBytes(uuid) : null;
-            }
-
-            @Override
-            public Class<byte[]> fromType() {
-                return byte[].class;
-            }
-
-            @Override
-            public Class<UUID> toType() {
-                return UUID.class;
-            }
-        });
+        return UUID_TYPE;
     }
 
     @Override

@@ -34,6 +34,29 @@ import java.util.stream.Collectors;
 
 public class SqlSchema {
 
+    private static final DataType<String> BYTE_STRING_TYPE = SQLDataType.LONGVARBINARY.asConvertedDataType(new Converter<byte[], String>() {
+
+        @Override
+        public String from(byte[] bytes) {
+            return bytes != null ? new String(bytes, StandardCharsets.UTF_8) : null;
+        }
+
+        @Override
+        public byte[] to(String string) {
+            return string != null ? string.getBytes(StandardCharsets.UTF_8) : null;
+        }
+
+        @Override
+        public Class<byte[]> fromType() {
+            return byte[].class;
+        }
+
+        @Override
+        public Class<String> toType() {
+            return String.class;
+        }
+    });
+
     private final Table<Record> record;
     private final Field<UUID> recordId;
     private final Field<UUID> recordTypeId;
@@ -152,28 +175,7 @@ public class SqlSchema {
     }
 
     protected DataType<String> byteStringDataType() {
-        return SQLDataType.LONGVARBINARY.asConvertedDataType(new Converter<byte[], String>() {
-
-            @Override
-            public String from(byte[] bytes) {
-                return bytes != null ? new String(bytes, StandardCharsets.UTF_8) : null;
-            }
-
-            @Override
-            public byte[] to(String string) {
-                return string != null ? string.getBytes(StandardCharsets.UTF_8) : null;
-            }
-
-            @Override
-            public Class<byte[]> fromType() {
-                return byte[].class;
-            }
-
-            @Override
-            public Class<String> toType() {
-                return String.class;
-            }
-        });
+        return BYTE_STRING_TYPE;
     }
 
     protected DataType<Double> doubleDataType() {
