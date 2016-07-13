@@ -31,14 +31,9 @@ import com.psddev.dari.db.mysql.MySQLDatabase;
 import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.StringUtils;
 
-//import org.slf4j.Logger;
-//import org.slf4j.LoggerFactory;
-
-/** Internal representation of an SQL query based on a Dari one. */
 class SqlQuery {
 
     private static final Pattern QUERY_KEY_PATTERN = Pattern.compile("\\$\\{([^}]+)\\}");
-    //private static final Logger LOGGER = LoggerFactory.getLogger(SqlQuery.class);
 
     private final AbstractSqlDatabase database;
     private final SqlSchema schema;
@@ -51,17 +46,15 @@ class SqlQuery {
     private final Map<String, Query.MappedKey> mappedKeys;
     private final Map<String, ObjectIndex> selectedIndexes;
 
-    private String selectClause;
     private String fromClause;
     private String whereClause;
-    private String groupByClause;
     private String havingClause;
     private String orderByClause;
-    private final List<String> orderBySelectColumns = new ArrayList<String>();
-    private final Map<String, String> groupBySelectColumnAliases = new LinkedHashMap<String, String>();
-    private final List<Join> joins = new ArrayList<Join>();
-    private final Map<Query<?>, String> subQueries = new LinkedHashMap<Query<?>, String>();
-    private final Map<Query<?>, SqlQuery> subSqlQueries = new HashMap<Query<?>, SqlQuery>();
+    private final List<String> orderBySelectColumns = new ArrayList<>();
+    private final Map<String, String> groupBySelectColumnAliases = new LinkedHashMap<>();
+    private final List<Join> joins = new ArrayList<>();
+    private final Map<Query<?>, String> subQueries = new LinkedHashMap<>();
+    private final Map<Query<?>, SqlQuery> subSqlQueries = new HashMap<>();
 
     private boolean needsDistinct;
     private Join mysqlIndexHint;
@@ -69,8 +62,8 @@ class SqlQuery {
     private boolean forceLeftJoins;
     private boolean hasAnyLimitingPredicates;
 
-    private final List<Predicate> havingPredicates = new ArrayList<Predicate>();
-    private final List<Predicate> parentHavingPredicates = new ArrayList<Predicate>();
+    private final List<Predicate> havingPredicates = new ArrayList<>();
+    private final List<Predicate> parentHavingPredicates = new ArrayList<>();
 
     /**
      * Creates an instance that can translate the given {@code query}
@@ -90,7 +83,7 @@ class SqlQuery {
         recordIdField = aliasedField("r", AbstractSqlDatabase.ID_COLUMN);
         recordTypeIdField = aliasedField("r", AbstractSqlDatabase.TYPE_ID_COLUMN);
         mappedKeys = query.mapEmbeddedKeys(database.getEnvironment());
-        selectedIndexes = new HashMap<String, ObjectIndex>();
+        selectedIndexes = new HashMap<>();
 
         for (Map.Entry<String, Query.MappedKey> entry : mappedKeys.entrySet()) {
             selectIndex(entry.getKey(), entry.getValue());
@@ -248,16 +241,11 @@ class SqlQuery {
 
         // Builds the FROM clause.
         StringBuilder fromBuilder = new StringBuilder();
-        HashMap<String, String> joinTableAliases = new HashMap<String, String>();
 
         for (Join join : joins) {
 
             if (join.indexKeys.isEmpty()) {
                 continue;
-            }
-
-            for (String indexKey : join.indexKeys) {
-                joinTableAliases.put(join.getTableName().toLowerCase(Locale.ENGLISH) + join.quoteIndexKey(indexKey), join.getAlias());
             }
 
             // e.g. JOIN RecordIndex AS i#
@@ -438,7 +426,7 @@ class SqlQuery {
             Join join = null;
             if (mappedKey.getField() != null
                     && parentPredicate instanceof CompoundPredicate
-                    && PredicateParser.OR_OPERATOR.equals(((CompoundPredicate) parentPredicate).getOperator())) {
+                    && PredicateParser.OR_OPERATOR.equals(parentPredicate.getOperator())) {
                 for (Join j : joins) {
                     if (j.parent == parentPredicate
                             && j.sqlIndexTable.equals(schema.findSelectIndexTable(mappedKeys.get(queryKey).getInternalType()))) {
@@ -777,7 +765,7 @@ class SqlQuery {
                     orderBySelectColumns.add(joinValueField);
                 }
 
-            } else if (closest || farthest) {
+            } else {
                 if (!database.isIndexSpatial()) {
                     throw new UnsupportedOperationException();
                 }
@@ -881,8 +869,8 @@ class SqlQuery {
      * grouped by the values of the given {@code groupFields}.
      */
     public String groupStatement(String[] groupFields) {
-        Map<String, Join> groupJoins = new LinkedHashMap<String, Join>();
-        Map<String, SqlQuery> groupSubSqlQueries = new HashMap<String, SqlQuery>();
+        Map<String, Join> groupJoins = new LinkedHashMap<>();
+        Map<String, SqlQuery> groupSubSqlQueries = new HashMap<>();
         if (groupFields != null) {
             for (String groupField : groupFields) {
                 Query.MappedKey mappedKey = query.mapEmbeddedKey(database.getEnvironment(), groupField);
@@ -943,7 +931,8 @@ class SqlQuery {
                 vendor.appendIdentifier(statementBuilder, columnAlias);
             }
         }
-        selectClause = statementBuilder.toString();
+
+        String selectClause = statementBuilder.toString();
 
         for (String field : orderBySelectColumns) {
             statementBuilder.append(", ");
@@ -979,7 +968,7 @@ class SqlQuery {
             groupBy.insert(0, " GROUP BY ");
         }
 
-        groupByClause = groupBy.toString();
+        String groupByClause = groupBy.toString();
 
         statementBuilder.append(groupByClause);
 
@@ -1161,7 +1150,7 @@ class SqlQuery {
 
         public final String token;
 
-        private JoinType(String token) {
+        JoinType(String token) {
             this.token = token;
         }
     }
@@ -1237,7 +1226,7 @@ class SqlQuery {
         public final String idField;
         public final String typeIdField;
         public final String keyField;
-        public final List<String> indexKeys = new ArrayList<String>();
+        public final List<String> indexKeys = new ArrayList<>();
 
         private final String alias;
         private final String tableName;
