@@ -63,12 +63,10 @@ import com.psddev.dari.db.UpdateNotifier;
 import com.zaxxer.hikari.HikariDataSource;
 import org.iq80.snappy.Snappy;
 import org.jooq.DSLContext;
-import org.jooq.Field;
 import org.jooq.Record1;
 import org.jooq.Record2;
 import org.jooq.ResultQuery;
 import org.jooq.SQLDialect;
-import org.jooq.Table;
 import org.jooq.conf.ParamType;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
@@ -170,7 +168,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     private volatile boolean compressData;
     private volatile boolean indexSpatial;
 
-    private transient volatile boolean comparesIgnoreCase;
     protected final transient ConcurrentMap<Class<?>, UUID> singletonIds = new ConcurrentHashMap<>();
     private final List<UpdateNotifier<?>> updateNotifiers = new ArrayList<>();
 
@@ -206,34 +203,12 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             Connection connection = openAnyConnection();
 
             try (DSLContext context = openContext(connection)) {
-                Map<String, Set<String>> names = new HashMap<>();
-                int maxStringVersion = 0;
-
-                for (Table<?> table : context.meta().getTables()) {
-                    Set<String> columnNames = new HashSet<>();
-
-                    for (Field<?> column : table.fields()) {
-                        columnNames.add(column.getName().toLowerCase(Locale.ENGLISH));
-                    }
-
-                    String name = table.getName().toLowerCase(Locale.ENGLISH);
-
-                    names.put(name, columnNames);
-
-                    // Starting with RecordString3, the default string
-                    // comparison behavior changed to ignore case.
-                    if (name.startsWith("recordstring")) {
-                        int version = ObjectUtils.to(int.class, name.substring(12));
-
-                        if (maxStringVersion < version) {
-                            maxStringVersion = version;
-                        }
-                    }
-                }
-
-                comparesIgnoreCase = maxStringVersion >= 3;
-
-                return names;
+                return context.meta().getTables().stream()
+                        .collect(Collectors.toMap(
+                                t -> t.getName().toLowerCase(Locale.ENGLISH),
+                                t -> Arrays.stream(t.fields())
+                                        .map(c -> c.getName().toLowerCase(Locale.ENGLISH))
+                                        .collect(Collectors.toSet())));
 
             } catch (DataAccessException error) {
                 throw convertJooqError(error, null);
@@ -543,7 +518,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
      * following methods:</p>
      *
      * <ul>
-     *     <li>{@link #comparesIgnoreCase()}</li>
      *     <li>{@link #hasTable(String)}</li>
      *     <li>{@link #hasColumn(String, String)}</li>
      *     <li>{@link #getSymbolId(String)}</li>
@@ -553,14 +527,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     public void invalidateCaches() {
         tableColumnNames.reset();
         symbolIds.reset();
-    }
-
-    /**
-     * Returns {@code true} if all string comparisons should ignore case by
-     * default.
-     */
-    public boolean comparesIgnoreCase() {
-        return comparesIgnoreCase;
     }
 
     /**
