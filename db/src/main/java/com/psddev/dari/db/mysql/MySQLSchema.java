@@ -7,7 +7,6 @@ import com.psddev.dari.db.sql.SqlSchema;
 import com.psddev.dari.util.UuidUtils;
 import org.jooq.Converter;
 import org.jooq.DataType;
-import org.jooq.Field;
 import org.jooq.impl.DSL;
 import org.jooq.util.mysql.MySQLDataType;
 
@@ -17,7 +16,9 @@ import java.util.UUID;
 public class MySQLSchema extends SqlSchema {
 
     private static final String LOCATION_PARAM_NAME = "location";
+    private static final Object LOCATION_PARAM = DSL.field("GeomFromText({0})", DSL.param(LOCATION_PARAM_NAME, String.class));
     private static final String REGION_PARAM_NAME = "region";
+    private static final Object REGION_PARAM = DSL.field("GeomFromText({0})", DSL.param(REGION_PARAM_NAME, String.class));
 
     protected MySQLSchema(MySQLDatabase database) {
         super(database);
@@ -50,8 +51,8 @@ public class MySQLSchema extends SqlSchema {
     }
 
     @Override
-    public Field<Object> locationParam() {
-        return DSL.field("GeomFromText({0})", DSL.param(LOCATION_PARAM_NAME, String.class));
+    public Object locationParam() {
+        return LOCATION_PARAM;
     }
 
     @Override
@@ -60,8 +61,8 @@ public class MySQLSchema extends SqlSchema {
     }
 
     @Override
-    public Field<Object> regionParam() {
-        return DSL.field("GeomFromText({0})", DSL.param(LOCATION_PARAM_NAME, String.class));
+    public Object regionParam() {
+        return REGION_PARAM;
     }
 
     @Override

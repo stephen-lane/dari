@@ -3,7 +3,6 @@ package com.psddev.dari.db.sql;
 import com.psddev.dari.db.ObjectField;
 import com.psddev.dari.db.ObjectIndex;
 import com.psddev.dari.db.ObjectStruct;
-import com.psddev.dari.util.CompactMap;
 import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.StringUtils;
 import org.jooq.DataType;
@@ -23,7 +22,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-class SqlIndexTable {
+abstract class AbstractSqlIndex {
 
     private final Table<Record> table;
     private final Field<UUID> id;
@@ -33,7 +32,6 @@ class SqlIndexTable {
     private final Field<Integer> symbolId;
     private final Param<Integer> symbolIdParam;
     private final Field<Object> value;
-    private final Field<?> valueParam;
 
     private final String namePrefix;
     private final int version;
@@ -42,7 +40,7 @@ class SqlIndexTable {
     private final String keyField;
     private final String valueField;
 
-    protected SqlIndexTable(SqlSchema schema, String namePrefix, int version, String idField, String typeIdField, String keyField, String valueField) {
+    protected AbstractSqlIndex(SqlSchema schema, String namePrefix, int version) {
         DataType<Integer> integerType = schema.integerDataType();
         DataType<UUID> uuidType = schema.uuidDataType();
 
@@ -54,18 +52,13 @@ class SqlIndexTable {
         this.symbolId = DSL.field(DSL.name("symbolId"), integerType);
         this.symbolIdParam = DSL.param(symbolId.getName(), integerType);
         this.value = DSL.field(DSL.name("value"));
-        this.valueParam = DSL.param(value.getName());
 
         this.namePrefix = namePrefix;
         this.version = version;
-        this.idField = idField;
-        this.typeIdField = typeIdField;
-        this.keyField = keyField;
-        this.valueField = valueField;
-    }
-
-    public SqlIndexTable(SqlSchema schema, String namePrefix, int version) {
-        this(schema, namePrefix, version, "id", "typeId", "symbolId", "value");
+        this.idField = id.getName();
+        this.typeIdField = typeId.getName();
+        this.keyField = symbolId.getName();
+        this.valueField = value.getName();
     }
 
     public Table<Record> table() {
@@ -100,23 +93,9 @@ class SqlIndexTable {
         return value;
     }
 
-    public Field<?> valueParam() {
-        return valueParam;
-    }
+    public abstract Object valueParam();
 
-    public Map<String, Object> createBindValues(AbstractSqlDatabase database, SqlSchema schema, ObjectIndex index, int fieldIndex, Object value) {
-        value = convertValue(database, index, fieldIndex, value);
-
-        if (ObjectUtils.isBlank(value)) {
-            return null;
-        }
-
-        Map<String, Object> bindValues = new CompactMap<>();
-
-        bindValues.put(valueParam().getName(), value);
-
-        return bindValues;
-    }
+    public abstract Map<String, Object> createBindValues(AbstractSqlDatabase database, SqlSchema schema, ObjectIndex index, int fieldIndex, Object value);
 
     public String getName() {
         return namePrefix + version;

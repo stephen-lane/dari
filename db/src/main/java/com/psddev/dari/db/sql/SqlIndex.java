@@ -62,7 +62,7 @@ class SqlIndex {
             }
 
             for (SqlIndexValue indexValue : indexValues) {
-                for (SqlIndexTable table : schema.findUpdateIndexTables(index)) {
+                for (AbstractSqlIndex table : schema.findUpdateIndexTables(index)) {
 
                     String name = table.getName();
                     String sqlQuery = updateQueries.get(name);

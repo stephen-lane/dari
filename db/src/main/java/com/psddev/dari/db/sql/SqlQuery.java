@@ -1279,7 +1279,7 @@ class SqlQuery {
         private final String alias;
         private final String tableName;
         private final ObjectIndex index;
-        private final SqlIndexTable sqlIndexTable;
+        private final AbstractSqlIndex sqlIndexTable;
         private final String valueField;
         private final String hashAttribute;
         private final boolean isHaving;
@@ -1401,7 +1401,7 @@ class SqlQuery {
             Query.MappedKey mappedKey = mappedKeys.get(comparison.getKey());
             ObjectField field = mappedKey.getField();
             ObjectIndex index = selectedIndexes.get(queryKey);
-            SqlIndexTable fieldSqlIndexTable = field != null
+            AbstractSqlIndex fieldSqlIndexTable = field != null
                     ? schema.findSelectIndexTable(field.getInternalItemType())
                     : sqlIndexTable;
 
