@@ -34,7 +34,9 @@ import com.psddev.dari.util.StringUtils;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Field;
+import org.jooq.RenderContext;
 import org.jooq.Table;
+import org.jooq.conf.ParamType;
 import org.jooq.impl.DSL;
 
 class SqlQuery {
@@ -47,7 +49,8 @@ class SqlQuery {
     private final String aliasPrefix;
 
     private final SqlVendor vendor;
-    private final DSLContext context;
+    private final DSLContext dslContext;
+    private final RenderContext renderContext;
     private final Field<UUID> recordIdField;
     private final Field<UUID> recordTypeIdField;
     private final Map<String, Query.MappedKey> mappedKeys;
@@ -85,7 +88,8 @@ class SqlQuery {
         aliasPrefix = initialAliasPrefix;
 
         vendor = database.getVendor();
-        context = DSL.using(database.dialect());
+        dslContext = DSL.using(database.dialect());
+        renderContext = dslContext.renderContext().paramType(ParamType.INLINED);
         recordIdField = DSL.field(DSL.name(aliasPrefix + "r", schema.recordId().getName()), schema.uuidDataType());
         recordTypeIdField = DSL.field(DSL.name(aliasPrefix + "r", schema.recordTypeId().getName()), schema.uuidDataType());
         mappedKeys = query.mapEmbeddedKeys(database.getEnvironment());
@@ -223,7 +227,7 @@ class SqlQuery {
             fromBuilder.append('\n');
             fromBuilder.append((forceLeftJoins ? JoinType.LEFT_OUTER : join.type).token);
             fromBuilder.append(' ');
-            fromBuilder.append(context.renderContext().declareTables(true).render(join.table));
+            fromBuilder.append(dslContext.renderContext().declareTables(true).render(join.table));
 
             if (join.type == JoinType.INNER && join.equals(mysqlIndexHint)) {
                 fromBuilder.append(" /*! USE INDEX (k_name_value) */");
@@ -240,7 +244,7 @@ class SqlQuery {
                             .map(database::getSymbolId)
                             .collect(Collectors.toSet())));
 
-            fromBuilder.append(context.renderInlined(joinCondition));
+            fromBuilder.append(renderContext.render(joinCondition));
         }
 
         for (Map.Entry<Query<?>, String> entry : subQueries.entrySet()) {
@@ -268,7 +272,7 @@ class SqlQuery {
             fromBuilder.append(extraJoins);
         }
 
-        this.whereClause = "\nWHERE " + context.renderInlined(whereCondition);
+        this.whereClause = "\nWHERE " + renderContext.render(whereCondition);
 
         StringBuilder havingBuilder = new StringBuilder();
         if (hasDeferredHavingPredicates()) {
@@ -330,7 +334,7 @@ class SqlQuery {
 
                 if (compoundCondition != null) {
                     whereBuilder.append(
-                            context.renderInlined(isNot
+                            renderContext.render(isNot
                                     ? compoundCondition.not()
                                     : compoundCondition));
                 }
@@ -352,7 +356,7 @@ class SqlQuery {
                 }
 
                 if (compoundCondition != null) {
-                    whereBuilder.append(context.renderInlined(compoundCondition));
+                    whereBuilder.append(renderContext.render(compoundCondition));
                 }
 
                 return;
@@ -648,7 +652,7 @@ class SqlQuery {
                     if (join.needsIndexTable) {
                         String indexKey = mappedKeys.get(queryKey).getIndexKey(selectedIndexes.get(queryKey));
                         if (indexKey != null) {
-                            whereBuilder.append(context.render(join.keyField));
+                            whereBuilder.append(renderContext.render(join.keyField));
                             whereBuilder.append(" = ");
                             whereBuilder.append(join.quoteIndexKey(indexKey));
                             whereBuilder.append(" AND ");
@@ -765,7 +769,7 @@ class SqlQuery {
         if (needsDistinct) {
             statementBuilder.append("DISTINCT ");
         }
-        statementBuilder.append(context.render(recordIdField));
+        statementBuilder.append(renderContext.render(recordIdField));
         statementBuilder.append(')');
 
         statementBuilder.append(" \nFROM ");
@@ -839,7 +843,7 @@ class SqlQuery {
         if (needsDistinct) {
             statementBuilder.append("DISTINCT ");
         }
-        statementBuilder.append(context.render(recordIdField));
+        statementBuilder.append(renderContext.render(recordIdField));
         statementBuilder.append(')');
         statementBuilder.append(' ');
         vendor.appendIdentifier(statementBuilder, "_count");
@@ -1200,7 +1204,7 @@ class SqlQuery {
         }
 
         public String toString() {
-            return this.tableName + " (" + this.alias + ") ." + context.render(this.valueField);
+            return this.tableName + " (" + this.alias + ") ." + renderContext.render(this.valueField);
         }
 
         public String getTableName() {
@@ -1270,7 +1274,7 @@ class SqlQuery {
                 field = aliasedField(alias, sqlIndexTable.value().getName());
             }
 
-            return context.render(field);
+            return renderContext.render(field);
         }
     }
 }
