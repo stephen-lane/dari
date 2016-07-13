@@ -125,10 +125,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     public static final String VALUE_COLUMN = "value";
 
     public static final String CONNECTION_QUERY_OPTION = "sql.connection";
-    public static final String EXTRA_COLUMNS_QUERY_OPTION = "sql.extraColumns";
-    public static final String EXTRA_JOINS_QUERY_OPTION = "sql.extraJoins";
-    public static final String EXTRA_WHERE_QUERY_OPTION = "sql.extraWhere";
-    public static final String EXTRA_HAVING_QUERY_OPTION = "sql.extraHaving";
     public static final String RETURN_ORIGINAL_DATA_QUERY_OPTION = "sql.returnOriginalData";
     public static final String USE_JDBC_FETCH_SIZE_QUERY_OPTION = "sql.useJdbcFetchSize";
     public static final String USE_READ_DATA_SOURCE_QUERY_OPTION = "sql.useReadDataSource";
@@ -136,7 +132,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
     public static final String INDEX_TABLE_INDEX_OPTION = "sql.indexTable";
 
-    public static final String EXTRA_COLUMN_EXTRA_PREFIX = "sql.extraColumn.";
     public static final String ORIGINAL_DATA_EXTRA = "sql.originalData";
 
     public static final String SUB_DATA_COLUMN_ALIAS_PREFIX = "subData_";
@@ -922,8 +917,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                 }
             } else if (query.getExtraSourceColumns().containsKey(columnName)) {
                 objectState.put(query.getExtraSourceColumns().get(columnName), resultSet.getObject(i));
-            } else {
-                objectState.getExtras().put(EXTRA_COLUMN_EXTRA_PREFIX + meta.getColumnLabel(i), resultSet.getObject(i));
             }
         }
 

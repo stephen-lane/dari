@@ -8,7 +8,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.google.common.base.Preconditions;
@@ -27,7 +26,6 @@ import com.psddev.dari.db.SqlDatabase;
 import com.psddev.dari.db.UnsupportedPredicateException;
 import com.psddev.dari.db.UnsupportedSorterException;
 
-import com.psddev.dari.util.ObjectUtils;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Field;
@@ -62,7 +60,6 @@ class SqlQuery {
 
     private String fromClause;
     private Condition whereCondition;
-    private Condition havingCondition;
     private final List<SortField<?>> orderByFields = new ArrayList<>();
     protected final List<SqlQueryJoin> joins = new ArrayList<>();
     private final Map<Query<?>, String> subQueries = new LinkedHashMap<>();
@@ -158,31 +155,6 @@ class SqlQuery {
     /** Initializes FROM, WHERE, and ORDER BY clauses. */
     private void initializeClauses() {
         Set<ObjectType> queryTypes = query.getConcreteTypes(database.getEnvironment());
-        String extraJoins = ObjectUtils.to(String.class, query.getOptions().get(AbstractSqlDatabase.EXTRA_JOINS_QUERY_OPTION));
-
-        if (extraJoins != null) {
-            Matcher queryKeyMatcher = QUERY_KEY_PATTERN.matcher(extraJoins);
-            int lastEnd = 0;
-            StringBuilder newExtraJoinsBuilder = new StringBuilder();
-
-            while (queryKeyMatcher.find()) {
-                newExtraJoinsBuilder.append(extraJoins.substring(lastEnd, queryKeyMatcher.start()));
-                lastEnd = queryKeyMatcher.end();
-
-                String queryKey = queryKeyMatcher.group(1);
-                Query.MappedKey mappedKey = query.mapEmbeddedKey(database.getEnvironment(), queryKey);
-                mappedKeys.put(queryKey, mappedKey);
-                selectIndex(queryKey, mappedKey);
-
-                SqlQueryJoin join = SqlQueryJoin.findOrCreate(this, queryKey);
-
-                join.useLeftOuter();
-                newExtraJoinsBuilder.append(renderContext.render(join.valueField));
-            }
-
-            newExtraJoinsBuilder.append(extraJoins.substring(lastEnd));
-            extraJoins = newExtraJoinsBuilder.toString();
-        }
 
         // Build the WHERE clause.
         whereCondition = query.isFromAll()
@@ -197,12 +169,6 @@ class SqlQuery {
             if (condition != null) {
                 whereCondition = whereCondition.and(condition);
             }
-        }
-
-        String extraWhere = ObjectUtils.to(String.class, query.getOptions().get(AbstractSqlDatabase.EXTRA_WHERE_QUERY_OPTION));
-
-        if (!ObjectUtils.isBlank(extraWhere)) {
-            whereCondition = whereCondition.and(extraWhere);
         }
 
         // Creates jOOQ SortField from Dari Sorter.
@@ -282,17 +248,6 @@ class SqlQuery {
             fromBuilder.append(renderContext.render(DSL.field(DSL.name(alias, "id"))));
             fromBuilder.append(subSqlQuery.fromClause);
         }
-
-        if (extraJoins != null) {
-            fromBuilder.append(' ');
-            fromBuilder.append(extraJoins);
-        }
-
-        String extraHaving = ObjectUtils.to(String.class, query.getOptions().get(AbstractSqlDatabase.EXTRA_HAVING_QUERY_OPTION));
-
-        this.havingCondition = !ObjectUtils.isBlank(extraHaving)
-                ? DSL.condition(extraHaving)
-                : null;
 
         this.fromClause = fromBuilder.toString();
     }
@@ -656,7 +611,6 @@ class SqlQuery {
                 .from(DSL.table(tableRenderContext.render(recordTable) + fromClause.replace(" /*! USE INDEX (k_name_value) */", "")))
                 .where(whereCondition)
                 .groupBy(groupByFields)
-                .having(havingCondition)
                 .orderBy(orderByFields));
     }
 
@@ -696,14 +650,6 @@ class SqlQuery {
             queryFields.forEach(queryField -> selectFields.add(DSL.field(DSL.name(queryField))));
         }
 
-        String extraColumns = ObjectUtils.to(String.class, query.getOptions().get(SqlDatabase.EXTRA_COLUMNS_QUERY_OPTION));
-
-        if (!ObjectUtils.isBlank(extraColumns)) {
-            for (String extraColumn : extraColumns.trim().split("\\s+")) {
-                selectFields.add(DSL.field(DSL.name(extraColumn)));
-            }
-        }
-
         Table<?> selectTable = recordTable;
 
         if (fromClause.length() > 0
@@ -718,7 +664,6 @@ class SqlQuery {
                 : dslContext.select(selectFields))
                 .from(DSL.table(tableRenderContext.render(selectTable) + fromClause))
                 .where(whereCondition)
-                .having(havingCondition)
                 .orderBy(orderByFields);
 
         if (needsDistinct && selectFields.size() > 2) {
@@ -745,7 +690,6 @@ class SqlQuery {
                 : dslContext.select(recordIdField))
                 .from(DSL.table(tableRenderContext.render(recordTable) + fromClause))
                 .where(whereCondition)
-                .having(havingCondition)
                 .orderBy(orderByFields));
     }
 }
