@@ -5,7 +5,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -27,13 +26,12 @@ import com.psddev.dari.db.Sorter;
 import com.psddev.dari.db.UnsupportedIndexException;
 import com.psddev.dari.db.UnsupportedPredicateException;
 import com.psddev.dari.db.UnsupportedSorterException;
-import com.psddev.dari.db.mysql.MySQLDatabase;
 
 import com.psddev.dari.util.ObjectUtils;
-import com.psddev.dari.util.StringUtils;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Field;
+import org.jooq.JoinType;
 import org.jooq.RenderContext;
 import org.jooq.SortField;
 import org.jooq.SortOrder;
@@ -45,32 +43,32 @@ class SqlQuery {
 
     private static final Pattern QUERY_KEY_PATTERN = Pattern.compile("\\$\\{([^}]+)\\}");
 
-    private final AbstractSqlDatabase database;
-    private final SqlSchema schema;
-    private final Query<?> query;
-    private final String aliasPrefix;
+    protected final AbstractSqlDatabase database;
+    protected final SqlSchema schema;
+    protected final Query<?> query;
+    protected final String aliasPrefix;
 
-    private final SqlVendor vendor;
+    protected final SqlVendor vendor;
     private final DSLContext dslContext;
     private final RenderContext tableRenderContext;
-    private final RenderContext renderContext;
+    protected final RenderContext renderContext;
     private final Table<?> recordTable;
-    private final Field<UUID> recordIdField;
-    private final Field<UUID> recordTypeIdField;
-    private final Map<String, Query.MappedKey> mappedKeys;
-    private final Map<String, ObjectIndex> selectedIndexes;
+    protected final Field<UUID> recordIdField;
+    protected final Field<UUID> recordTypeIdField;
+    protected final Map<String, Query.MappedKey> mappedKeys;
+    protected final Map<String, ObjectIndex> selectedIndexes;
 
     private String fromClause;
     private Condition whereCondition;
     private Condition havingCondition;
     private final List<SortField<?>> orderByFields = new ArrayList<>();
     private String orderByClause;
-    private final List<Join> joins = new ArrayList<>();
+    protected final List<SqlQueryJoin> joins = new ArrayList<>();
     private final Map<Query<?>, String> subQueries = new LinkedHashMap<>();
     private final Map<Query<?>, SqlQuery> subSqlQueries = new HashMap<>();
 
     private boolean needsDistinct;
-    private Join mysqlIndexHint;
+    protected SqlQueryJoin mysqlIndexHint;
     private boolean mysqlIgnoreIndexPrimaryDisabled;
     private boolean forceLeftJoins;
     private boolean hasAnyLimitingPredicates;
@@ -146,7 +144,7 @@ class SqlQuery {
         this(initialDatabase, initialQuery, "");
     }
 
-    private Field<Object> aliasedField(String alias, String field) {
+    protected Field<Object> aliasedField(String alias, String field) {
         return field != null ? DSL.field(DSL.name(aliasPrefix + alias, field)) : null;
     }
 
@@ -179,8 +177,8 @@ class SqlQuery {
                 Query.MappedKey mappedKey = query.mapEmbeddedKey(database.getEnvironment(), queryKey);
                 mappedKeys.put(queryKey, mappedKey);
                 selectIndex(queryKey, mappedKey);
-                Join join = getJoin(queryKey);
-                join.type = JoinType.LEFT_OUTER;
+                SqlQueryJoin join = SqlQueryJoin.findOrCreate(this, queryKey);
+                join.type = JoinType.LEFT_OUTER_JOIN;
                 newExtraJoinsBuilder.append(renderContext.render(join.getValueField(queryKey, null)));
             }
 
@@ -222,7 +220,7 @@ class SqlQuery {
             }
 
             String queryKey = (String) sorter.getOptions().get(0);
-            Join join = getSortFieldJoin(queryKey);
+            SqlQueryJoin join = SqlQueryJoin.findOrCreateForSort(this, queryKey);
             Field<?> joinValueField = join.getValueField(queryKey, null);
             Query<?> subQuery = mappedKeys.get(queryKey).getSubQueryWithSorter(sorter, 0);
 
@@ -281,7 +279,7 @@ class SqlQuery {
         // Builds the FROM clause.
         StringBuilder fromBuilder = new StringBuilder();
 
-        for (Join join : joins) {
+        for (SqlQueryJoin join : joins) {
 
             if (join.indexKeys.isEmpty()) {
                 continue;
@@ -289,14 +287,14 @@ class SqlQuery {
 
             // e.g. JOIN RecordIndex AS i#
             fromBuilder.append('\n');
-            fromBuilder.append((forceLeftJoins ? JoinType.LEFT_OUTER : join.type).token);
+            fromBuilder.append((forceLeftJoins ? JoinType.LEFT_OUTER_JOIN : join.type).toSQL());
             fromBuilder.append(' ');
             fromBuilder.append(tableRenderContext.render(join.table));
 
-            if (join.type == JoinType.INNER && join.equals(mysqlIndexHint)) {
+            if (join.type == JoinType.JOIN && join.equals(mysqlIndexHint)) {
                 fromBuilder.append(" /*! USE INDEX (k_name_value) */");
 
-            } else if (join.tableName != null && join.tableName.startsWith("RecordLocation")) {
+            } else if (join.sqlIndexTable instanceof LocationSqlIndex) {
                 fromBuilder.append(" /*! IGNORE INDEX (PRIMARY) */");
             }
 
@@ -407,13 +405,13 @@ class SqlQuery {
             String queryKey = comparisonPredicate.getKey();
             Query.MappedKey mappedKey = mappedKeys.get(queryKey);
             boolean isFieldCollection = mappedKey.isInternalCollectionType();
-            Join join = null;
+            SqlQueryJoin join = null;
 
             if (mappedKey.getField() != null
                     && parentPredicate instanceof CompoundPredicate
                     && PredicateParser.OR_OPERATOR.equals(parentPredicate.getOperator())) {
 
-                for (Join j : joins) {
+                for (SqlQueryJoin j : joins) {
                     if (j.parent == parentPredicate
                             && j.sqlIndexTable.equals(schema.findSelectIndexTable(mappedKeys.get(queryKey).getInternalType()))) {
 
@@ -426,19 +424,19 @@ class SqlQuery {
                 }
 
                 if (join == null) {
-                    join = getJoin(queryKey);
+                    join = SqlQueryJoin.findOrCreate(this, queryKey);
                     join.parent = parentPredicate;
                 }
 
             } else if (isFieldCollection) {
-                join = createJoin(queryKey);
+                join = SqlQueryJoin.create(this, queryKey);
 
             } else {
-                join = getJoin(queryKey);
+                join = SqlQueryJoin.findOrCreate(this, queryKey);
             }
 
             if (usesLeftJoin) {
-                join.type = JoinType.LEFT_OUTER;
+                join.type = JoinType.LEFT_OUTER_JOIN;
             }
 
             if (isFieldCollection && join.sqlIndexTable == null) {
@@ -467,7 +465,7 @@ class SqlQuery {
                             : joinValueField.in(subQueryTable);
 
                 } else {
-                    SqlQuery subSqlQuery = getOrCreateSubSqlQuery(valueQuery, join.type == JoinType.LEFT_OUTER);
+                    SqlQuery subSqlQuery = getOrCreateSubSqlQuery(valueQuery, join.type == JoinType.LEFT_OUTER_JOIN);
                     subQueries.put(valueQuery, renderContext.render(joinValueField) + (isNotEqualsAll ? " != " : " = "));
                     return subSqlQuery.whereCondition;
                 }
@@ -494,7 +492,7 @@ class SqlQuery {
                             comparisonConditions.add(joinValueField.isNotNull());
 
                         } else {
-                            join.type = JoinType.LEFT_OUTER;
+                            join.type = JoinType.LEFT_OUTER_JOIN;
 
                             comparisonConditions.add(joinValueField.isNull());
                         }
@@ -533,7 +531,7 @@ class SqlQuery {
                         Object convertedValue = join.convertValue(comparisonPredicate, value);
 
                         if (isNotEqualsAll) {
-                            join.type = JoinType.LEFT_OUTER;
+                            join.type = JoinType.LEFT_OUTER_JOIN;
                             needsDistinct = true;
                             hasMissing = true;
 
@@ -578,7 +576,7 @@ class SqlQuery {
 
                         } else if (value == Query.MISSING_VALUE) {
                             hasMissing = true;
-                            join.type = JoinType.LEFT_OUTER;
+                            join.type = JoinType.LEFT_OUTER_JOIN;
 
                             comparisonConditions.add(joinValueField.isNull());
 
@@ -677,7 +675,7 @@ class SqlQuery {
      * grouped by the values of the given {@code groupFields}.
      */
     public String groupStatement(String[] groupFields) {
-        Map<String, Join> groupJoins = new LinkedHashMap<>();
+        Map<String, SqlQueryJoin> groupJoins = new LinkedHashMap<>();
         Map<String, SqlQuery> groupSubSqlQueries = new HashMap<>();
         if (groupFields != null) {
             for (String groupField : groupFields) {
@@ -694,7 +692,7 @@ class SqlQuery {
                     }
                     selectedIndexes.put(groupField, selectedIndex);
                 }
-                Join join = getJoin(groupField);
+                SqlQueryJoin join = SqlQueryJoin.findOrCreate(this, groupField);
                 Query<?> subQuery = mappedKey.getSubQueryWithGroupBy();
                 if (subQuery != null) {
                     SqlQuery subSqlQuery = getOrCreateSubSqlQuery(subQuery, true);
@@ -718,7 +716,7 @@ class SqlQuery {
         statementBuilder.append(' ');
         vendor.appendIdentifier(statementBuilder, "_count");
         int columnNum = 0;
-        for (Map.Entry<String, Join> entry : groupJoins.entrySet()) {
+        for (Map.Entry<String, SqlQueryJoin> entry : groupJoins.entrySet()) {
             statementBuilder.append(", ");
             if (!groupSubSqlQueries.containsKey(entry.getKey())) {
                 statementBuilder.append(renderContext.render(entry.getValue().getValueField(entry.getKey(), null)));
@@ -743,7 +741,7 @@ class SqlQuery {
         statementBuilder.append(" WHERE ");
         statementBuilder.append(renderContext.render(whereCondition));
 
-        for (Map.Entry<String, Join> entry : groupJoins.entrySet()) {
+        for (Map.Entry<String, SqlQueryJoin> entry : groupJoins.entrySet()) {
             if (!groupSubSqlQueries.containsKey(entry.getKey())) {
                 groupBy.append(renderContext.render(entry.getValue().getValueField(entry.getKey(), null)));
             }
@@ -892,248 +890,5 @@ class SqlQuery {
                 .where(whereCondition)
                 .having(havingCondition)
                 .orderBy(orderByFields));
-    }
-
-    private enum JoinType {
-
-        INNER("INNER JOIN"),
-        LEFT_OUTER("LEFT OUTER JOIN");
-
-        public final String token;
-
-        JoinType(String token) {
-            this.token = token;
-        }
-    }
-
-    private Join createJoin(String queryKey) {
-        String alias = "i" + joins.size();
-        Join join = new Join(alias, queryKey);
-        joins.add(join);
-        if (queryKey.equals(query.getOptions().get(MySQLDatabase.MYSQL_INDEX_HINT_QUERY_OPTION))) {
-            mysqlIndexHint = join;
-        }
-        return join;
-    }
-
-    /** Returns the column alias for the given {@code queryKey}. */
-    private Join getJoin(String queryKey) {
-        ObjectIndex index = selectedIndexes.get(queryKey);
-        for (Join join : joins) {
-            if (queryKey.equals(join.queryKey)) {
-                return join;
-            } else {
-                String indexKey = mappedKeys.get(queryKey).getIndexKey(index);
-                if (indexKey != null
-                        && indexKey.equals(mappedKeys.get(join.queryKey).getIndexKey(join.index))
-                        && ((mappedKeys.get(queryKey).getHashAttribute() != null && mappedKeys.get(queryKey).getHashAttribute().equals(join.hashAttribute))
-                        || (mappedKeys.get(queryKey).getHashAttribute() == null && join.hashAttribute == null))) {
-                    // If there's a #attribute on the mapped key, make sure we are returning the matching join.
-                    return join;
-                }
-            }
-        }
-        return createJoin(queryKey);
-    }
-
-    /** Returns the column alias for the given field-based {@code sorter}. */
-    private Join getSortFieldJoin(String queryKey) {
-        ObjectIndex index = selectedIndexes.get(queryKey);
-        for (Join join : joins) {
-            if (queryKey.equals(join.queryKey)) {
-                return join;
-            } else {
-                String indexKey = mappedKeys.get(queryKey).getIndexKey(index);
-                if (indexKey != null
-                        && indexKey.equals(mappedKeys.get(join.queryKey).getIndexKey(join.index))
-                        && ((mappedKeys.get(queryKey).getHashAttribute() != null && mappedKeys.get(queryKey).getHashAttribute().equals(join.hashAttribute))
-                        || (mappedKeys.get(queryKey).getHashAttribute() == null && join.hashAttribute == null))) {
-                    // If there's a #attribute on the mapped key, make sure we are returning the matching join.
-                    return join;
-                }
-            }
-        }
-
-        Join join = createJoin(queryKey);
-        join.type = JoinType.LEFT_OUTER;
-        return join;
-    }
-
-    public String getAliasPrefix() {
-        return aliasPrefix;
-    }
-
-    private class Join {
-
-        public Predicate parent;
-        public JoinType type = JoinType.INNER;
-
-        public final boolean needsIndexTable;
-        public final boolean needsIsNotNull;
-        public final String queryKey;
-        public final String indexType;
-        public final Table<?> table;
-        public final Field<Object> idField;
-        public final Field<Object> typeIdField;
-        public final Field<Object> keyField;
-        public final List<String> indexKeys = new ArrayList<>();
-
-        private final String alias;
-        private final String tableName;
-        private final ObjectIndex index;
-        private final AbstractSqlIndex sqlIndexTable;
-        private final Field<?> valueField;
-        private final String hashAttribute;
-        private final boolean isHaving;
-
-        public Join(String alias, String queryKey) {
-            this.alias = alias;
-            this.queryKey = queryKey;
-
-            Query.MappedKey mappedKey = mappedKeys.get(queryKey);
-            this.hashAttribute = mappedKey.getHashAttribute();
-            this.index = selectedIndexes.get(queryKey);
-
-            this.indexType = mappedKey.getInternalType();
-
-            if (Query.ID_KEY.equals(queryKey)) {
-                needsIndexTable = false;
-                valueField = recordIdField;
-                sqlIndexTable = null;
-                table = null;
-                tableName = null;
-                idField = null;
-                typeIdField = null;
-                keyField = null;
-                needsIsNotNull = true;
-                isHaving = false;
-
-            } else if (Query.TYPE_KEY.equals(queryKey)) {
-                needsIndexTable = false;
-                valueField = recordTypeIdField;
-                sqlIndexTable = null;
-                table = null;
-                tableName = null;
-                idField = null;
-                typeIdField = null;
-                keyField = null;
-                needsIsNotNull = true;
-                isHaving = false;
-
-            } else if (Query.COUNT_KEY.equals(queryKey)) {
-                needsIndexTable = false;
-                valueField = recordIdField.count();
-                sqlIndexTable = null;
-                table = null;
-                tableName = null;
-                idField = null;
-                typeIdField = null;
-                keyField = null;
-                needsIsNotNull = false;
-                isHaving = true;
-
-            } else if (Query.ANY_KEY.equals(queryKey)
-                    || Query.LABEL_KEY.equals(queryKey)) {
-                throw new UnsupportedIndexException(database, queryKey);
-
-            } else {
-                needsIndexTable = true;
-                addIndexKey(queryKey);
-                valueField = null;
-                sqlIndexTable = schema.findSelectIndexTable(index);
-
-                tableName = sqlIndexTable.table().getName();
-                table = DSL.table(DSL.name(tableName)).as(aliasPrefix + alias);
-
-                idField = aliasedField(alias, sqlIndexTable.id().getName());
-                typeIdField = aliasedField(alias, sqlIndexTable.typeId().getName());
-                keyField = aliasedField(alias, sqlIndexTable.symbolId().getName());
-                needsIsNotNull = true;
-                isHaving = false;
-            }
-        }
-
-        public String getAlias() {
-            return this.alias;
-        }
-
-        public String toString() {
-            return this.tableName + " (" + this.alias + ") ." + renderContext.render(this.valueField);
-        }
-
-        public String getTableName() {
-            return this.tableName;
-        }
-
-        public void addIndexKey(String queryKey) {
-            String indexKey = mappedKeys.get(queryKey).getIndexKey(selectedIndexes.get(queryKey));
-            if (ObjectUtils.isBlank(indexKey)) {
-                throw new UnsupportedIndexException(database, indexKey);
-            }
-            if (needsIndexTable) {
-                indexKeys.add(indexKey);
-            }
-        }
-
-        public Object quoteIndexKey(String indexKey) {
-            return AbstractSqlDatabase.quoteValue(database.getReadSymbolId(indexKey));
-        }
-
-        public Object convertValue(ComparisonPredicate comparison, Object value) {
-            Query.MappedKey mappedKey = mappedKeys.get(comparison.getKey());
-            ObjectField field = mappedKey.getField();
-            ObjectIndex index = selectedIndexes.get(queryKey);
-            AbstractSqlIndex fieldSqlIndexTable = field != null
-                    ? schema.findSelectIndexTable(field.getInternalItemType())
-                    : sqlIndexTable;
-
-            String tableName = fieldSqlIndexTable != null ? fieldSqlIndexTable.table().getName() : null;
-
-            if (tableName != null && tableName.startsWith("RecordUuid")) {
-                value = ObjectUtils.to(UUID.class, value);
-
-            } else if (tableName != null && tableName.startsWith("RecordNumber")
-                    && !PredicateParser.STARTS_WITH_OPERATOR.equals(comparison.getOperator())) {
-                if (value != null) {
-                    Long valueLong = ObjectUtils.to(Long.class, value);
-                    if (valueLong != null) {
-                        value = valueLong;
-                    } else {
-                        value = ObjectUtils.to(Double.class, value);
-                    }
-                }
-
-            } else if (tableName != null && tableName.startsWith("RecordString")) {
-                if (comparison.isIgnoreCase()) {
-                    value = value.toString().toLowerCase(Locale.ENGLISH);
-                } else if (database.comparesIgnoreCase()) {
-                    String valueString = StringUtils.trimAndCollapseWhitespaces(value.toString());
-                    if (!index.isCaseSensitive()) {
-                        valueString = valueString.toLowerCase(Locale.ENGLISH);
-                    }
-                    value = valueString;
-                }
-            }
-
-            return value;
-        }
-
-        public void appendValue(StringBuilder builder, ComparisonPredicate comparison, Object value) {
-            vendor.appendValue(builder, convertValue(comparison, value));
-        }
-
-        @SuppressWarnings("unchecked")
-        public Field<Object> getValueField(String queryKey, ComparisonPredicate comparison) {
-            Field<?> field;
-
-            if (valueField != null) {
-                field = valueField;
-
-            } else {
-                field = aliasedField(alias, sqlIndexTable.value().getName());
-            }
-
-            return (Field<Object>) field;
-        }
     }
 }
