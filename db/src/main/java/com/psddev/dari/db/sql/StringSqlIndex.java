@@ -44,15 +44,4 @@ class StringSqlIndex extends AbstractSqlIndex {
             return bindValues;
         }
     }
-
-    @Override
-    protected Object convertValue(AbstractSqlDatabase database, ObjectIndex index, int fieldIndex, Object value) {
-        String valueString = StringUtils.trimAndCollapseWhitespaces(value.toString());
-
-        if (!index.isCaseSensitive()) {
-            valueString = valueString.toLowerCase(Locale.ENGLISH);
-        }
-
-        return stringToBytes(valueString, 500);
-    }
 }

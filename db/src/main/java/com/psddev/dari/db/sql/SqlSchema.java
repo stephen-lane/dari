@@ -333,6 +333,8 @@ public class SqlSchema {
                     continue;
                 }
 
+                Object symbolId = database.getSymbolId(indexValue.getUniqueName());
+
                 for (AbstractSqlIndex table : findUpdateIndexTables(index)) {
                     Table<Record> jooqTable = table.table();
                     BatchBindStep batch = batches.get(jooqTable);
@@ -349,7 +351,6 @@ public class SqlSchema {
                                 .onDuplicateKeyIgnore());
                     }
 
-                    Object key = table.convertKey(database, index, indexValue.getUniqueName());
                     boolean bound = false;
 
                     for (Object[] valuesArray : indexValue.getValuesArray()) {
@@ -358,7 +359,7 @@ public class SqlSchema {
                         if (bindValues != null) {
                             bindValues.put(idParam.getName(), id);
                             bindValues.put(typeIdParam.getName(), typeId);
-                            bindValues.put(symbolIdParam.getName(), key);
+                            bindValues.put(symbolIdParam.getName(), symbolId);
 
                             batch = batch.bind(bindValues);
                             bound = true;
