@@ -49,8 +49,9 @@ class SqlQuery {
     private final String aliasPrefix;
 
     private final SqlVendor vendor;
-    private final DSLContext dslContext;
+    private final RenderContext tableRenderContext;
     private final RenderContext renderContext;
+    private final Table<?> recordTable;
     private final Field<UUID> recordIdField;
     private final Field<UUID> recordTypeIdField;
     private final Map<String, Query.MappedKey> mappedKeys;
@@ -85,10 +86,17 @@ class SqlQuery {
         aliasPrefix = initialAliasPrefix;
 
         vendor = database.getVendor();
-        dslContext = DSL.using(database.dialect());
+
+        DSLContext dslContext = DSL.using(database.dialect());
+
+        tableRenderContext = dslContext.renderContext().paramType(ParamType.INLINED).declareTables(true);
         renderContext = dslContext.renderContext().paramType(ParamType.INLINED);
-        recordIdField = DSL.field(DSL.name(aliasPrefix + "r", schema.recordId().getName()), schema.uuidDataType());
-        recordTypeIdField = DSL.field(DSL.name(aliasPrefix + "r", schema.recordTypeId().getName()), schema.uuidDataType());
+
+        String recordTableAlias = aliasPrefix + "r";
+
+        recordTable = DSL.table(DSL.name("Record")).as(recordTableAlias);
+        recordIdField = DSL.field(DSL.name(recordTableAlias, schema.recordId().getName()), schema.uuidDataType());
+        recordTypeIdField = DSL.field(DSL.name(recordTableAlias, schema.recordTypeId().getName()), schema.uuidDataType());
         mappedKeys = query.mapEmbeddedKeys(database.getEnvironment());
         selectedIndexes = new HashMap<>();
 
@@ -224,7 +232,7 @@ class SqlQuery {
             fromBuilder.append('\n');
             fromBuilder.append((forceLeftJoins ? JoinType.LEFT_OUTER : join.type).token);
             fromBuilder.append(' ');
-            fromBuilder.append(dslContext.renderContext().declareTables(true).render(join.table));
+            fromBuilder.append(tableRenderContext.render(join.table));
 
             if (join.type == JoinType.INNER && join.equals(mysqlIndexHint)) {
                 fromBuilder.append(" /*! USE INDEX (k_name_value) */");
@@ -252,15 +260,13 @@ class SqlQuery {
                 needsDistinct = true;
             }
 
+            String alias = subSqlQuery.aliasPrefix + "r";
+
             fromBuilder.append("\nINNER JOIN ");
-            vendor.appendIdentifier(fromBuilder, "Record");
-            fromBuilder.append(' ');
-            fromBuilder.append(subSqlQuery.aliasPrefix);
-            fromBuilder.append("r ON ");
+            fromBuilder.append(tableRenderContext.render(DSL.table(DSL.name("Record")).as(alias)));
+            fromBuilder.append(" ON ");
             fromBuilder.append(entry.getValue());
-            fromBuilder.append(subSqlQuery.aliasPrefix);
-            fromBuilder.append("r.");
-            vendor.appendIdentifier(fromBuilder, "id");
+            fromBuilder.append(renderContext.render(DSL.field(DSL.name(alias, "id"))));
             fromBuilder.append(subSqlQuery.fromClause);
         }
 
@@ -662,10 +668,7 @@ class SqlQuery {
         statementBuilder.append(')');
 
         statementBuilder.append(" \nFROM ");
-        vendor.appendIdentifier(statementBuilder, "Record");
-        statementBuilder.append(' ');
-        statementBuilder.append(aliasPrefix);
-        statementBuilder.append('r');
+        statementBuilder.append(tableRenderContext.render(recordTable));
         statementBuilder.append(fromClause.replace(" /*! USE INDEX (k_name_value) */", ""));
         statementBuilder.append(" WHERE ");
         statementBuilder.append(renderContext.render(whereCondition));
@@ -680,10 +683,7 @@ class SqlQuery {
         StringBuilder statementBuilder = new StringBuilder();
         initializeClauses();
         statementBuilder.append("DELETE r\nFROM ");
-        vendor.appendIdentifier(statementBuilder, "Record");
-        statementBuilder.append(' ');
-        statementBuilder.append(aliasPrefix);
-        statementBuilder.append('r');
+        statementBuilder.append(tableRenderContext.render(recordTable));
         statementBuilder.append(fromClause);
         statementBuilder.append(" WHERE ");
         statementBuilder.append(renderContext.render(whereCondition));
@@ -759,10 +759,7 @@ class SqlQuery {
         String selectClause = statementBuilder.toString();
 
         statementBuilder.append("\nFROM ");
-        vendor.appendIdentifier(statementBuilder, "Record");
-        statementBuilder.append(' ');
-        statementBuilder.append(aliasPrefix);
-        statementBuilder.append('r');
+        statementBuilder.append(tableRenderContext.render(recordTable));
         statementBuilder.append(fromClause.replace(" /*! USE INDEX (k_name_value) */", ""));
         statementBuilder.append(" WHERE ");
         statementBuilder.append(renderContext.render(whereCondition));
@@ -857,10 +854,7 @@ class SqlQuery {
         }
 
         statementBuilder.append("\nFROM ");
-        vendor.appendIdentifier(statementBuilder, "Record");
-        statementBuilder.append(' ');
-        statementBuilder.append(aliasPrefix);
-        statementBuilder.append('r');
+        statementBuilder.append(tableRenderContext.render(recordTable));
 
         if (fromClause.length() > 0
                 && !fromClause.contains("LEFT OUTER JOIN")
@@ -916,11 +910,7 @@ class SqlQuery {
         statementBuilder.append(" r.");
         vendor.appendIdentifier(statementBuilder, "id");
         statementBuilder.append("\nFROM ");
-        vendor.appendIdentifier(statementBuilder, "Record");
-        statementBuilder.append(' ');
-        statementBuilder.append(aliasPrefix);
-        statementBuilder.append('r');
-
+        statementBuilder.append(tableRenderContext.render(recordTable));
         statementBuilder.append(fromClause);
         statementBuilder.append(" WHERE ");
         statementBuilder.append(renderContext.render(whereCondition));
