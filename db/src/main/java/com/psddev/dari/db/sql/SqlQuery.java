@@ -11,6 +11,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import com.psddev.dari.db.ComparisonPredicate;
 import com.psddev.dari.db.CompoundPredicate;
@@ -30,6 +31,12 @@ import com.psddev.dari.db.mysql.MySQLDatabase;
 
 import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.StringUtils;
+import org.jooq.Condition;
+import org.jooq.DSLContext;
+import org.jooq.Field;
+import org.jooq.Record;
+import org.jooq.Table;
+import org.jooq.impl.DSL;
 
 class SqlQuery {
 
@@ -41,8 +48,9 @@ class SqlQuery {
     private final String aliasPrefix;
 
     private final SqlVendor vendor;
-    private final String recordIdField;
-    private final String recordTypeIdField;
+    private final DSLContext context;
+    private final Field<UUID> recordIdField;
+    private final Field<UUID> recordTypeIdField;
     private final Map<String, Query.MappedKey> mappedKeys;
     private final Map<String, ObjectIndex> selectedIndexes;
 
@@ -80,8 +88,9 @@ class SqlQuery {
         aliasPrefix = initialAliasPrefix;
 
         vendor = database.getVendor();
-        recordIdField = aliasedField("r", AbstractSqlDatabase.ID_COLUMN);
-        recordTypeIdField = aliasedField("r", AbstractSqlDatabase.TYPE_ID_COLUMN);
+        context = DSL.using(database.dialect());
+        recordIdField = DSL.field(DSL.name(aliasPrefix + "r", schema.recordId().getName()), schema.uuidDataType());
+        recordTypeIdField = DSL.field(DSL.name(aliasPrefix + "r", schema.recordTypeId().getName()), schema.uuidDataType());
         mappedKeys = query.mapEmbeddedKeys(database.getEnvironment());
         selectedIndexes = new HashMap<>();
 
@@ -129,17 +138,8 @@ class SqlQuery {
         this(initialDatabase, initialQuery, "");
     }
 
-    private String aliasedField(String alias, String field) {
-        if (field == null) {
-            return null;
-        }
-
-        StringBuilder fieldBuilder = new StringBuilder();
-        fieldBuilder.append(aliasPrefix);
-        fieldBuilder.append(alias);
-        fieldBuilder.append('.');
-        vendor.appendIdentifier(fieldBuilder, field);
-        return fieldBuilder.toString();
+    private Field<Object> aliasedField(String alias, String field) {
+        return field != null ? DSL.field(DSL.name(aliasPrefix + alias, field)) : null;
     }
 
     private SqlQuery getOrCreateSubSqlQuery(Query<?> subQuery, boolean forceLeftJoins) {
@@ -180,35 +180,10 @@ class SqlQuery {
             extraJoins = newExtraJoinsBuilder.toString();
         }
 
-        // Builds the WHERE clause.
-        StringBuilder whereBuilder = new StringBuilder();
-        whereBuilder.append("\nWHERE ");
-
-        String extraWhere = ObjectUtils.to(String.class, query.getOptions().get(AbstractSqlDatabase.EXTRA_WHERE_QUERY_OPTION));
-        if (!ObjectUtils.isBlank(extraWhere)) {
-            whereBuilder.append('(');
-        }
-
-        whereBuilder.append("1 = 1");
-
-        if (!query.isFromAll()) {
-            Set<UUID> typeIds = query.getConcreteTypeIds(database);
-            whereBuilder.append("\nAND ");
-
-            if (typeIds.isEmpty()) {
-                whereBuilder.append("0 = 1");
-
-            } else {
-                whereBuilder.append(recordTypeIdField);
-                whereBuilder.append(" IN (");
-                for (UUID typeId : typeIds) {
-                    vendor.appendValue(whereBuilder, typeId);
-                    whereBuilder.append(", ");
-                }
-                whereBuilder.setLength(whereBuilder.length() - 2);
-                whereBuilder.append(')');
-            }
-        }
+        // Build the WHERE clause.
+        Condition whereCondition = query.isFromAll()
+                ? DSL.trueCondition()
+                : recordTypeIdField.in(query.getConcreteTypeIds(database));
 
         Predicate predicate = query.getPredicate();
 
@@ -216,15 +191,14 @@ class SqlQuery {
             StringBuilder childBuilder = new StringBuilder();
             addWherePredicate(childBuilder, predicate, null, false, true);
             if (childBuilder.length() > 0) {
-                whereBuilder.append("\nAND (");
-                whereBuilder.append(childBuilder);
-                whereBuilder.append(')');
+                whereCondition = whereCondition.and(childBuilder.toString());
             }
         }
 
+        String extraWhere = ObjectUtils.to(String.class, query.getOptions().get(AbstractSqlDatabase.EXTRA_WHERE_QUERY_OPTION));
+
         if (!ObjectUtils.isBlank(extraWhere)) {
-            whereBuilder.append(") ");
-            whereBuilder.append(extraWhere);
+            whereCondition = whereCondition.and(extraWhere);
         }
 
         // Builds the ORDER BY clause.
@@ -252,7 +226,7 @@ class SqlQuery {
             fromBuilder.append('\n');
             fromBuilder.append((forceLeftJoins ? JoinType.LEFT_OUTER : join.type).token);
             fromBuilder.append(' ');
-            fromBuilder.append(join.table);
+            fromBuilder.append(context.renderContext().declareTables(true).render(join.table));
 
             if (join.type == JoinType.INNER && join.equals(mysqlIndexHint)) {
                 fromBuilder.append(" /*! USE INDEX (k_name_value) */");
@@ -261,37 +235,15 @@ class SqlQuery {
                 fromBuilder.append(" /*! IGNORE INDEX (PRIMARY) */");
             }
 
-            // e.g. ON i#.recordId = r.id
             fromBuilder.append(" ON ");
-            fromBuilder.append(join.idField);
-            fromBuilder.append(" = ");
-            fromBuilder.append(aliasPrefix);
-            fromBuilder.append("r.");
-            vendor.appendIdentifier(fromBuilder, "id");
 
-            // AND i#.typeId = r.typeId
-            if (join.typeIdField != null) {
-                fromBuilder.append(" AND ");
-                fromBuilder.append(join.typeIdField);
-                fromBuilder.append(" = ");
-                fromBuilder.append(aliasPrefix);
-                fromBuilder.append("r.");
-                vendor.appendIdentifier(fromBuilder, "typeId");
-            }
+            Condition joinCondition = join.idField.eq(recordIdField)
+                    .and(join.typeIdField.eq(recordTypeIdField))
+                    .and(join.keyField.in(join.indexKeys.stream()
+                            .map(database::getSymbolId)
+                            .collect(Collectors.toSet())));
 
-            // AND i#.symbolId in (...)
-            fromBuilder.append(" AND ");
-            fromBuilder.append(join.keyField);
-            fromBuilder.append(" IN (");
-
-            for (String indexKey : join.indexKeys) {
-                fromBuilder.append(join.quoteIndexKey(indexKey));
-                fromBuilder.append(", ");
-            }
-
-            fromBuilder.setLength(fromBuilder.length() - 2);
-            fromBuilder.append(')');
-
+            fromBuilder.append(context.renderInlined(joinCondition));
         }
 
         for (Map.Entry<Query<?>, String> entry : subQueries.entrySet()) {
@@ -319,7 +271,7 @@ class SqlQuery {
             fromBuilder.append(extraJoins);
         }
 
-        this.whereClause = whereBuilder.toString();
+        this.whereClause = "\nWHERE " + context.renderInlined(whereCondition);
 
         StringBuilder havingBuilder = new StringBuilder();
         if (hasDeferredHavingPredicates()) {
@@ -358,7 +310,7 @@ class SqlQuery {
 
             // e.g. (child1) OR (child2) OR ... (child#)
             if (isNot || PredicateParser.OR_OPERATOR.equals(operator)) {
-                StringBuilder compoundBuilder = new StringBuilder();
+                Condition compoundCondition = null;
                 List<Predicate> children = compoundPredicate.getChildren();
 
                 boolean usesLeftJoinChildren;
@@ -373,45 +325,37 @@ class SqlQuery {
                     StringBuilder childBuilder = new StringBuilder();
                     addWherePredicate(childBuilder, child, predicate, usesLeftJoinChildren, deferMetricAndHavingPredicates);
                     if (childBuilder.length() > 0) {
-                        compoundBuilder.append('(');
-                        compoundBuilder.append(childBuilder);
-                        compoundBuilder.append(")\nOR ");
+                        compoundCondition = compoundCondition != null
+                                ? compoundCondition.or(childBuilder.toString())
+                                : DSL.condition(childBuilder.toString());
                     }
                 }
 
-                if (compoundBuilder.length() > 0) {
-                    compoundBuilder.setLength(compoundBuilder.length() - 4);
-
-                    // e.g. NOT ((child1) OR (child2) OR ... (child#))
-                    if (isNot) {
-                        whereBuilder.append("NOT (");
-                        whereBuilder.append(compoundBuilder);
-                        whereBuilder.append(')');
-
-                    } else {
-                        whereBuilder.append(compoundBuilder);
-                    }
+                if (compoundCondition != null) {
+                    whereBuilder.append(
+                            context.renderInlined(isNot
+                                    ? compoundCondition.not()
+                                    : compoundCondition));
                 }
 
                 return;
 
             // e.g. (child1) AND (child2) AND .... (child#)
             } else if (PredicateParser.AND_OPERATOR.equals(operator)) {
-                StringBuilder compoundBuilder = new StringBuilder();
+                Condition compoundCondition = null;
 
                 for (Predicate child : compoundPredicate.getChildren()) {
                     StringBuilder childBuilder = new StringBuilder();
                     addWherePredicate(childBuilder, child, predicate, usesLeftJoin, deferMetricAndHavingPredicates);
                     if (childBuilder.length() > 0) {
-                        compoundBuilder.append('(');
-                        compoundBuilder.append(childBuilder);
-                        compoundBuilder.append(")\nAND ");
+                        compoundCondition = compoundCondition != null
+                                ? compoundCondition.and(childBuilder.toString())
+                                : DSL.condition(childBuilder.toString());
                     }
                 }
 
-                if (compoundBuilder.length() > 0) {
-                    compoundBuilder.setLength(compoundBuilder.length() - 5);
-                    whereBuilder.append(compoundBuilder);
+                if (compoundCondition != null) {
+                    whereBuilder.append(context.renderInlined(compoundCondition));
                 }
 
                 return;
@@ -707,7 +651,7 @@ class SqlQuery {
                     if (join.needsIndexTable) {
                         String indexKey = mappedKeys.get(queryKey).getIndexKey(selectedIndexes.get(queryKey));
                         if (indexKey != null) {
-                            whereBuilder.append(join.keyField);
+                            whereBuilder.append(context.render(join.keyField));
                             whereBuilder.append(" = ");
                             whereBuilder.append(join.quoteIndexKey(indexKey));
                             whereBuilder.append(" AND ");
@@ -831,7 +775,7 @@ class SqlQuery {
         if (needsDistinct) {
             statementBuilder.append("DISTINCT ");
         }
-        statementBuilder.append(recordIdField);
+        statementBuilder.append(context.render(recordIdField));
         statementBuilder.append(')');
 
         statementBuilder.append(" \nFROM ");
@@ -905,7 +849,7 @@ class SqlQuery {
         if (needsDistinct) {
             statementBuilder.append("DISTINCT ");
         }
-        statementBuilder.append(recordIdField);
+        statementBuilder.append(context.render(recordIdField));
         statementBuilder.append(')');
         statementBuilder.append(' ');
         vendor.appendIdentifier(statementBuilder, "_count");
@@ -1222,17 +1166,17 @@ class SqlQuery {
         public final String likeValuePrefix;
         public final String queryKey;
         public final String indexType;
-        public final String table;
-        public final String idField;
-        public final String typeIdField;
-        public final String keyField;
+        public final Table<?> table;
+        public final Field<Object> idField;
+        public final Field<Object> typeIdField;
+        public final Field<Object> keyField;
         public final List<String> indexKeys = new ArrayList<>();
 
         private final String alias;
         private final String tableName;
         private final ObjectIndex index;
         private final AbstractSqlIndex sqlIndexTable;
-        private final String valueField;
+        private final Field<?> valueField;
         private final String hashAttribute;
         private final boolean isHaving;
 
@@ -1275,13 +1219,7 @@ class SqlQuery {
             } else if (Query.COUNT_KEY.equals(queryKey)) {
                 needsIndexTable = false;
                 likeValuePrefix = null;
-                StringBuilder fieldBuilder = new StringBuilder();
-                fieldBuilder.append("COUNT(");
-                vendor.appendIdentifier(fieldBuilder, "r");
-                fieldBuilder.append('.');
-                vendor.appendIdentifier(fieldBuilder, "id");
-                fieldBuilder.append(')');
-                valueField = fieldBuilder.toString(); // "count(r.id)";
+                valueField = recordIdField.count();
                 sqlIndexTable = null;
                 table = null;
                 tableName = null;
@@ -1302,13 +1240,8 @@ class SqlQuery {
                 valueField = null;
                 sqlIndexTable = schema.findSelectIndexTable(index);
 
-                StringBuilder tableBuilder = new StringBuilder();
                 tableName = sqlIndexTable.table().getName();
-                vendor.appendIdentifier(tableBuilder, tableName);
-                tableBuilder.append(' ');
-                tableBuilder.append(aliasPrefix);
-                tableBuilder.append(alias);
-                table = tableBuilder.toString();
+                table = DSL.table(DSL.name(tableName)).as(aliasPrefix + alias);
 
                 idField = aliasedField(alias, sqlIndexTable.id().getName());
                 typeIdField = aliasedField(alias, sqlIndexTable.typeId().getName());
@@ -1323,7 +1256,7 @@ class SqlQuery {
         }
 
         public String toString() {
-            return this.tableName + " (" + this.alias + ") ." + this.valueField;
+            return this.tableName + " (" + this.alias + ") ." + context.render(this.valueField);
         }
 
         public String getTableName() {
@@ -1384,7 +1317,7 @@ class SqlQuery {
         }
 
         public String getValueField(String queryKey, ComparisonPredicate comparison) {
-            String field;
+            Field<?> field;
 
             if (valueField != null) {
                 field = valueField;
@@ -1393,7 +1326,7 @@ class SqlQuery {
                 field = aliasedField(alias, sqlIndexTable.value().getName());
             }
 
-            return field;
+            return context.render(field);
         }
     }
 }
