@@ -1,10 +1,7 @@
 package com.psddev.dari.db.sql;
 
-import com.psddev.dari.db.ComparisonPredicate;
-import com.psddev.dari.db.ObjectField;
 import com.psddev.dari.db.ObjectIndex;
 import com.psddev.dari.db.Predicate;
-import com.psddev.dari.db.PredicateParser;
 import com.psddev.dari.db.Query;
 import com.psddev.dari.db.SqlDatabase;
 import com.psddev.dari.db.UnsupportedIndexException;
@@ -165,47 +162,24 @@ final class SqlQueryJoin {
         }
     }
 
-    public Object convertValue(ComparisonPredicate comparison, Object value) {
-        Query.MappedKey mappedKey = sqlQuery.mappedKeys.get(comparison.getKey());
-        ObjectField field = mappedKey.getField();
-        AbstractSqlIndex fieldSqlIndexTable = field != null
-                ? sqlQuery.schema.findSelectIndexTable(field.getInternalItemType())
-                : sqlIndex;
+    public Object value(Object value) {
+        if (sqlIndex instanceof NumberSqlIndex) {
+            return DSL.inline(ObjectUtils.to(double.class, value), sqlQuery.schema.doubleDataType());
 
-        String tableName = fieldSqlIndexTable != null ? fieldSqlIndexTable.table().getName() : null;
+        } else if (sqlIndex instanceof StringSqlIndex) {
+            String valueString = StringUtils.trimAndCollapseWhitespaces(value.toString());
 
-        if (tableName != null && tableName.startsWith("RecordUuid")) {
-            value = ObjectUtils.to(UUID.class, value);
-
-        } else if (tableName != null && tableName.startsWith("RecordNumber")
-                && !PredicateParser.STARTS_WITH_OPERATOR.equals(comparison.getOperator())) {
-
-            if (value != null) {
-                Long valueLong = ObjectUtils.to(Long.class, value);
-
-                if (valueLong != null) {
-                    value = valueLong;
-
-                } else {
-                    value = ObjectUtils.to(Double.class, value);
-                }
+            if (!index.isCaseSensitive()) {
+                valueString = valueString.toLowerCase(Locale.ENGLISH);
             }
 
-        } else if (tableName != null && tableName.startsWith("RecordString")) {
-            if (comparison.isIgnoreCase()) {
-                value = value.toString().toLowerCase(Locale.ENGLISH);
+            return DSL.inline(valueString, sqlQuery.schema.byteStringDataType());
 
-            } else if (sqlQuery.database.comparesIgnoreCase()) {
-                String valueString = StringUtils.trimAndCollapseWhitespaces(value.toString());
+        } else if (sqlIndex instanceof UuidSqlIndex) {
+            return DSL.inline(ObjectUtils.to(UUID.class, value), sqlQuery.schema.uuidDataType());
 
-                if (!index.isCaseSensitive()) {
-                    valueString = valueString.toLowerCase(Locale.ENGLISH);
-                }
-
-                value = valueString;
-            }
+        } else {
+            return value;
         }
-
-        return value;
     }
 }

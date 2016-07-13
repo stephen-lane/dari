@@ -468,8 +468,6 @@ class SqlQuery {
                             throw new UnsupportedOperationException();
                         }
 
-                        Object convertedValue = join.convertValue(comparisonPredicate, value);
-
                         if (isNotEqualsAll) {
                             needsDistinct = true;
                             hasMissing = true;
@@ -477,10 +475,10 @@ class SqlQuery {
                             join.useLeftOuter();
                             comparisonConditions.add(
                                     join.valueField.isNull().or(
-                                            join.valueField.ne(convertedValue)));
+                                            join.valueField.ne(join.value(value))));
 
                         } else {
-                            inValues.add(convertedValue);
+                            inValues.add(join.value(value));
                         }
                     }
                 }
@@ -522,7 +520,7 @@ class SqlQuery {
                             comparisonConditions.add(
                                     sqlQueryComparison.createCondition(
                                             join.valueField,
-                                            join.convertValue(comparisonPredicate, value)));
+                                            join.value(value)));
                         }
                     }
                 }
