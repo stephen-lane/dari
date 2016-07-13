@@ -37,10 +37,12 @@
         <module>image</module>
         <module>jclouds</module>
         <module>mail</module>
+        <module>mysql</module>
         <module>parent</module>
         <module>reflections</module>
         <module>reloader/tomcat</module>
         <module>sms</module>
+        <module>sql</module>
         <module>storage</module>
         <module>twilio</module>
         <module>util</module>
@@ -170,6 +172,12 @@
 
             <dependency>
                 <groupId>com.psddev</groupId>
+                <artifactId>dari-mysql</artifactId>
+                <version>3.2-SNAPSHOT</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.psddev</groupId>
                 <artifactId>dari-reflections</artifactId>
                 <version>3.2-SNAPSHOT</version>
             </dependency>
@@ -177,6 +185,12 @@
             <dependency>
                 <groupId>com.psddev</groupId>
                 <artifactId>dari-sms</artifactId>
+                <version>3.2-SNAPSHOT</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.psddev</groupId>
+                <artifactId>dari-sql</artifactId>
                 <version>3.2-SNAPSHOT</version>
             </dependency>
 
