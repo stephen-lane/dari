@@ -271,16 +271,8 @@ class SqlQuery {
             if (join.type == JoinType.INNER && join.equals(mysqlIndexHint)) {
                 fromBuilder.append(" /*! USE INDEX (k_name_value) */");
 
-            } else if (join.sqlIndexTable.getName().startsWith("RecordLocation")
-                    && join.sqlIndexTable.getVersion() >= 2) {
+            } else if (join.sqlIndexTable.getName().startsWith("RecordLocation")) {
                 fromBuilder.append(" /*! IGNORE INDEX (PRIMARY) */");
-            }
-
-            if ((join.sqlIndexTable.getName().startsWith("RecordLocation") && join.sqlIndexTable.getVersion() < 3)
-                    || (join.sqlIndexTable.getName().startsWith("RecordNumber") && join.sqlIndexTable.getVersion() < 3)
-                    || (join.sqlIndexTable.getName().startsWith("RecordString") && join.sqlIndexTable.getVersion() < 4)
-                    || (join.sqlIndexTable.getName().startsWith("RecordUuid") && join.sqlIndexTable.getVersion() < 3)) {
-                mysqlIgnoreIndexPrimaryDisabled = true;
             }
 
             // e.g. ON i#.recordId = r.id
