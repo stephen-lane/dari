@@ -234,6 +234,64 @@ public class Region {
         return ObjectUtils.toJson(featureCollection);
     }
 
+    public String toPolygonWkt() {
+        StringBuilder p = new StringBuilder();
+
+        p.append("POLYGON((");
+
+        for (Location location : getLocations()) {
+            p.append(location.getX());
+            p.append(' ');
+            p.append(location.getY());
+            p.append(", ");
+        }
+
+        p.append("))");
+
+        return p.toString();
+    }
+
+    public String toMultiPolygonWkt() {
+        StringBuilder mp = new StringBuilder();
+
+        mp.append("MULTIPOLYGON(");
+
+        for (Region.Polygon polygon : getPolygons()) {
+            for (Region.LinearRing ring : polygon) {
+                mp.append("((");
+                for (Region.Coordinate coordinate : ring) {
+                    mp.append(coordinate.getLatitude());
+                    mp.append(' ');
+                    mp.append(coordinate.getLongitude());
+                    mp.append(", ");
+                }
+                mp.setLength(mp.length() - 2);
+                mp.append(")), ");
+            }
+        }
+
+        for (Region.Circle circles : getCircles()) {
+            for (Region.Polygon polygon : circles.getPolygons()) {
+                for (Region.LinearRing ring : polygon) {
+                    mp.append("((");
+                    for (Region.Coordinate coordinate : ring) {
+                        mp.append(coordinate.getLatitude());
+                        mp.append(' ');
+                        mp.append(coordinate.getLongitude());
+                        mp.append(", ");
+                    }
+                    mp.setLength(mp.length() - 2);
+                    mp.append(")), ");
+                }
+            }
+        }
+
+        mp.setLength(mp.length() - 2);
+        mp.append(")");
+
+        return mp.toString();
+    }
+
     @SuppressWarnings("unchecked")
     public static Region fromGeoJson(String geoJson) {
         Map<String, Object> json = (Map<String, Object>) ObjectUtils.fromJson(geoJson);

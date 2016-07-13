@@ -62,6 +62,10 @@ public class Location {
         return degree * Math.PI / 180.0;
     }
 
+    public String toWkt() {
+        return "POINT(" + getX() + " " + getY() + ")";
+    }
+
     // --- Object support ---
 
     @Override

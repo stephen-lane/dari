@@ -24,7 +24,6 @@ import com.psddev.dari.db.Query;
 import com.psddev.dari.db.Region;
 import com.psddev.dari.db.Sorter;
 import com.psddev.dari.db.SqlDatabase;
-import com.psddev.dari.db.UnsupportedIndexException;
 import com.psddev.dari.db.UnsupportedPredicateException;
 import com.psddev.dari.db.UnsupportedSorterException;
 
@@ -241,24 +240,16 @@ class SqlQuery {
                 orderByFields.add(join.valueField.sort(SortOrder.DESC));
 
             } else {
-                try {
-                    Location location = (Location) sorter.getOptions().get(1);
-                    StringBuilder selectBuilder = new StringBuilder();
-                    StringBuilder locationFieldBuilder = new StringBuilder();
+                Field<?> locationField = schema.stLength(
+                        schema.stMakeLine(
+                                schema.stGeomFromText(DSL.inline(((Location) sorter.getOptions().get(1)).toWkt())),
+                                join.valueField));
 
-                    vendor.appendNearestLocation(locationFieldBuilder, selectBuilder, location, renderContext.render(join.valueField));
+                if (closest) {
+                    orderByFields.add(locationField.sort(SortOrder.ASC));
 
-                    Field<?> locationField = DSL.field(locationFieldBuilder.toString());
-
-                    if (closest) {
-                        orderByFields.add(locationField.sort(SortOrder.ASC));
-
-                    } else {
-                        orderByFields.add(locationField.sort(SortOrder.DESC));
-                    }
-
-                } catch (UnsupportedIndexException uie) {
-                    throw new UnsupportedIndexException(vendor, queryKey);
+                } else {
+                    orderByFields.add(locationField.sort(SortOrder.DESC));
                 }
             }
         }
@@ -479,26 +470,17 @@ class SqlQuery {
                             throw new UnsupportedOperationException();
                         }
 
-                        List<Location> locations = ((Region) value).getLocations();
-
-                        if (!locations.isEmpty()) {
-                            try {
-                                StringBuilder rcb = new StringBuilder();
-
-                                vendor.appendWhereRegion(rcb, (Region) value, renderContext.render(join.valueField));
-
-                                Condition rc = DSL.condition(rcb.toString());
-
-                                if (isNotEqualsAll) {
-                                    rc = rc.not();
-                                }
-
-                                comparisonConditions.add(rc);
-
-                            } catch (UnsupportedIndexException uie) {
-                                throw new UnsupportedIndexException(vendor, queryKey);
-                            }
+                        if (!(join.sqlIndex instanceof LocationSqlIndex)) {
+                            throw new UnsupportedOperationException();
                         }
+
+                        Condition contains = schema.stContains(
+                                schema.stGeomFromText(DSL.inline(((Region) value).toPolygonWkt())),
+                                join.valueField);
+
+                        comparisonConditions.add(isNotEqualsAll
+                                ? contains.not()
+                                : contains);
 
                     } else {
                         if (!database.isIndexSpatial() && value instanceof Location) {
@@ -540,16 +522,14 @@ class SqlQuery {
                                 throw new UnsupportedOperationException();
                             }
 
-                            try {
-                                StringBuilder lb = new StringBuilder();
-
-                                vendor.appendWhereLocation(lb, (Location) value, renderContext.render(join.valueField));
-
-                                comparisonConditions.add(DSL.condition(lb.toString()));
-
-                            } catch (UnsupportedIndexException uie) {
-                                throw new UnsupportedIndexException(vendor, queryKey);
+                            if (!(join.sqlIndex instanceof RegionSqlIndex)) {
+                                throw new UnsupportedOperationException();
                             }
+
+                            comparisonConditions.add(
+                                    schema.stContains(
+                                            join.valueField,
+                                            schema.stGeomFromText(DSL.inline(((Location) value).toWkt()))));
 
                         } else if (value == Query.MISSING_VALUE) {
                             hasMissing = true;

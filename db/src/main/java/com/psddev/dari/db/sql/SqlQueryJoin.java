@@ -21,7 +21,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-class SqlQueryJoin {
+final class SqlQueryJoin {
 
     public Predicate parent;
     private boolean leftOuter;

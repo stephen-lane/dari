@@ -2,12 +2,11 @@ package com.psddev.dari.db.sql;
 
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
-import com.psddev.dari.db.Location;
 import com.psddev.dari.db.ObjectField;
 import com.psddev.dari.db.ObjectIndex;
-import com.psddev.dari.db.Region;
 import com.psddev.dari.db.State;
 import org.jooq.BatchBindStep;
+import org.jooq.Condition;
 import org.jooq.Converter;
 import org.jooq.DSLContext;
 import org.jooq.DataType;
@@ -190,20 +189,20 @@ public class SqlSchema {
         return SQLDataType.UUID;
     }
 
-    public Object locationParam() {
-        throw new UnsupportedOperationException();
+    public Condition stContains(Field<Object> x, Field<Object> y) {
+        return DSL.condition("ST_Contains({0}, {1})", x, y);
     }
 
-    public void bindLocation(Map<String, Object> bindValues, Location location) {
-        throw new UnsupportedOperationException();
+    public Field<Object> stGeomFromText(Field<String> wkt) {
+        return DSL.field("ST_GeomFromText({0})", wkt);
     }
 
-    public Object regionParam() {
-        throw new UnsupportedOperationException();
+    public Field<Double> stLength(Field<Object> field) {
+        return DSL.field("ST_Length({0})", Double.class, field);
     }
 
-    public void bindRegion(Map<String, Object> bindValues, Region region) {
-        throw new UnsupportedOperationException();
+    public Field<Object> stMakeLine(Field<Object> x, Field<Object> y) {
+        return DSL.field("ST_MakeLine({0}, {1})", x, y);
     }
 
     public Table<Record> record() {

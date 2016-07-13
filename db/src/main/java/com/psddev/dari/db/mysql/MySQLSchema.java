@@ -1,16 +1,14 @@
 package com.psddev.dari.db.mysql;
 
-import com.psddev.dari.db.Location;
-import com.psddev.dari.db.Region;
-import com.psddev.dari.db.sql.AbstractSqlDatabase;
 import com.psddev.dari.db.sql.SqlSchema;
 import com.psddev.dari.util.UuidUtils;
+import org.jooq.Condition;
 import org.jooq.Converter;
 import org.jooq.DataType;
+import org.jooq.Field;
 import org.jooq.impl.DSL;
 import org.jooq.util.mysql.MySQLDataType;
 
-import java.util.Map;
 import java.util.UUID;
 
 public class MySQLSchema extends SqlSchema {
@@ -38,11 +36,6 @@ public class MySQLSchema extends SqlSchema {
         }
     });
 
-    private static final String LOCATION_PARAM_NAME = "location";
-    private static final Object LOCATION_PARAM = DSL.field("GeomFromText({0})", DSL.param(LOCATION_PARAM_NAME, String.class));
-    private static final String REGION_PARAM_NAME = "region";
-    private static final Object REGION_PARAM = DSL.field("GeomFromText({0})", DSL.param(REGION_PARAM_NAME, String.class));
-
     protected MySQLSchema(MySQLDatabase database) {
         super(database);
     }
@@ -53,59 +46,22 @@ public class MySQLSchema extends SqlSchema {
     }
 
     @Override
-    public Object locationParam() {
-        return LOCATION_PARAM;
+    public Condition stContains(Field<Object> x, Field<Object> y) {
+        return DSL.condition("MBRContains({0}, {1})", x, y);
     }
 
     @Override
-    public void bindLocation(Map<String, Object> bindValues, Location location) {
-        bindValues.put(LOCATION_PARAM_NAME, "POINT(" + location.getX() + " " + location.getY() + ")");
+    public Field<Object> stGeomFromText(Field<String> wkt) {
+        return DSL.field("GeomFromText({0})", wkt);
     }
 
     @Override
-    public Object regionParam() {
-        return REGION_PARAM;
+    public Field<Double> stLength(Field<Object> field) {
+        return DSL.field("GLength({0})", Double.class, field);
     }
 
     @Override
-    public void bindRegion(Map<String, Object> bindValues, Region region) {
-        StringBuilder mp = new StringBuilder();
-
-        mp.append("MULTIPOLYGON(");
-
-        for (Region.Polygon polygon : region.getPolygons()) {
-            for (Region.LinearRing ring : polygon) {
-                mp.append("((");
-                for (Region.Coordinate coordinate : ring) {
-                    mp.append(AbstractSqlDatabase.quoteValue(coordinate.getLatitude()));
-                    mp.append(' ');
-                    mp.append(AbstractSqlDatabase.quoteValue(coordinate.getLongitude()));
-                    mp.append(", ");
-                }
-                mp.setLength(mp.length() - 2);
-                mp.append(")), ");
-            }
-        }
-
-        for (Region.Circle circles : region.getCircles()) {
-            for (Region.Polygon polygon : circles.getPolygons()) {
-                for (Region.LinearRing ring : polygon) {
-                    mp.append("((");
-                    for (Region.Coordinate coordinate : ring) {
-                        mp.append(AbstractSqlDatabase.quoteValue(coordinate.getLatitude()));
-                        mp.append(' ');
-                        mp.append(AbstractSqlDatabase.quoteValue(coordinate.getLongitude()));
-                        mp.append(", ");
-                    }
-                    mp.setLength(mp.length() - 2);
-                    mp.append(")), ");
-                }
-            }
-        }
-
-        mp.setLength(mp.length() - 2);
-        mp.append(")");
-
-        bindValues.put(REGION_PARAM_NAME, mp.toString());
+    public Field<Object> stMakeLine(Field<Object> x, Field<Object> y) {
+        return DSL.field("LineString({0}, {1})", x, y);
     }
 }
