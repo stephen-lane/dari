@@ -58,7 +58,6 @@ class SqlQuery {
     private String whereClause;
     private String havingClause;
     private String orderByClause;
-    private final List<String> orderBySelectColumns = new ArrayList<>();
     private final Map<String, String> groupBySelectColumnAliases = new LinkedHashMap<>();
     private final List<Join> joins = new ArrayList<>();
     private final Map<Query<?>, String> subQueries = new LinkedHashMap<>();
@@ -705,9 +704,6 @@ class SqlQuery {
 
             if (ascending || descending) {
                 orderByBuilder.append(joinValueField);
-                if (!join.isHaving) {
-                    orderBySelectColumns.add(joinValueField);
-                }
 
             } else {
                 if (!database.isIndexSpatial()) {
@@ -717,11 +713,10 @@ class SqlQuery {
                 Location location = (Location) sorter.getOptions().get(1);
 
                 StringBuilder selectBuilder = new StringBuilder();
+
                 try {
                     vendor.appendNearestLocation(orderByBuilder, selectBuilder, location, joinValueField);
-                    if (!join.isHaving) {
-                        orderBySelectColumns.add(selectBuilder.toString());
-                    }
+
                 } catch (UnsupportedIndexException uie) {
                     throw new UnsupportedIndexException(vendor, queryKey);
                 }
@@ -856,11 +851,7 @@ class SqlQuery {
         int columnNum = 0;
         for (Map.Entry<String, Join> entry : groupJoins.entrySet()) {
             statementBuilder.append(", ");
-            if (groupSubSqlQueries.containsKey(entry.getKey())) {
-                for (String subSqlSelectField : groupSubSqlQueries.get(entry.getKey()).orderBySelectColumns) {
-                    statementBuilder.append(subSqlSelectField);
-                }
-            } else {
+            if (!groupSubSqlQueries.containsKey(entry.getKey())) {
                 statementBuilder.append(entry.getValue().getValueField(entry.getKey(), null));
             }
             statementBuilder.append(' ');
@@ -878,11 +869,6 @@ class SqlQuery {
 
         String selectClause = statementBuilder.toString();
 
-        for (String field : orderBySelectColumns) {
-            statementBuilder.append(", ");
-            statementBuilder.append(field);
-        }
-
         statementBuilder.append("\nFROM ");
         vendor.appendIdentifier(statementBuilder, "Record");
         statementBuilder.append(' ');
@@ -892,18 +878,9 @@ class SqlQuery {
         statementBuilder.append(whereClause);
 
         for (Map.Entry<String, Join> entry : groupJoins.entrySet()) {
-            if (groupSubSqlQueries.containsKey(entry.getKey())) {
-                for (String subSqlSelectField : groupSubSqlQueries.get(entry.getKey()).orderBySelectColumns) {
-                    groupBy.append(subSqlSelectField);
-                }
-            } else {
+            if (!groupSubSqlQueries.containsKey(entry.getKey())) {
                 groupBy.append(entry.getValue().getValueField(entry.getKey(), null));
             }
-            groupBy.append(", ");
-        }
-
-        for (String field : orderBySelectColumns) {
-            groupBy.append(field);
             groupBy.append(", ");
         }
 
@@ -917,27 +894,7 @@ class SqlQuery {
         statementBuilder.append(groupByClause);
 
         statementBuilder.append(havingClause);
-
-        if (!orderBySelectColumns.isEmpty()) {
-
-            if (orderByClause.length() > 0) {
-                statementBuilder.append(orderByClause);
-                statementBuilder.append(", ");
-            } else {
-                statementBuilder.append(" ORDER BY ");
-            }
-
-            int i = 0;
-            for (Map.Entry<String, Join> entry : groupJoins.entrySet()) {
-                if (i++ > 0) {
-                    statementBuilder.append(", ");
-                }
-                statementBuilder.append(entry.getValue().getValueField(entry.getKey(), null));
-            }
-
-        } else {
-            statementBuilder.append(orderByClause);
-        }
+        statementBuilder.append(orderByClause);
 
         return statementBuilder.toString();
     }
@@ -990,13 +947,6 @@ class SqlQuery {
         } else if (!fields.isEmpty()) {
             statementBuilder.append(", ");
             vendor.appendSelectFields(statementBuilder, fields);
-        }
-
-        if (!orderBySelectColumns.isEmpty()) {
-            for (String joinValueField : orderBySelectColumns) {
-                statementBuilder.append(", ");
-                statementBuilder.append(joinValueField);
-            }
         }
 
         String extraColumns = ObjectUtils.to(String.class, query.getOptions().get(AbstractSqlDatabase.EXTRA_COLUMNS_QUERY_OPTION));
