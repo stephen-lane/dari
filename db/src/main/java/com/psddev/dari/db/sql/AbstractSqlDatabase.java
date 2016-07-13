@@ -2156,7 +2156,10 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     @Override
     public void doRecalculations(Connection connection, boolean isImmediate, ObjectIndex index, List<State> states) throws SQLException {
         try (DSLContext context = openContext(connection)) {
-            SqlIndex.updateByStates(this, schema(), connection, context, index, states);
+            SqlSchema schema = schema();
+
+            schema.deleteIndexes(this, connection, context, index, states);
+            schema.insertIndexes(this, connection, context, index, states);
         }
     }
 

@@ -3,7 +3,6 @@ package com.psddev.dari.db.sql;
 import com.psddev.dari.db.ObjectField;
 import com.psddev.dari.db.ObjectIndex;
 import com.psddev.dari.db.ObjectStruct;
-import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.StringUtils;
 import org.jooq.DataType;
 import org.jooq.Field;
@@ -13,13 +12,8 @@ import org.jooq.Table;
 import org.jooq.impl.DSL;
 
 import java.nio.charset.StandardCharsets;
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 abstract class AbstractSqlIndex {
@@ -165,106 +159,6 @@ abstract class AbstractSqlIndex {
             byte[] shortened = new byte[length];
             System.arraycopy(bytes, 0, shortened, 0, length);
             return shortened;
-        }
-    }
-
-    public String prepareUpdateStatement(
-            AbstractSqlDatabase database,
-            Connection connection,
-            ObjectIndex index) throws SQLException {
-
-        SqlVendor vendor = database.getVendor();
-        int fieldsSize = index.getFields().size();
-        StringBuilder updateBuilder = new StringBuilder();
-
-        updateBuilder.append("UPDATE ");
-        vendor.appendIdentifier(updateBuilder, getName());
-        updateBuilder.append(" SET ");
-
-        for (int i = 0; i < fieldsSize; ++ i) {
-            vendor.appendIdentifier(updateBuilder, getValueField(database, index, i));
-            updateBuilder.append(" = ");
-
-            String tableName = database.schema().findSelectIndexTable(index).getName();
-
-            if (tableName.startsWith("RecordLocation")) {
-                vendor.appendBindLocation(updateBuilder, null, null);
-            } else if (tableName.startsWith("RecordRegion")) {
-                vendor.appendBindRegion(updateBuilder, null, null);
-            } else {
-                updateBuilder.append("?");
-            }
-            updateBuilder.append(", ");
-        }
-        if (fieldsSize > 0) {
-            updateBuilder.setLength(updateBuilder.length() - 2);
-        }
-
-        updateBuilder.append(" WHERE ");
-        vendor.appendIdentifier(updateBuilder, getIdField(database, index));
-        updateBuilder.append(" = ?");
-
-        if (getTypeIdField(database, index) != null) {
-            updateBuilder.append(" AND ");
-            vendor.appendIdentifier(updateBuilder, getTypeIdField(database, index));
-            updateBuilder.append(" = ?");
-        }
-
-        updateBuilder.append(" AND ");
-        vendor.appendIdentifier(updateBuilder, getKeyField(database, index));
-        updateBuilder.append(" = ?");
-        return updateBuilder.toString();
-    }
-
-    public void bindUpdateValues(
-            AbstractSqlDatabase database,
-            ObjectIndex index,
-            UUID id,
-            UUID typeId,
-            SqlIndexValue indexValue,
-            Set<String> bindKeys,
-            List<List<Object>> parameters) throws SQLException {
-
-        SqlVendor vendor = database.getVendor();
-        Object indexKey = convertKey(database, index, indexValue.getUniqueName());
-        int fieldsSize = index.getFields().size();
-        StringBuilder updateBuilder = new StringBuilder();
-        boolean writeIndex = true;
-
-        for (Object[] valuesArray : indexValue.getValuesArray()) {
-            StringBuilder bindKeyBuilder = new StringBuilder();
-            bindKeyBuilder.append(id.toString());
-            bindKeyBuilder.append(indexKey);
-
-            for (int i = 0; i < fieldsSize; i++) {
-                Object parameter = convertValue(database, index, i, valuesArray[i]);
-                vendor.appendValue(bindKeyBuilder, parameter);
-
-                if (ObjectUtils.isBlank(parameter)) {
-                    writeIndex = false;
-                    break;
-                }
-            }
-
-            String bindKey = bindKeyBuilder.toString();
-
-            if (writeIndex && !bindKeys.contains(bindKey)) {
-                List<Object> rowData = new ArrayList<>();
-
-                for (int i = 0; i < fieldsSize; i++) {
-                    Object parameter = convertValue(database, index, i, valuesArray[i]);
-                    vendor.appendBindValue(updateBuilder, parameter, rowData);
-                }
-
-                vendor.appendBindValue(updateBuilder, id, rowData);
-                if (getTypeIdField(database, index) != null) {
-                    vendor.appendBindValue(updateBuilder, typeId, rowData);
-                }
-                vendor.appendBindValue(updateBuilder, indexKey, rowData);
-
-                bindKeys.add(bindKey);
-                parameters.add(rowData);
-            }
         }
     }
 }

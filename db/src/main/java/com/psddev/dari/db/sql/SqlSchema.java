@@ -326,7 +326,7 @@ public class SqlSchema {
             UUID id = state.getId();
             UUID typeId = state.getVisibilityAwareTypeId();
 
-            for (SqlIndexValue indexValue : SqlIndex.getIndexValues(state)) {
+            for (SqlIndexValue indexValue : SqlIndexValue.find(state)) {
                 ObjectIndex index = indexValue.getIndex();
 
                 if (onlyIndex != null && !onlyIndex.equals(index)) {
