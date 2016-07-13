@@ -10,7 +10,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import com.google.common.base.Preconditions;
 import com.psddev.dari.db.ComparisonPredicate;
@@ -49,10 +48,10 @@ class SqlQuery {
     private static final Pattern QUERY_KEY_PATTERN = Pattern.compile("\\$\\{([^}]+)\\}");
 
     protected final AbstractSqlDatabase database;
-    protected final SqlSchema schema;
     protected final Query<?> query;
     protected final String aliasPrefix;
 
+    protected final SqlSchema schema;
     protected final SqlVendor vendor;
     private final DSLContext dslContext;
     private final RenderContext tableRenderContext;
@@ -75,22 +74,17 @@ class SqlQuery {
     protected SqlQueryJoin mysqlIndexHint;
     private boolean mysqlIgnoreIndexPrimaryDisabled;
     private boolean forceLeftJoins;
-    private boolean hasAnyLimitingPredicates;
 
     /**
      * Creates an instance that can translate the given {@code query}
      * with the given {@code database}.
      */
-    public SqlQuery(
-            AbstractSqlDatabase initialDatabase,
-            Query<?> initialQuery,
-            String initialAliasPrefix) {
+    public SqlQuery(AbstractSqlDatabase database, Query<?> query, String aliasPrefix) {
+        this.database = database;
+        this.query = query;
+        this.aliasPrefix = aliasPrefix;
 
-        database = initialDatabase;
         schema = database.schema();
-        query = initialQuery;
-        aliasPrefix = initialAliasPrefix;
-
         vendor = database.getVendor();
         dslContext = DSL.using(database.dialect());
         tableRenderContext = dslContext.renderContext().paramType(ParamType.INLINED).declareTables(true);
@@ -144,8 +138,8 @@ class SqlQuery {
         }
     }
 
-    public SqlQuery(AbstractSqlDatabase initialDatabase, Query<?> initialQuery) {
-        this(initialDatabase, initialQuery, "");
+    public SqlQuery(AbstractSqlDatabase database, Query<?> query) {
+        this(database, query, "");
     }
 
     protected Field<Object> aliasedField(String alias, String field) {
@@ -181,9 +175,11 @@ class SqlQuery {
                 Query.MappedKey mappedKey = query.mapEmbeddedKey(database.getEnvironment(), queryKey);
                 mappedKeys.put(queryKey, mappedKey);
                 selectIndex(queryKey, mappedKey);
+
                 SqlQueryJoin join = SqlQueryJoin.findOrCreate(this, queryKey);
-                join.type = JoinType.LEFT_OUTER_JOIN;
-                newExtraJoinsBuilder.append(renderContext.render(join.getValueField(queryKey, null)));
+
+                join.useLeftOuter();
+                newExtraJoinsBuilder.append(renderContext.render(join.valueField));
             }
 
             newExtraJoinsBuilder.append(extraJoins.substring(lastEnd));
@@ -191,7 +187,7 @@ class SqlQuery {
         }
 
         // Build the WHERE clause.
-        Condition whereCondition = query.isFromAll()
+        whereCondition = query.isFromAll()
                 ? DSL.trueCondition()
                 : recordTypeIdField.in(query.getConcreteTypeIds(database));
 
@@ -224,23 +220,25 @@ class SqlQuery {
             }
 
             String queryKey = (String) sorter.getOptions().get(0);
-            SqlQueryJoin join = SqlQueryJoin.findOrCreateForSort(this, queryKey);
-            Field<?> joinValueField = join.getValueField(queryKey, null);
+            SqlQueryJoin join = SqlQueryJoin.findOrCreate(this, queryKey);
+
+            join.useLeftOuter();
+
             Query<?> subQuery = mappedKeys.get(queryKey).getSubQueryWithSorter(sorter, 0);
 
             if (subQuery != null) {
                 SqlQuery subSqlQuery = getOrCreateSubSqlQuery(subQuery, true);
 
-                subQueries.put(subQuery, renderContext.render(joinValueField) + " = ");
+                subQueries.put(subQuery, renderContext.render(join.valueField) + " = ");
                 orderByFields.addAll(subSqlQuery.orderByFields);
                 continue;
             }
 
             if (ascending) {
-                orderByFields.add(joinValueField.sort(SortOrder.ASC));
+                orderByFields.add(join.valueField.sort(SortOrder.ASC));
 
             } else if (descending) {
-                orderByFields.add(joinValueField.sort(SortOrder.DESC));
+                orderByFields.add(join.valueField.sort(SortOrder.DESC));
 
             } else {
                 try {
@@ -248,7 +246,7 @@ class SqlQuery {
                     StringBuilder selectBuilder = new StringBuilder();
                     StringBuilder locationFieldBuilder = new StringBuilder();
 
-                    vendor.appendNearestLocation(locationFieldBuilder, selectBuilder, location, renderContext.render(joinValueField));
+                    vendor.appendNearestLocation(locationFieldBuilder, selectBuilder, location, renderContext.render(join.valueField));
 
                     Field<?> locationField = DSL.field(locationFieldBuilder.toString());
 
@@ -269,21 +267,20 @@ class SqlQuery {
         StringBuilder fromBuilder = new StringBuilder();
 
         for (SqlQueryJoin join : joins) {
-
-            if (join.indexKeys.isEmpty()) {
+            if (join.symbolIds.isEmpty()) {
                 continue;
             }
 
             // e.g. JOIN RecordIndex AS i#
             fromBuilder.append('\n');
-            fromBuilder.append((forceLeftJoins ? JoinType.LEFT_OUTER_JOIN : join.type).toSQL());
+            fromBuilder.append((forceLeftJoins || join.isLeftOuter() ? JoinType.LEFT_OUTER_JOIN : JoinType.JOIN).toSQL());
             fromBuilder.append(' ');
             fromBuilder.append(tableRenderContext.render(join.table));
 
-            if (join.type == JoinType.JOIN && join.equals(mysqlIndexHint)) {
+            if (!join.isLeftOuter() && join.equals(mysqlIndexHint)) {
                 fromBuilder.append(" /*! USE INDEX (k_name_value) */");
 
-            } else if (join.sqlIndexTable instanceof LocationSqlIndex) {
+            } else if (join.sqlIndex instanceof LocationSqlIndex) {
                 fromBuilder.append(" /*! IGNORE INDEX (PRIMARY) */");
             }
 
@@ -291,9 +288,7 @@ class SqlQuery {
 
             Condition joinCondition = join.idField.eq(recordIdField)
                     .and(join.typeIdField.eq(recordTypeIdField))
-                    .and(join.keyField.in(join.indexKeys.stream()
-                            .map(database::getSymbolId)
-                            .collect(Collectors.toSet())));
+                    .and(join.symbolIdField.in(join.symbolIds));
 
             fromBuilder.append(renderContext.render(joinCondition));
         }
@@ -320,8 +315,6 @@ class SqlQuery {
             fromBuilder.append(' ');
             fromBuilder.append(extraJoins);
         }
-
-        this.whereCondition = whereCondition;
 
         String extraHaving = ObjectUtils.to(String.class, query.getOptions().get(AbstractSqlDatabase.EXTRA_HAVING_QUERY_OPTION));
 
@@ -402,12 +395,12 @@ class SqlQuery {
 
                 for (SqlQueryJoin j : joins) {
                     if (j.parent == parentPredicate
-                            && j.sqlIndexTable.equals(schema.findSelectIndexTable(mappedKeys.get(queryKey).getInternalType()))) {
+                            && j.sqlIndex.equals(schema.findSelectIndexTable(mappedKeys.get(queryKey).getInternalType()))) {
 
                         needsDistinct = true;
                         join = j;
 
-                        join.addIndexKey(queryKey);
+                        join.addSymbolId(queryKey);
                         break;
                     }
                 }
@@ -425,20 +418,16 @@ class SqlQuery {
             }
 
             if (usesLeftJoin) {
-                join.type = JoinType.LEFT_OUTER_JOIN;
+                join.useLeftOuter();
             }
 
-            if (isFieldCollection && join.sqlIndexTable == null) {
+            if (isFieldCollection && join.sqlIndex == null) {
                 needsDistinct = true;
             }
 
-            Field<Object> joinValueField = join.getValueField(queryKey, comparisonPredicate);
             Query<?> valueQuery = mappedKey.getSubQueryWithComparison(comparisonPredicate);
             String operator = comparisonPredicate.getOperator();
             boolean isNotEqualsAll = PredicateParser.NOT_EQUALS_ALL_OPERATOR.equals(operator);
-            if (!isNotEqualsAll) {
-                hasAnyLimitingPredicates = true;
-            }
 
             // e.g. field IN (SELECT ...)
             if (valueQuery != null) {
@@ -450,12 +439,12 @@ class SqlQuery {
                     Table<?> subQueryTable = DSL.table(new SqlQuery(database, valueQuery).subQueryStatement());
 
                     return isNotEqualsAll
-                            ? joinValueField.notIn(subQueryTable)
-                            : joinValueField.in(subQueryTable);
+                            ? join.valueField.notIn(subQueryTable)
+                            : join.valueField.in(subQueryTable);
 
                 } else {
-                    SqlQuery subSqlQuery = getOrCreateSubSqlQuery(valueQuery, join.type == JoinType.LEFT_OUTER_JOIN);
-                    subQueries.put(valueQuery, renderContext.render(joinValueField) + (isNotEqualsAll ? " != " : " = "));
+                    SqlQuery subSqlQuery = getOrCreateSubSqlQuery(valueQuery, join.isLeftOuter());
+                    subQueries.put(valueQuery, renderContext.render(join.valueField) + (isNotEqualsAll ? " != " : " = "));
                     return subSqlQuery.whereCondition;
                 }
             }
@@ -478,12 +467,11 @@ class SqlQuery {
                                 needsDistinct = true;
                             }
 
-                            comparisonConditions.add(joinValueField.isNotNull());
+                            comparisonConditions.add(join.valueField.isNotNull());
 
                         } else {
-                            join.type = JoinType.LEFT_OUTER_JOIN;
-
-                            comparisonConditions.add(joinValueField.isNull());
+                            join.useLeftOuter();
+                            comparisonConditions.add(join.valueField.isNull());
                         }
 
                     } else if (value instanceof Region) {
@@ -497,7 +485,7 @@ class SqlQuery {
                             try {
                                 StringBuilder rcb = new StringBuilder();
 
-                                vendor.appendWhereRegion(rcb, (Region) value, renderContext.render(joinValueField));
+                                vendor.appendWhereRegion(rcb, (Region) value, renderContext.render(join.valueField));
 
                                 Condition rc = DSL.condition(rcb.toString());
 
@@ -520,13 +508,13 @@ class SqlQuery {
                         Object convertedValue = join.convertValue(comparisonPredicate, value);
 
                         if (isNotEqualsAll) {
-                            join.type = JoinType.LEFT_OUTER_JOIN;
                             needsDistinct = true;
                             hasMissing = true;
 
+                            join.useLeftOuter();
                             comparisonConditions.add(
-                                    joinValueField.isNull().or(
-                                            joinValueField.ne(convertedValue)));
+                                    join.valueField.isNull().or(
+                                            join.valueField.ne(convertedValue)));
 
                         } else {
                             inValues.add(convertedValue);
@@ -535,7 +523,7 @@ class SqlQuery {
                 }
 
                 if (!inValues.isEmpty()) {
-                    comparisonConditions.add(joinValueField.in(inValues));
+                    comparisonConditions.add(join.valueField.in(inValues));
                 }
 
             } else {
@@ -555,7 +543,7 @@ class SqlQuery {
                             try {
                                 StringBuilder lb = new StringBuilder();
 
-                                vendor.appendWhereLocation(lb, (Location) value, renderContext.render(joinValueField));
+                                vendor.appendWhereLocation(lb, (Location) value, renderContext.render(join.valueField));
 
                                 comparisonConditions.add(DSL.condition(lb.toString()));
 
@@ -565,14 +553,14 @@ class SqlQuery {
 
                         } else if (value == Query.MISSING_VALUE) {
                             hasMissing = true;
-                            join.type = JoinType.LEFT_OUTER_JOIN;
 
-                            comparisonConditions.add(joinValueField.isNull());
+                            join.useLeftOuter();
+                            comparisonConditions.add(join.valueField.isNull());
 
                         } else {
                             comparisonConditions.add(
                                     sqlQueryComparison.createCondition(
-                                            joinValueField,
+                                            join.valueField,
                                             join.convertValue(comparisonPredicate, value)));
                         }
                     }
@@ -592,12 +580,12 @@ class SqlQuery {
                     String indexKey = mappedKeys.get(queryKey).getIndexKey(selectedIndexes.get(queryKey));
 
                     if (indexKey != null) {
-                        whereCondition = join.keyField.eq(database.getSymbolId(indexKey)).and(whereCondition);
+                        whereCondition = join.symbolIdField.eq(database.getSymbolId(indexKey)).and(whereCondition);
                     }
                 }
 
                 if (join.needsIsNotNull) {
-                    whereCondition = joinValueField.isNotNull().and(whereCondition);
+                    whereCondition = join.valueField.isNotNull().and(whereCondition);
                 }
 
                 if (comparisonConditions.size() > 1) {
@@ -680,17 +668,16 @@ class SqlQuery {
             selectIndex(groupKey, mappedKey);
 
             SqlQueryJoin join = SqlQueryJoin.findOrCreate(this, groupKey);
-            Field<?> joinValueField = join.getValueField(groupKey, null);
             Query<?> subQuery = mappedKey.getSubQueryWithGroupBy();
 
             if (subQuery == null) {
-                groupByFields.add(joinValueField);
+                groupByFields.add(join.valueField);
 
             } else {
                 SqlQuery subSqlQuery = getOrCreateSubSqlQuery(subQuery, true);
 
-                subQueries.put(subQuery, renderContext.render(joinValueField) + " = ");
-                subSqlQuery.joins.forEach(j -> groupByFields.add(j.getValueField(groupKey, null)));
+                subQueries.put(subQuery, renderContext.render(join.valueField) + " = ");
+                subSqlQuery.joins.forEach(j -> groupByFields.add(j.valueField));
             }
         }
 

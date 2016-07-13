@@ -11,37 +11,36 @@ import com.psddev.dari.db.UnsupportedIndexException;
 import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.StringUtils;
 import org.jooq.Field;
-import org.jooq.JoinType;
 import org.jooq.Table;
 import org.jooq.impl.DSL;
 
-import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 class SqlQueryJoin {
 
     public Predicate parent;
-    public JoinType type = JoinType.JOIN;
+    private boolean leftOuter;
+
+    private final SqlQuery sqlQuery;
+    private final String queryKey;
+    private final ObjectIndex index;
 
     public final boolean needsIndexTable;
     public final boolean needsIsNotNull;
-    public final String queryKey;
-    public final String indexType;
+
+    public final AbstractSqlIndex sqlIndex;
     public final Table<?> table;
     public final Field<Object> idField;
     public final Field<Object> typeIdField;
-    public final Field<Object> keyField;
-    public final List<String> indexKeys = new ArrayList<>();
+    public final Field<Object> symbolIdField;
+    public final Field<Object> valueField;
 
-    private final SqlQuery sqlQuery;
-    private final String alias;
-    public final ObjectIndex index;
-    public final AbstractSqlIndex sqlIndexTable;
-    private final Field<?> valueField;
-    private final String hashAttribute;
+    public final Set<Integer> symbolIds = new HashSet<>();
 
     public static SqlQueryJoin create(SqlQuery sqlQuery, String queryKey) {
         List<SqlQueryJoin> joins = sqlQuery.joins;
@@ -70,9 +69,7 @@ class SqlQueryJoin {
                 String indexKey = sqlQuery.mappedKeys.get(queryKey).getIndexKey(index);
 
                 if (indexKey != null
-                        && indexKey.equals(mappedKeys.get(join.queryKey).getIndexKey(join.index))
-                        && ((mappedKeys.get(queryKey).getHashAttribute() != null && mappedKeys.get(queryKey).getHashAttribute().equals(join.hashAttribute))
-                        || (mappedKeys.get(queryKey).getHashAttribute() == null && join.hashAttribute == null))) {
+                        && indexKey.equals(mappedKeys.get(join.queryKey).getIndexKey(join.index))) {
 
                     return join;
                 }
@@ -82,56 +79,50 @@ class SqlQueryJoin {
         return create(sqlQuery, queryKey);
     }
 
-    public static SqlQueryJoin findOrCreateForSort(SqlQuery sqlQuery, String queryKey) {
-        SqlQueryJoin join = findOrCreate(sqlQuery, queryKey);
-
-        join.type = JoinType.LEFT_OUTER_JOIN;
-        return join;
-    }
-
-    public SqlQueryJoin(SqlQuery sqlQuery, String alias, String queryKey) {
+    @SuppressWarnings("unchecked")
+    private SqlQueryJoin(SqlQuery sqlQuery, String alias, String queryKey) {
         this.sqlQuery = sqlQuery;
-        this.alias = alias;
         this.queryKey = queryKey;
-
-        Query.MappedKey mappedKey = sqlQuery.mappedKeys.get(queryKey);
-        this.hashAttribute = mappedKey.getHashAttribute();
         this.index = sqlQuery.selectedIndexes.get(queryKey);
-
-        this.indexType = mappedKey.getInternalType();
 
         switch (queryKey) {
             case Query.ID_KEY :
                 needsIndexTable = false;
-                valueField = sqlQuery.recordIdField;
-                sqlIndexTable = null;
+                needsIsNotNull = true;
+
+                sqlIndex = null;
                 table = null;
                 idField = null;
                 typeIdField = null;
-                keyField = null;
-                needsIsNotNull = true;
+                symbolIdField = null;
+                valueField = (Field) sqlQuery.recordIdField;
+
                 break;
 
             case Query.TYPE_KEY :
                 needsIndexTable = false;
-                valueField = sqlQuery.recordTypeIdField;
-                sqlIndexTable = null;
+                needsIsNotNull = true;
+
+                sqlIndex = null;
                 table = null;
                 idField = null;
                 typeIdField = null;
-                keyField = null;
-                needsIsNotNull = true;
+                symbolIdField = null;
+                valueField = (Field) sqlQuery.recordTypeIdField;
+
                 break;
 
             case Query.COUNT_KEY :
                 needsIndexTable = false;
-                valueField = sqlQuery.recordIdField.count();
-                sqlIndexTable = null;
+                needsIsNotNull = false;
+
+                sqlIndex = null;
                 table = null;
                 idField = null;
                 typeIdField = null;
-                keyField = null;
-                needsIsNotNull = false;
+                symbolIdField = null;
+                valueField = (Field) sqlQuery.recordIdField.count();
+
                 break;
 
             case Query.ANY_KEY :
@@ -140,25 +131,37 @@ class SqlQueryJoin {
 
             default :
                 needsIndexTable = true;
-                addIndexKey(queryKey);
-                valueField = null;
-                sqlIndexTable = sqlQuery.schema.findSelectIndexTable(index);
-                table = DSL.table(DSL.name(sqlIndexTable.table().getName())).as(sqlQuery.aliasPrefix + alias);
-                idField = sqlQuery.aliasedField(alias, sqlIndexTable.id().getName());
-                typeIdField = sqlQuery.aliasedField(alias, sqlIndexTable.typeId().getName());
-                keyField = sqlQuery.aliasedField(alias, sqlIndexTable.symbolId().getName());
                 needsIsNotNull = true;
+
+                sqlIndex = sqlQuery.schema.findSelectIndexTable(index);
+                table = DSL.table(DSL.name(sqlIndex.table().getName())).as(sqlQuery.aliasPrefix + alias);
+                idField = sqlQuery.aliasedField(alias, sqlIndex.id().getName());
+                typeIdField = sqlQuery.aliasedField(alias, sqlIndex.typeId().getName());
+                symbolIdField = sqlQuery.aliasedField(alias, sqlIndex.symbolId().getName());
+                valueField = sqlQuery.aliasedField(alias, sqlIndex.value().getName());
+
+                addSymbolId(queryKey);
                 break;
         }
     }
 
-    public void addIndexKey(String queryKey) {
+    public boolean isLeftOuter() {
+        return leftOuter;
+    }
+
+    public void useLeftOuter() {
+        leftOuter = true;
+    }
+
+    public void addSymbolId(String queryKey) {
         String indexKey = sqlQuery.mappedKeys.get(queryKey).getIndexKey(sqlQuery.selectedIndexes.get(queryKey));
+
         if (ObjectUtils.isBlank(indexKey)) {
             throw new UnsupportedIndexException(sqlQuery.database, indexKey);
         }
+
         if (needsIndexTable) {
-            indexKeys.add(indexKey);
+            symbolIds.add(sqlQuery.database.getSymbolId(indexKey));
         }
     }
 
@@ -167,7 +170,7 @@ class SqlQueryJoin {
         ObjectField field = mappedKey.getField();
         AbstractSqlIndex fieldSqlIndexTable = field != null
                 ? sqlQuery.schema.findSelectIndexTable(field.getInternalItemType())
-                : sqlIndexTable;
+                : sqlIndex;
 
         String tableName = fieldSqlIndexTable != null ? fieldSqlIndexTable.table().getName() : null;
 
@@ -204,19 +207,5 @@ class SqlQueryJoin {
         }
 
         return value;
-    }
-
-    @SuppressWarnings("unchecked")
-    public Field<Object> getValueField(String queryKey, ComparisonPredicate comparison) {
-        Field<?> field;
-
-        if (valueField != null) {
-            field = valueField;
-
-        } else {
-            field = sqlQuery.aliasedField(alias, sqlIndexTable.value().getName());
-        }
-
-        return (Field<Object>) field;
     }
 }
