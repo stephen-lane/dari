@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -23,6 +24,7 @@ import com.psddev.dari.db.PredicateParser;
 import com.psddev.dari.db.Query;
 import com.psddev.dari.db.Region;
 import com.psddev.dari.db.Sorter;
+import com.psddev.dari.db.SqlDatabase;
 import com.psddev.dari.db.UnsupportedIndexException;
 import com.psddev.dari.db.UnsupportedPredicateException;
 import com.psddev.dari.db.UnsupportedSorterException;
@@ -33,6 +35,7 @@ import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.JoinType;
 import org.jooq.RenderContext;
+import org.jooq.Select;
 import org.jooq.SortField;
 import org.jooq.SortOrder;
 import org.jooq.Table;
@@ -64,7 +67,6 @@ class SqlQuery {
     private Condition whereCondition;
     private Condition havingCondition;
     private final List<SortField<?>> orderByFields = new ArrayList<>();
-    private String orderByClause;
     protected final List<SqlQueryJoin> joins = new ArrayList<>();
     private final Map<Query<?>, String> subQueries = new LinkedHashMap<>();
     private final Map<Query<?>, SqlQuery> subSqlQueries = new HashMap<>();
@@ -262,21 +264,6 @@ class SqlQuery {
                 }
             }
         }
-
-        StringBuilder orderByBuilder = new StringBuilder();
-
-        if (!orderByFields.isEmpty()) {
-            orderByBuilder.append(" ORDER BY ");
-
-            for (SortField<?> orderByField : orderByFields) {
-                orderByBuilder.append(renderContext.render(orderByField));
-                orderByBuilder.append(", ");
-            }
-
-            orderByBuilder.setLength(orderByBuilder.length() - 2);
-        }
-
-        orderByClause = orderByBuilder.toString();
 
         // Builds the FROM clause.
         StringBuilder fromBuilder = new StringBuilder();
@@ -747,94 +734,58 @@ class SqlQuery {
      * matching the query.
      */
     public String selectStatement() {
-        StringBuilder statementBuilder = new StringBuilder();
         initializeClauses();
 
-        statementBuilder.append("SELECT");
-        if (needsDistinct && vendor.supportsDistinctBlob()) {
-            statementBuilder.append(" DISTINCT");
+        List<Field<?>> selectFields = new ArrayList<>();
+
+        selectFields.add(recordIdField);
+        selectFields.add(recordTypeIdField);
+
+        List<String> queryFields = query.getFields();
+
+        if (queryFields == null) {
+            selectFields.add(DSL.field(DSL.name(aliasPrefix + "r", SqlDatabase.DATA_COLUMN)));
+
+        } else if (!queryFields.isEmpty()) {
+            queryFields.forEach(queryField -> selectFields.add(DSL.field(DSL.name(queryField))));
         }
 
-        statementBuilder.append(" r.");
-        vendor.appendIdentifier(statementBuilder, "id");
-        statementBuilder.append(", r.");
-        vendor.appendIdentifier(statementBuilder, "typeId");
+        String extraColumns = ObjectUtils.to(String.class, query.getOptions().get(SqlDatabase.EXTRA_COLUMNS_QUERY_OPTION));
 
-        List<String> fields = query.getFields();
-        if (fields == null) {
-            if (!needsDistinct || vendor.supportsDistinctBlob()) {
-                statementBuilder.append(", r.");
-                vendor.appendIdentifier(statementBuilder, "data");
-            }
-        } else if (!fields.isEmpty()) {
-            statementBuilder.append(", ");
-            vendor.appendSelectFields(statementBuilder, fields);
-        }
-
-        String extraColumns = ObjectUtils.to(String.class, query.getOptions().get(AbstractSqlDatabase.EXTRA_COLUMNS_QUERY_OPTION));
-
-        if (extraColumns != null) {
-            statementBuilder.append(", ");
-            statementBuilder.append(extraColumns);
-        }
-
-        if (!needsDistinct && !subSqlQueries.isEmpty()) {
-            for (Map.Entry<Query<?>, SqlQuery> entry : subSqlQueries.entrySet()) {
-                SqlQuery subSqlQuery = entry.getValue();
-                statementBuilder.append(", " + subSqlQuery.aliasPrefix + "r." + AbstractSqlDatabase.ID_COLUMN + " AS " + AbstractSqlDatabase.SUB_DATA_COLUMN_ALIAS_PREFIX + subSqlQuery.aliasPrefix + "_" + AbstractSqlDatabase.ID_COLUMN);
-                statementBuilder.append(", " + subSqlQuery.aliasPrefix + "r." + AbstractSqlDatabase.TYPE_ID_COLUMN + " AS " + AbstractSqlDatabase.SUB_DATA_COLUMN_ALIAS_PREFIX + subSqlQuery.aliasPrefix + "_" + AbstractSqlDatabase.TYPE_ID_COLUMN);
-                statementBuilder.append(", " + subSqlQuery.aliasPrefix + "r." + AbstractSqlDatabase.DATA_COLUMN + " AS " + AbstractSqlDatabase.SUB_DATA_COLUMN_ALIAS_PREFIX + subSqlQuery.aliasPrefix + "_" + AbstractSqlDatabase.DATA_COLUMN);
+        if (!ObjectUtils.isBlank(extraColumns)) {
+            for (String extraColumn : extraColumns.trim().split("\\s+")) {
+                selectFields.add(DSL.field(DSL.name(extraColumn)));
             }
         }
 
-        statementBuilder.append("\nFROM ");
-        statementBuilder.append(tableRenderContext.render(recordTable));
+        Table<?> selectTable = recordTable;
 
         if (fromClause.length() > 0
-                && !fromClause.contains("LEFT OUTER JOIN")
-                && hasAnyLimitingPredicates
+                && !fromClause.toLowerCase(Locale.ENGLISH).contains("left outer join")
                 && !mysqlIgnoreIndexPrimaryDisabled) {
-            statementBuilder.append(" /*! IGNORE INDEX (PRIMARY) */");
+
+            selectTable = selectTable.ignoreIndex("PRIMARY");
         }
 
-        statementBuilder.append(fromClause);
-        statementBuilder.append(" WHERE ");
-        statementBuilder.append(renderContext.render(whereCondition));
+        Select<?> select = (needsDistinct
+                ? dslContext.selectDistinct(recordIdField, recordTypeIdField)
+                : dslContext.select(selectFields))
+                .from(DSL.table(tableRenderContext.render(selectTable) + fromClause))
+                .where(whereCondition)
+                .having(havingCondition)
+                .orderBy(orderByFields);
 
-        if (havingCondition != null) {
-            statementBuilder.append(" HAVING ");
-            statementBuilder.append(renderContext.render(havingCondition));
+        if (needsDistinct && selectFields.size() > 2) {
+            String distinctAlias = aliasPrefix + "d";
+            select = dslContext
+                    .select(selectFields)
+                    .from(recordTable)
+                    .join(select.asTable().as(distinctAlias))
+                    .on(recordTypeIdField.eq(DSL.field(DSL.name(distinctAlias, SqlDatabase.TYPE_ID_COLUMN), schema.uuidDataType())))
+                    .and(recordIdField.eq(DSL.field(DSL.name(distinctAlias, SqlDatabase.ID_COLUMN), schema.uuidDataType())));
         }
 
-        statementBuilder.append(orderByClause);
-
-        if (needsDistinct && !vendor.supportsDistinctBlob()) {
-            StringBuilder distinctBuilder = new StringBuilder();
-
-            distinctBuilder.append("SELECT");
-            distinctBuilder.append(" r.");
-            vendor.appendIdentifier(distinctBuilder, "id");
-            distinctBuilder.append(", r.");
-            vendor.appendIdentifier(distinctBuilder, "typeId");
-
-            if (fields == null) {
-                distinctBuilder.append(", r.");
-                vendor.appendIdentifier(distinctBuilder, "data");
-            } else if (!fields.isEmpty()) {
-                distinctBuilder.append(", ");
-                vendor.appendSelectFields(distinctBuilder, fields);
-            }
-
-            distinctBuilder.append(" FROM ");
-            vendor.appendIdentifier(distinctBuilder, AbstractSqlDatabase.RECORD_TABLE);
-            distinctBuilder.append(" r INNER JOIN (");
-            distinctBuilder.append(statementBuilder.toString());
-            distinctBuilder.append(") d0 ON (r.id = d0.id)");
-
-            statementBuilder = distinctBuilder;
-        }
-
-        return statementBuilder.toString();
+        return renderContext.render(select);
     }
 
     /**
