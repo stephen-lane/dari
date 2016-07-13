@@ -48,7 +48,6 @@ class SqlQuery {
     protected final String aliasPrefix;
 
     protected final SqlSchema schema;
-    protected final SqlVendor vendor;
     private final DSLContext dslContext;
     private final RenderContext tableRenderContext;
     protected final RenderContext renderContext;
@@ -80,7 +79,6 @@ class SqlQuery {
         this.aliasPrefix = aliasPrefix;
 
         schema = database.schema();
-        vendor = database.getVendor();
         dslContext = DSL.using(database.dialect());
         tableRenderContext = dslContext.renderContext().paramType(ParamType.INLINED).declareTables(true);
         renderContext = dslContext.renderContext().paramType(ParamType.INLINED);
