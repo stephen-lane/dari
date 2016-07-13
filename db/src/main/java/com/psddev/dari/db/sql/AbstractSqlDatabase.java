@@ -1794,7 +1794,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                 SqlGrouping<T> grouping;
                 ResultSetMetaData meta = result.getMetaData();
                 String aggregateColumnName = meta.getColumnName(1);
-                if ("_count".equals(aggregateColumnName)) {
+                if (SqlQuery.COUNT_ALIAS.equals(aggregateColumnName)) {
                     long count = ObjectUtils.to(long.class, result.getObject(1));
                     for (int j = 0; j < fieldsLength; ++ j) {
                         keys.add(result.getObject(j + 2));
