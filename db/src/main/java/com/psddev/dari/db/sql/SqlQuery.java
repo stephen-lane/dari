@@ -34,7 +34,6 @@ import com.psddev.dari.util.StringUtils;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Field;
-import org.jooq.Record;
 import org.jooq.Table;
 import org.jooq.impl.DSL;
 
@@ -58,7 +57,6 @@ class SqlQuery {
     private String whereClause;
     private String havingClause;
     private String orderByClause;
-    private final Map<String, String> groupBySelectColumnAliases = new LinkedHashMap<>();
     private final List<Join> joins = new ArrayList<>();
     private final Map<Query<?>, String> subQueries = new LinkedHashMap<>();
     private final Map<Query<?>, SqlQuery> subSqlQueries = new HashMap<>();
@@ -204,7 +202,7 @@ class SqlQuery {
         StringBuilder orderByBuilder = new StringBuilder();
 
         for (Sorter sorter : query.getSorters()) {
-            addOrderByClause(orderByBuilder, sorter, false);
+            addOrderByClause(orderByBuilder, sorter);
         }
 
         if (orderByBuilder.length() > 0) {
@@ -677,7 +675,7 @@ class SqlQuery {
         throw new UnsupportedPredicateException(this, predicate);
     }
 
-    private void addOrderByClause(StringBuilder orderByBuilder, Sorter sorter, boolean useGroupBySelectAliases) {
+    private void addOrderByClause(StringBuilder orderByBuilder, Sorter sorter) {
 
         String operator = sorter.getOperator();
         boolean ascending = Sorter.ASCENDING_OPERATOR.equals(operator);
@@ -689,9 +687,6 @@ class SqlQuery {
             String queryKey = (String) sorter.getOptions().get(0);
             Join join = getSortFieldJoin(queryKey);
             String joinValueField = join.getValueField(queryKey, null);
-            if (useGroupBySelectAliases && groupBySelectColumnAliases.containsKey(joinValueField)) {
-                joinValueField = groupBySelectColumnAliases.get(joinValueField);
-            }
             Query<?> subQuery = mappedKeys.get(queryKey).getSubQueryWithSorter(sorter, 0);
 
             if (subQuery != null) {
@@ -859,7 +854,6 @@ class SqlQuery {
             if (!entry.getValue().queryKey.equals(Query.ID_KEY) && !entry.getValue().queryKey.equals(Query.DIMENSION_KEY)) { // Special case for id and dimensionId
                 // These column names just need to be unique if we put this statement in a subquery
                 columnAlias = "value" + columnNum;
-                groupBySelectColumnAliases.put(entry.getValue().getValueField(entry.getKey(), null), columnAlias);
             }
             ++columnNum;
             if (columnAlias != null) {
