@@ -35,7 +35,6 @@ import org.jooq.JoinType;
 import org.jooq.RenderContext;
 import org.jooq.Select;
 import org.jooq.SortField;
-import org.jooq.SortOrder;
 import org.jooq.Table;
 import org.jooq.conf.ParamType;
 import org.jooq.impl.DSL;
@@ -208,13 +207,9 @@ class SqlQuery {
 
         // Creates jOOQ SortField from Dari Sorter.
         for (Sorter sorter : query.getSorters()) {
-            String operator = sorter.getOperator();
-            boolean ascending = Sorter.ASCENDING_OPERATOR.equals(operator);
-            boolean descending = Sorter.DESCENDING_OPERATOR.equals(operator);
-            boolean closest = Sorter.CLOSEST_OPERATOR.equals(operator);
-            boolean farthest = Sorter.FARTHEST_OPERATOR.equals(operator);
+            SqlQuerySorter sqlQuerySorter = SqlQuerySorter.find(sorter.getOperator());
 
-            if (!(ascending || descending || closest || farthest)) {
+            if (sqlQuerySorter == null) {
                 throw new UnsupportedSorterException(database, sorter);
             }
 
@@ -230,27 +225,13 @@ class SqlQuery {
 
                 subQueries.put(subQuery, renderContext.render(join.valueField) + " = ");
                 orderByFields.addAll(subSqlQuery.orderByFields);
-                continue;
-            }
-
-            if (ascending) {
-                orderByFields.add(join.valueField.sort(SortOrder.ASC));
-
-            } else if (descending) {
-                orderByFields.add(join.valueField.sort(SortOrder.DESC));
 
             } else {
-                Field<?> locationField = schema.stLength(
-                        schema.stMakeLine(
-                                schema.stGeomFromText(DSL.inline(((Location) sorter.getOptions().get(1)).toWkt())),
-                                join.valueField));
-
-                if (closest) {
-                    orderByFields.add(locationField.sort(SortOrder.ASC));
-
-                } else {
-                    orderByFields.add(locationField.sort(SortOrder.DESC));
-                }
+                orderByFields.add(
+                        sqlQuerySorter.createSortField(
+                                schema,
+                                join,
+                                sorter.getOptions()));
             }
         }
 
