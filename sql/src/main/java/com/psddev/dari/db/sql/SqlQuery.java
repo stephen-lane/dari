@@ -4,11 +4,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
-import java.util.regex.Pattern;
 
 import com.google.common.base.Preconditions;
 import com.psddev.dari.db.ComparisonPredicate;
@@ -16,7 +13,6 @@ import com.psddev.dari.db.CompoundPredicate;
 import com.psddev.dari.db.Location;
 import com.psddev.dari.db.ObjectField;
 import com.psddev.dari.db.ObjectIndex;
-import com.psddev.dari.db.ObjectType;
 import com.psddev.dari.db.Predicate;
 import com.psddev.dari.db.PredicateParser;
 import com.psddev.dari.db.Query;
@@ -41,8 +37,6 @@ class SqlQuery {
 
     public static final String COUNT_ALIAS = "_count";
 
-    private static final Pattern QUERY_KEY_PATTERN = Pattern.compile("\\$\\{([^}]+)\\}");
-
     protected final AbstractSqlDatabase database;
     protected final Query<?> query;
     protected final String aliasPrefix;
@@ -51,13 +45,14 @@ class SqlQuery {
     private final DSLContext dslContext;
     private final RenderContext tableRenderContext;
     protected final RenderContext renderContext;
+
+    private final String recordTableAlias;
     private final Table<?> recordTable;
     protected final Field<UUID> recordIdField;
     protected final Field<UUID> recordTypeIdField;
     protected final Map<String, Query.MappedKey> mappedKeys;
     protected final Map<String, ObjectIndex> selectedIndexes;
 
-    private String fromClause;
     private Condition whereCondition;
     private final List<SortField<?>> orderByFields = new ArrayList<>();
     protected final List<SqlQueryJoin> joins = new ArrayList<>();
@@ -66,7 +61,6 @@ class SqlQuery {
 
     private boolean needsDistinct;
     protected SqlQueryJoin mysqlIndexHint;
-    private boolean mysqlIgnoreIndexPrimaryDisabled;
     private boolean forceLeftJoins;
 
     /**
@@ -83,9 +77,8 @@ class SqlQuery {
         tableRenderContext = dslContext.renderContext().paramType(ParamType.INLINED).declareTables(true);
         renderContext = dslContext.renderContext().paramType(ParamType.INLINED);
 
-        String recordTableAlias = aliasPrefix + "r";
-
-        recordTable = DSL.table(DSL.name("Record")).as(recordTableAlias);
+        recordTableAlias = aliasPrefix + "r";
+        recordTable = DSL.table(DSL.name(schema.record().getName())).as(recordTableAlias);
         recordIdField = DSL.field(DSL.name(recordTableAlias, schema.recordId().getName()), schema.uuidDataType());
         recordTypeIdField = DSL.field(DSL.name(recordTableAlias, schema.recordTypeId().getName()), schema.uuidDataType());
         mappedKeys = query.mapEmbeddedKeys(database.getEnvironment());
@@ -141,18 +134,18 @@ class SqlQuery {
 
     private SqlQuery getOrCreateSubSqlQuery(Query<?> subQuery, boolean forceLeftJoins) {
         SqlQuery subSqlQuery = subSqlQueries.get(subQuery);
+
         if (subSqlQuery == null) {
             subSqlQuery = new SqlQuery(database, subQuery, aliasPrefix + "s" + subSqlQueries.size());
             subSqlQuery.forceLeftJoins = forceLeftJoins;
-            subSqlQuery.initializeClauses();
+
             subSqlQueries.put(subQuery, subSqlQuery);
         }
+
         return subSqlQuery;
     }
 
-    /** Initializes FROM, WHERE, and ORDER BY clauses. */
-    private void initializeClauses() {
-        Set<ObjectType> queryTypes = query.getConcreteTypes(database.getEnvironment());
+    private Table<?> initialize(Table<?> table) {
 
         // Build the WHERE clause.
         whereCondition = query.isFromAll()
@@ -199,55 +192,34 @@ class SqlQuery {
             }
         }
 
-        // Builds the FROM clause.
-        StringBuilder fromBuilder = new StringBuilder();
-
+        // Join all index tables used so far.
         for (SqlQueryJoin join : joins) {
-            if (join.symbolIds.isEmpty()) {
-                continue;
+            if (!join.symbolIds.isEmpty()) {
+                table = table.join(join.table, forceLeftJoins || join.isLeftOuter() ? JoinType.LEFT_OUTER_JOIN : JoinType.JOIN)
+                        .on(join.idField.eq(recordIdField))
+                        .and(join.typeIdField.eq(recordTypeIdField))
+                        .and(join.symbolIdField.in(join.symbolIds));
             }
-
-            // e.g. JOIN RecordIndex AS i#
-            fromBuilder.append('\n');
-            fromBuilder.append((forceLeftJoins || join.isLeftOuter() ? JoinType.LEFT_OUTER_JOIN : JoinType.JOIN).toSQL());
-            fromBuilder.append(' ');
-            fromBuilder.append(tableRenderContext.render(join.table));
-
-            if (!join.isLeftOuter() && join.equals(mysqlIndexHint)) {
-                fromBuilder.append(" /*! USE INDEX (k_name_value) */");
-
-            } else if (join.sqlIndex instanceof LocationSqlIndex) {
-                fromBuilder.append(" /*! IGNORE INDEX (PRIMARY) */");
-            }
-
-            fromBuilder.append(" ON ");
-
-            Condition joinCondition = join.idField.eq(recordIdField)
-                    .and(join.typeIdField.eq(recordTypeIdField))
-                    .and(join.symbolIdField.in(join.symbolIds));
-
-            fromBuilder.append(renderContext.render(joinCondition));
         }
 
+        // Join all index tables used in sub-queries.
         for (Map.Entry<Query<?>, String> entry : subQueries.entrySet()) {
             Query<?> subQuery = entry.getKey();
             SqlQuery subSqlQuery = getOrCreateSubSqlQuery(subQuery, false);
+            String alias = subSqlQuery.recordTableAlias;
+
+            table = subSqlQuery.initialize(
+                    table.join(DSL.table(DSL.name(schema.record().getName())).as(alias))
+                            .on(entry.getValue() + renderContext.render(DSL.field(DSL.name(alias, schema.recordId().getName())))));
+
+            whereCondition = whereCondition.and(subSqlQuery.whereCondition);
 
             if (subSqlQuery.needsDistinct) {
                 needsDistinct = true;
             }
-
-            String alias = subSqlQuery.aliasPrefix + "r";
-
-            fromBuilder.append("\nINNER JOIN ");
-            fromBuilder.append(tableRenderContext.render(DSL.table(DSL.name("Record")).as(alias)));
-            fromBuilder.append(" ON ");
-            fromBuilder.append(entry.getValue());
-            fromBuilder.append(renderContext.render(DSL.field(DSL.name(alias, "id"))));
-            fromBuilder.append(subSqlQuery.fromClause);
         }
 
-        this.fromClause = fromBuilder.toString();
+        return table;
     }
 
     // Creates jOOQ Condition from Dari Predicate.
@@ -539,11 +511,11 @@ class SqlQuery {
      * of all rows matching the query.
      */
     public String countStatement() {
-        initializeClauses();
+        Table<?> table = initialize(recordTable);
 
-        return renderContext.render(dslContext
+        return tableRenderContext.render(dslContext
                 .select(needsDistinct ? recordIdField.countDistinct() : recordIdField.count())
-                .from(DSL.table(tableRenderContext.render(recordTable)) + fromClause.replace(" /*! USE INDEX (k_name_value) */", ""))
+                .from(table)
                 .where(whereCondition));
     }
 
@@ -552,10 +524,10 @@ class SqlQuery {
      * matching the query.
      */
     public String deleteStatement() {
-        initializeClauses();
+        Table<?> table = initialize(recordTable);
 
-        return renderContext.render(dslContext
-                .deleteFrom(DSL.table(tableRenderContext.render(recordTable) + fromClause))
+        return tableRenderContext.render(dslContext
+                .deleteFrom(table)
                 .where(whereCondition));
     }
 
@@ -593,8 +565,7 @@ class SqlQuery {
             }
         }
 
-        initializeClauses();
-
+        Table<?> table = initialize(recordTable);
         List<Field<?>> selectFields = new ArrayList<>();
 
         selectFields.add((needsDistinct
@@ -604,9 +575,9 @@ class SqlQuery {
 
         selectFields.addAll(groupByFields);
 
-        return renderContext.render(dslContext
+        return tableRenderContext.render(dslContext
                 .select(selectFields)
-                .from(DSL.table(tableRenderContext.render(recordTable) + fromClause.replace(" /*! USE INDEX (k_name_value) */", "")))
+                .from(table)
                 .where(whereCondition)
                 .groupBy(groupByFields)
                 .orderBy(orderByFields));
@@ -617,13 +588,11 @@ class SqlQuery {
      * matching the query were last updated.
      */
     public String lastUpdateStatement() {
-        initializeClauses();
+        Table<?> table = initialize(DSL.table(schema.recordUpdate().getName()).as(recordTableAlias));
 
-        String alias = aliasPrefix + "r";
-
-        return renderContext.render(dslContext
-                .select(DSL.field(DSL.name(alias, "updateDate")).max())
-                .from(DSL.table(tableRenderContext.render(DSL.table("RecordUpdate").as(alias)) + fromClause))
+        return tableRenderContext.render(dslContext
+                .select(DSL.field(DSL.name(recordTableAlias, schema.recordUpdateDate().getName())).max())
+                .from(table)
                 .where(whereCondition));
     }
 
@@ -632,8 +601,7 @@ class SqlQuery {
      * matching the query.
      */
     public String selectStatement() {
-        initializeClauses();
-
+        Table<?> table = initialize(recordTable);
         List<Field<?>> selectFields = new ArrayList<>();
 
         selectFields.add(recordIdField);
@@ -642,25 +610,16 @@ class SqlQuery {
         List<String> queryFields = query.getFields();
 
         if (queryFields == null) {
-            selectFields.add(DSL.field(DSL.name(aliasPrefix + "r", SqlDatabase.DATA_COLUMN)));
+            selectFields.add(DSL.field(DSL.name(recordTableAlias, SqlDatabase.DATA_COLUMN)));
 
         } else if (!queryFields.isEmpty()) {
             queryFields.forEach(queryField -> selectFields.add(DSL.field(DSL.name(queryField))));
         }
 
-        Table<?> selectTable = recordTable;
-
-        if (fromClause.length() > 0
-                && !fromClause.toLowerCase(Locale.ENGLISH).contains("left outer join")
-                && !mysqlIgnoreIndexPrimaryDisabled) {
-
-            selectTable = selectTable.ignoreIndex("PRIMARY");
-        }
-
         Select<?> select = (needsDistinct
                 ? dslContext.selectDistinct(recordIdField, recordTypeIdField)
                 : dslContext.select(selectFields))
-                .from(DSL.table(tableRenderContext.render(selectTable) + fromClause))
+                .from(table)
                 .where(whereCondition)
                 .orderBy(orderByFields);
 
@@ -674,19 +633,19 @@ class SqlQuery {
                     .and(recordIdField.eq(DSL.field(DSL.name(distinctAlias, SqlDatabase.ID_COLUMN), schema.uuidDataType())));
         }
 
-        return renderContext.render(select);
+        return tableRenderContext.render(select);
     }
 
     /**
      * Returns an SQL statement that can be used as a sub-query.
      */
     public String subQueryStatement() {
-        initializeClauses();
+        Table<?> table = initialize(recordTable);
 
-        return renderContext.render((needsDistinct
+        return tableRenderContext.render((needsDistinct
                 ? dslContext.selectDistinct(recordIdField)
                 : dslContext.select(recordIdField))
-                .from(DSL.table(tableRenderContext.render(recordTable) + fromClause))
+                .from(table)
                 .where(whereCondition)
                 .orderBy(orderByFields));
     }
