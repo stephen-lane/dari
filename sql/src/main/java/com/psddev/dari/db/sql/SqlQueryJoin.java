@@ -163,7 +163,17 @@ final class SqlQueryJoin {
     }
 
     public Object value(Object value) {
-        if (sqlIndex instanceof NumberSqlIndex) {
+        if (sqlIndex == null) {
+            switch (queryKey) {
+                case Query.ID_KEY :
+                case Query.TYPE_KEY :
+                    return DSL.inline(ObjectUtils.to(UUID.class, value), sqlQuery.schema.uuidDataType());
+
+                default :
+                    return value;
+            }
+
+        } else if (sqlIndex instanceof NumberSqlIndex) {
             return DSL.inline(ObjectUtils.to(double.class, value), sqlQuery.schema.doubleDataType());
 
         } else if (sqlIndex instanceof StringSqlIndex) {
