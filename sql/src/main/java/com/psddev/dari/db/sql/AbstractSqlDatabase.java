@@ -224,8 +224,8 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             try (DSLContext context = openContext(connection)) {
                 SqlSchema schema = schema();
                 ResultQuery<Record2<Integer, String>> query = context
-                        .select(schema.symbolId(), schema.symbolValue())
-                        .from(schema.symbol());
+                        .select(schema.symbolIdField(), schema.symbolValueField())
+                        .from(schema.symbolTable());
 
                 try {
                     Map<String, Integer> symbolIds = new ConcurrentHashMap<>();
@@ -589,7 +589,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
             if (create) {
                 org.jooq.Query createQuery = context
-                        .insertInto(schema.symbol(), schema.symbolValue())
+                        .insertInto(schema.symbolTable(), schema.symbolValueField())
                         .values(symbol)
                         .onDuplicateKeyIgnore();
 
@@ -602,9 +602,9 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             }
 
             ResultQuery<Record1<Integer>> selectQuery = context
-                    .select(schema.symbolId())
-                    .from(schema.symbol())
-                    .where(schema.symbolValue().eq(symbol));
+                    .select(schema.symbolIdField())
+                    .from(schema.symbolTable())
+                    .where(schema.symbolValueField().eq(symbol));
 
             try {
                 id = selectQuery
@@ -1969,10 +1969,10 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                             }
 
                             execute(connection, context, context
-                                    .insertInto(schema.record())
-                                    .set(schema.recordId(), id)
-                                    .set(schema.recordTypeId(), typeId)
-                                    .set(schema.recordData(), data));
+                                    .insertInto(schema.recordTable())
+                                    .set(schema.recordIdField(), id)
+                                    .set(schema.recordTypeIdField(), typeId)
+                                    .set(schema.recordDataField(), data));
 
                         } catch (SQLException error) {
 
@@ -1996,10 +1996,10 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                             }
 
                             if (execute(connection, context, context
-                                    .update(schema.record())
-                                    .set(schema.recordTypeId(), typeId)
-                                    .set(schema.recordData(), data)
-                                    .where(schema.recordId().eq(id))) < 1) {
+                                    .update(schema.recordTable())
+                                    .set(schema.recordTypeIdField(), typeId)
+                                    .set(schema.recordDataField(), data)
+                                    .where(schema.recordIdField().eq(id))) < 1) {
 
                                 // UPDATE failed so retry with INSERT.
                                 isNew = true;
@@ -2043,12 +2043,12 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                             data = serializeState(state);
 
                             if (execute(connection, context, context
-                                    .update(schema.record())
-                                    .set(schema.recordTypeId(), typeId)
-                                    .set(schema.recordData(), data)
-                                    .where(schema.recordId().eq(id))
-                                    .and(schema.recordTypeId().eq(oldTypeId))
-                                    .and(schema.recordData().eq(oldData))) < 1) {
+                                    .update(schema.recordTable())
+                                    .set(schema.recordTypeIdField(), typeId)
+                                    .set(schema.recordDataField(), data)
+                                    .where(schema.recordIdField().eq(id))
+                                    .and(schema.recordTypeIdField().eq(oldTypeId))
+                                    .and(schema.recordDataField().eq(oldData))) < 1) {
 
                                 // UPDATE failed so start over.
                                 retryWrites();
@@ -2066,10 +2066,10 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                     if (isNew) {
                         try {
                             execute(connection, context, context
-                                    .insertInto(schema.recordUpdate())
-                                    .set(schema.recordUpdateId(), id)
-                                    .set(schema.recordUpdateTypeId(), typeId)
-                                    .set(schema.recordUpdateDate(), now));
+                                    .insertInto(schema.recordUpdateTable())
+                                    .set(schema.recordUpdateIdField(), id)
+                                    .set(schema.recordUpdateTypeIdField(), typeId)
+                                    .set(schema.recordUpdateDateField(), now));
 
                         } catch (SQLException error) {
 
@@ -2085,10 +2085,10 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
                     } else {
                         if (execute(connection, context, context
-                                .update(schema.recordUpdate())
-                                .set(schema.recordUpdateTypeId(), typeId)
-                                .set(schema.recordUpdateDate(), now)
-                                .where(schema.recordUpdateId().eq(id))) < 1) {
+                                .update(schema.recordUpdateTable())
+                                .set(schema.recordUpdateTypeIdField(), typeId)
+                                .set(schema.recordUpdateDateField(), now)
+                                .where(schema.recordUpdateIdField().eq(id))) < 1) {
 
                             // UPDATE failed so retry with INSERT.
                             isNew = true;
@@ -2136,14 +2136,14 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
             // Delete data.
             execute(connection, context, context
-                    .delete(schema.record())
-                    .where(schema.recordId().in(stateIds)));
+                    .delete(schema.recordTable())
+                    .where(schema.recordIdField().in(stateIds)));
 
             // Save delete date.
             execute(connection, context, context
-                    .update(schema.recordUpdate())
-                    .set(schema.recordUpdateDate(), System.currentTimeMillis() / 1000.0)
-                    .where(schema.recordUpdateId().in(stateIds)));
+                    .update(schema.recordUpdateTable())
+                    .set(schema.recordUpdateDateField(), System.currentTimeMillis() / 1000.0)
+                    .where(schema.recordUpdateIdField().in(stateIds)));
         }
     }
 

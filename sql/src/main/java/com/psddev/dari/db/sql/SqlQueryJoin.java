@@ -167,14 +167,14 @@ final class SqlQueryJoin {
             switch (queryKey) {
                 case Query.ID_KEY :
                 case Query.TYPE_KEY :
-                    return DSL.inline(ObjectUtils.to(UUID.class, value), sqlQuery.schema.uuidDataType());
+                    return DSL.inline(ObjectUtils.to(UUID.class, value), sqlQuery.schema.uuidType());
 
                 default :
                     return value;
             }
 
         } else if (sqlIndex instanceof NumberSqlIndex) {
-            return DSL.inline(ObjectUtils.to(double.class, value), sqlQuery.schema.doubleDataType());
+            return DSL.inline(ObjectUtils.to(double.class, value), sqlQuery.schema.doubleType());
 
         } else if (sqlIndex instanceof StringSqlIndex) {
             String valueString = StringUtils.trimAndCollapseWhitespaces(value.toString());
@@ -183,10 +183,10 @@ final class SqlQueryJoin {
                 valueString = valueString.toLowerCase(Locale.ENGLISH);
             }
 
-            return DSL.inline(valueString, sqlQuery.schema.byteStringDataType());
+            return DSL.inline(valueString, sqlQuery.schema.byteStringType());
 
         } else if (sqlIndex instanceof UuidSqlIndex) {
-            return DSL.inline(ObjectUtils.to(UUID.class, value), sqlQuery.schema.uuidDataType());
+            return DSL.inline(ObjectUtils.to(UUID.class, value), sqlQuery.schema.uuidType());
 
         } else {
             return value;

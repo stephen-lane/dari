@@ -56,91 +56,91 @@ public class SqlSchema {
         }
     });
 
-    private final Table<Record> record;
-    private final Field<UUID> recordId;
-    private final Field<UUID> recordTypeId;
-    private final Field<byte[]> recordData;
+    private final Table<Record> recordTable;
+    private final Field<UUID> recordIdField;
+    private final Field<UUID> recordTypeIdField;
+    private final Field<byte[]> recordDataField;
 
-    private final Table<Record> recordUpdate;
-    private final Field<UUID> recordUpdateId;
-    private final Field<UUID> recordUpdateTypeId;
-    private final Field<Double> recordUpdateDate;
+    private final Table<Record> recordUpdateTable;
+    private final Field<UUID> recordUpdateIdField;
+    private final Field<UUID> recordUpdateTypeIdField;
+    private final Field<Double> recordUpdateDateField;
 
-    private final Table<Record> symbol;
-    private final Field<Integer> symbolId;
-    private final Field<String> symbolValue;
+    private final Table<Record> symbolTable;
+    private final Field<Integer> symbolIdField;
+    private final Field<String> symbolValueField;
 
-    private final List<AbstractSqlIndex> locationTables;
-    private final List<AbstractSqlIndex> numberTables;
-    private final List<AbstractSqlIndex> regionTables;
-    private final List<AbstractSqlIndex> stringTables;
-    private final List<AbstractSqlIndex> uuidTables;
-    private final List<AbstractSqlIndex> deleteTables;
+    private final List<AbstractSqlIndex> locationSqlIndexes;
+    private final List<AbstractSqlIndex> numberSqlIndexes;
+    private final List<AbstractSqlIndex> regionSqlIndexes;
+    private final List<AbstractSqlIndex> stringSqlIndexes;
+    private final List<AbstractSqlIndex> uuidSqlIndexes;
+    private final List<AbstractSqlIndex> deleteSqlIndexes;
 
     protected SqlSchema(AbstractSqlDatabase database) {
-        DataType<byte[]> byteArrayDataType = byteArrayDataType();
-        DataType<String> byteStringDataType = byteStringDataType();
-        DataType<Double> doubleDataType = doubleDataType();
-        DataType<Integer> integerDataType = integerDataType();
-        DataType<UUID> uuidDataType = uuidDataType();
+        DataType<byte[]> byteArrayType = byteArrayType();
+        DataType<String> byteStringType = byteStringType();
+        DataType<Double> doubleType = doubleType();
+        DataType<Integer> integerType = integerType();
+        DataType<UUID> uuidType = uuidType();
 
-        record = DSL.table(DSL.name("Record"));
-        recordId = DSL.field(DSL.name("id"), uuidDataType);
-        recordTypeId = DSL.field(DSL.name("typeId"), uuidDataType);
-        recordData = DSL.field(DSL.name("data"), byteArrayDataType);
+        recordTable = DSL.table(DSL.name("Record"));
+        recordIdField = DSL.field(DSL.name("id"), uuidType);
+        recordTypeIdField = DSL.field(DSL.name("typeId"), uuidType);
+        recordDataField = DSL.field(DSL.name("data"), byteArrayType);
 
-        recordUpdate = DSL.table(DSL.name("RecordUpdate"));
-        recordUpdateId = DSL.field(DSL.name("id"), uuidDataType);
-        recordUpdateTypeId = DSL.field(DSL.name("typeId"), uuidDataType);
-        recordUpdateDate = DSL.field(DSL.name("updateDate"), doubleDataType);
+        recordUpdateTable = DSL.table(DSL.name("RecordUpdate"));
+        recordUpdateIdField = DSL.field(DSL.name("id"), uuidType);
+        recordUpdateTypeIdField = DSL.field(DSL.name("typeId"), uuidType);
+        recordUpdateDateField = DSL.field(DSL.name("updateDate"), doubleType);
 
-        symbol = DSL.table(DSL.name("Symbol"));
-        symbolId = DSL.field(DSL.name("symbolId"), integerDataType);
-        symbolValue = DSL.field(DSL.name("value"), byteStringDataType);
+        symbolTable = DSL.table(DSL.name("Symbol"));
+        symbolIdField = DSL.field(DSL.name("symbolId"), integerType);
+        symbolValueField = DSL.field(DSL.name("value"), byteStringType);
 
-        numberTables = supportedTables(database, new NumberSqlIndex(this, "RecordNumber", 3));
-        stringTables = supportedTables(database, new StringSqlIndex(this, "RecordString", 4));
-        uuidTables = supportedTables(database, new UuidSqlIndex(this, "RecordUuid", 3));
+        numberSqlIndexes = supportedTables(database, new NumberSqlIndex(this, "RecordNumber", 3));
+        stringSqlIndexes = supportedTables(database, new StringSqlIndex(this, "RecordString", 4));
+        uuidSqlIndexes = supportedTables(database, new UuidSqlIndex(this, "RecordUuid", 3));
 
         if (database.isIndexSpatial()) {
-            locationTables = possiblyUnsupportedTables(
+            locationSqlIndexes = possiblyUnsupportedTables(
                     database,
                     () -> new LocationSqlIndex(this, "RecordLocation", 3));
 
-            regionTables = possiblyUnsupportedTables(
+            regionSqlIndexes = possiblyUnsupportedTables(
                     database,
                     () -> new RegionSqlIndex(this, "RecordRegion", 2));
 
         } else {
-            locationTables = Collections.emptyList();
-            regionTables = Collections.emptyList();
+            locationSqlIndexes = Collections.emptyList();
+            regionSqlIndexes = Collections.emptyList();
         }
 
-        deleteTables = ImmutableList.<AbstractSqlIndex>builder()
-                .addAll(locationTables)
-                .addAll(numberTables)
-                .addAll(regionTables)
-                .addAll(stringTables)
-                .addAll(uuidTables)
+        deleteSqlIndexes = ImmutableList.<AbstractSqlIndex>builder()
+                .addAll(locationSqlIndexes)
+                .addAll(numberSqlIndexes)
+                .addAll(regionSqlIndexes)
+                .addAll(stringSqlIndexes)
+                .addAll(uuidSqlIndexes)
                 .build();
     }
 
-    private List<AbstractSqlIndex> supportedTables(AbstractSqlDatabase database, AbstractSqlIndex... tables) {
+    private List<AbstractSqlIndex> supportedTables(AbstractSqlDatabase database, AbstractSqlIndex... sqlIndexes) {
         ImmutableList.Builder<AbstractSqlIndex> builder = ImmutableList.builder();
         boolean empty = true;
 
-        for (AbstractSqlIndex table : tables) {
-            if (database.hasTable(table.table().getName())) {
-                builder.add(table);
+        for (AbstractSqlIndex sqlIndex : sqlIndexes) {
+            if (database.hasTable(sqlIndex.table().getName())) {
+                builder.add(sqlIndex);
                 empty = false;
             }
         }
 
         if (empty) {
-            int length = tables.length;
+            int length = sqlIndexes.length;
 
             if (length > 0) {
-                builder.add(tables[length - 1]);
+                builder.add(sqlIndexes[length - 1]);
             }
         }
 
@@ -152,40 +152,40 @@ public class SqlSchema {
         ImmutableList.Builder<AbstractSqlIndex> builder = ImmutableList.builder();
 
         for (Supplier<AbstractSqlIndex> supplier : suppliers) {
-            AbstractSqlIndex table;
+            AbstractSqlIndex sqlIndex;
 
             try {
-                table = supplier.get();
+                sqlIndex = supplier.get();
 
             } catch (UnsupportedOperationException error) {
                 continue;
             }
 
-            if (database.hasTable(table.table().getName())) {
-                builder.add(table);
+            if (database.hasTable(sqlIndex.table().getName())) {
+                builder.add(sqlIndex);
             }
         }
 
         return builder.build();
     }
 
-    protected DataType<byte[]> byteArrayDataType() {
+    public DataType<byte[]> byteArrayType() {
         return SQLDataType.LONGVARBINARY;
     }
 
-    protected DataType<String> byteStringDataType() {
+    public DataType<String> byteStringType() {
         return BYTE_STRING_TYPE;
     }
 
-    protected DataType<Double> doubleDataType() {
+    public DataType<Double> doubleType() {
         return SQLDataType.DOUBLE;
     }
 
-    protected DataType<Integer> integerDataType() {
+    public DataType<Integer> integerType() {
         return SQLDataType.INTEGER;
     }
 
-    protected DataType<UUID> uuidDataType() {
+    public DataType<UUID> uuidType() {
         return SQLDataType.UUID;
     }
 
@@ -205,48 +205,48 @@ public class SqlSchema {
         return DSL.field("ST_MakeLine({0}, {1})", x, y);
     }
 
-    public Table<Record> record() {
-        return record;
+    public Table<Record> recordTable() {
+        return recordTable;
     }
 
-    public Field<UUID> recordId() {
-        return recordId;
+    public Field<UUID> recordIdField() {
+        return recordIdField;
     }
 
-    public Field<UUID> recordTypeId() {
-        return recordTypeId;
+    public Field<UUID> recordTypeIdField() {
+        return recordTypeIdField;
     }
 
-    public Field<byte[]> recordData() {
-        return recordData;
+    public Field<byte[]> recordDataField() {
+        return recordDataField;
     }
 
-    public Table<Record> recordUpdate() {
-        return recordUpdate;
+    public Table<Record> recordUpdateTable() {
+        return recordUpdateTable;
     }
 
-    public Field<UUID> recordUpdateId() {
-        return recordUpdateId;
+    public Field<UUID> recordUpdateIdField() {
+        return recordUpdateIdField;
     }
 
-    public Field<UUID> recordUpdateTypeId() {
-        return recordUpdateTypeId;
+    public Field<UUID> recordUpdateTypeIdField() {
+        return recordUpdateTypeIdField;
     }
 
-    public Field<Double> recordUpdateDate() {
-        return recordUpdateDate;
+    public Field<Double> recordUpdateDateField() {
+        return recordUpdateDateField;
     }
 
-    public Table<Record> symbol() {
-        return symbol;
+    public Table<Record> symbolTable() {
+        return symbolTable;
     }
 
-    public Field<Integer> symbolId() {
-        return symbolId;
+    public Field<Integer> symbolIdField() {
+        return symbolIdField;
     }
 
-    public Field<String> symbolValue() {
-        return symbolValue;
+    public Field<String> symbolValueField() {
+        return symbolValueField;
     }
 
     /**
@@ -287,20 +287,20 @@ public class SqlSchema {
         switch (type) {
             case ObjectField.RECORD_TYPE :
             case ObjectField.UUID_TYPE :
-                return uuidTables;
+                return uuidSqlIndexes;
 
             case ObjectField.DATE_TYPE :
             case ObjectField.NUMBER_TYPE :
-                return numberTables;
+                return numberSqlIndexes;
 
             case ObjectField.LOCATION_TYPE :
-                return locationTables;
+                return locationSqlIndexes;
 
             case ObjectField.REGION_TYPE :
-                return regionTables;
+                return regionSqlIndexes;
 
             default :
-                return stringTables;
+                return stringSqlIndexes;
         }
     }
 
@@ -325,35 +325,35 @@ public class SqlSchema {
             UUID id = state.getId();
             UUID typeId = state.getVisibilityAwareTypeId();
 
-            for (SqlIndexValue indexValue : SqlIndexValue.find(state)) {
-                ObjectIndex index = indexValue.getIndex();
+            for (SqlIndexValue sqlIndexValue : SqlIndexValue.find(state)) {
+                ObjectIndex index = sqlIndexValue.getIndex();
 
                 if (onlyIndex != null && !onlyIndex.equals(index)) {
                     continue;
                 }
 
-                Object symbolId = database.getSymbolId(indexValue.getUniqueName());
+                Object symbolId = database.getSymbolId(sqlIndexValue.getUniqueName());
 
-                for (AbstractSqlIndex table : findUpdateIndexTables(index)) {
-                    Table<Record> jooqTable = table.table();
-                    BatchBindStep batch = batches.get(jooqTable);
-                    Param<UUID> idParam = table.idParam();
-                    Param<UUID> typeIdParam = table.typeIdParam();
-                    Param<Integer> symbolIdParam = table.symbolIdParam();
+                for (AbstractSqlIndex sqlIndex : findUpdateIndexTables(index)) {
+                    Table<Record> table = sqlIndex.table();
+                    BatchBindStep batch = batches.get(table);
+                    Param<UUID> idParam = sqlIndex.idParam();
+                    Param<UUID> typeIdParam = sqlIndex.typeIdParam();
+                    Param<Integer> symbolIdParam = sqlIndex.symbolIdParam();
 
                     if (batch == null) {
-                        batch = context.batch(context.insertInto(jooqTable)
-                                .set(table.idField(), idParam)
-                                .set(table.typeIdField(), typeIdParam)
-                                .set(table.symbolIdField(), symbolIdParam)
-                                .set(table.valueField(), table.valueParam())
+                        batch = context.batch(context.insertInto(table)
+                                .set(sqlIndex.idField(), idParam)
+                                .set(sqlIndex.typeIdField(), typeIdParam)
+                                .set(sqlIndex.symbolIdField(), symbolIdParam)
+                                .set(sqlIndex.valueField(), sqlIndex.valueParam())
                                 .onDuplicateKeyIgnore());
                     }
 
                     boolean bound = false;
 
-                    for (Object[] valuesArray : indexValue.getValuesArray()) {
-                        Map<String, Object> bindValues = table.createBindValues(database, this, index, 0, valuesArray[0]);
+                    for (Object[] valuesArray : sqlIndexValue.getValuesArray()) {
+                        Map<String, Object> bindValues = sqlIndex.createBindValues(database, this, index, 0, valuesArray[0]);
 
                         if (bindValues != null) {
                             bindValues.put(idParam.getName(), id);
@@ -366,7 +366,7 @@ public class SqlSchema {
                     }
 
                     if (bound) {
-                        batches.put(jooqTable, batch);
+                        batches.put(table, batch);
                     }
                 }
             }
@@ -402,14 +402,14 @@ public class SqlSchema {
                 .map(State::getId)
                 .collect(Collectors.toSet());
 
-        for (AbstractSqlIndex table : deleteTables) {
+        for (AbstractSqlIndex sqlIndex : deleteSqlIndexes) {
             try {
                 DeleteConditionStep<Record> delete = context
-                        .deleteFrom(table.table())
-                        .where(table.idField().in(stateIds));
+                        .deleteFrom(sqlIndex.table())
+                        .where(sqlIndex.idField().in(stateIds));
 
                 if (onlyIndex != null) {
-                    delete = delete.and(table.symbolIdField().eq(database.getReadSymbolId(onlyIndex.getUniqueName())));
+                    delete = delete.and(sqlIndex.symbolIdField().eq(database.getReadSymbolId(onlyIndex.getUniqueName())));
                 }
 
                 context.execute(delete);

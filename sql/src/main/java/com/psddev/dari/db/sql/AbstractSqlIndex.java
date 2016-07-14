@@ -23,8 +23,8 @@ abstract class AbstractSqlIndex {
     private final Field<Object> valueField;
 
     protected AbstractSqlIndex(SqlSchema schema, String namePrefix, int version) {
-        DataType<Integer> integerType = schema.integerDataType();
-        DataType<UUID> uuidType = schema.uuidDataType();
+        DataType<Integer> integerType = schema.integerType();
+        DataType<UUID> uuidType = schema.uuidType();
 
         this.table = DSL.table(DSL.name(namePrefix + version));
         this.idField = DSL.field(DSL.name("id"), uuidType);

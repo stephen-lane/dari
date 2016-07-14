@@ -41,7 +41,7 @@ public class MySQLSchema extends SqlSchema {
     }
 
     @Override
-    protected DataType<UUID> uuidDataType() {
+    public DataType<UUID> uuidType() {
         return UUID_TYPE;
     }
 

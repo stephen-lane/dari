@@ -15,7 +15,7 @@ class NumberSqlIndex extends AbstractSqlIndex {
     public NumberSqlIndex(SqlSchema schema, String namePrefix, int version) {
         super(schema, namePrefix, version);
 
-        this.valueParam = DSL.param("value", schema.doubleDataType());
+        this.valueParam = DSL.param("value", schema.doubleType());
     }
 
     @Override

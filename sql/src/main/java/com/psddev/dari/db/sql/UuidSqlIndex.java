@@ -16,7 +16,7 @@ class UuidSqlIndex extends AbstractSqlIndex {
     public UuidSqlIndex(SqlSchema schema, String namePrefix, int version) {
         super(schema, namePrefix, version);
 
-        this.valueParam = DSL.param("value", schema.uuidDataType());
+        this.valueParam = DSL.param("value", schema.uuidType());
     }
 
     @Override

@@ -78,9 +78,9 @@ class SqlQuery {
         renderContext = dslContext.renderContext().paramType(ParamType.INLINED);
 
         recordTableAlias = aliasPrefix + "r";
-        recordTable = DSL.table(DSL.name(schema.record().getName())).as(recordTableAlias);
-        recordIdField = DSL.field(DSL.name(recordTableAlias, schema.recordId().getName()), schema.uuidDataType());
-        recordTypeIdField = DSL.field(DSL.name(recordTableAlias, schema.recordTypeId().getName()), schema.uuidDataType());
+        recordTable = DSL.table(DSL.name(schema.recordTable().getName())).as(recordTableAlias);
+        recordIdField = DSL.field(DSL.name(recordTableAlias, schema.recordIdField().getName()), schema.uuidType());
+        recordTypeIdField = DSL.field(DSL.name(recordTableAlias, schema.recordTypeIdField().getName()), schema.uuidType());
         mappedKeys = query.mapEmbeddedKeys(database.getEnvironment());
         selectedIndexes = new HashMap<>();
 
@@ -209,8 +209,8 @@ class SqlQuery {
             String alias = subSqlQuery.recordTableAlias;
 
             table = subSqlQuery.initialize(
-                    table.join(DSL.table(DSL.name(schema.record().getName())).as(alias))
-                            .on(entry.getValue() + renderContext.render(DSL.field(DSL.name(alias, schema.recordId().getName())))));
+                    table.join(DSL.table(DSL.name(schema.recordTable().getName())).as(alias))
+                            .on(entry.getValue() + renderContext.render(DSL.field(DSL.name(alias, schema.recordIdField().getName())))));
 
             whereCondition = whereCondition.and(subSqlQuery.whereCondition);
 
@@ -588,10 +588,10 @@ class SqlQuery {
      * matching the query were last updated.
      */
     public String lastUpdateStatement() {
-        Table<?> table = initialize(DSL.table(schema.recordUpdate().getName()).as(recordTableAlias));
+        Table<?> table = initialize(DSL.table(schema.recordUpdateTable().getName()).as(recordTableAlias));
 
         return tableRenderContext.render(dslContext
-                .select(DSL.field(DSL.name(recordTableAlias, schema.recordUpdateDate().getName())).max())
+                .select(DSL.field(DSL.name(recordTableAlias, schema.recordUpdateDateField().getName())).max())
                 .from(table)
                 .where(whereCondition));
     }
@@ -629,8 +629,8 @@ class SqlQuery {
                     .select(selectFields)
                     .from(recordTable)
                     .join(select.asTable().as(distinctAlias))
-                    .on(recordTypeIdField.eq(DSL.field(DSL.name(distinctAlias, SqlDatabase.TYPE_ID_COLUMN), schema.uuidDataType())))
-                    .and(recordIdField.eq(DSL.field(DSL.name(distinctAlias, SqlDatabase.ID_COLUMN), schema.uuidDataType())));
+                    .on(recordTypeIdField.eq(DSL.field(DSL.name(distinctAlias, SqlDatabase.TYPE_ID_COLUMN), schema.uuidType())))
+                    .and(recordIdField.eq(DSL.field(DSL.name(distinctAlias, SqlDatabase.ID_COLUMN), schema.uuidType())));
         }
 
         return tableRenderContext.render(select);
