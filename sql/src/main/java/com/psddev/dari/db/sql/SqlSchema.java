@@ -343,10 +343,10 @@ public class SqlSchema {
 
                     if (batch == null) {
                         batch = context.batch(context.insertInto(jooqTable)
-                                .set(table.id(), idParam)
-                                .set(table.typeId(), typeIdParam)
-                                .set(table.symbolId(), symbolIdParam)
-                                .set(table.value(), table.valueParam())
+                                .set(table.idField(), idParam)
+                                .set(table.typeIdField(), typeIdParam)
+                                .set(table.symbolIdField(), symbolIdParam)
+                                .set(table.valueField(), table.valueParam())
                                 .onDuplicateKeyIgnore());
                     }
 
@@ -406,10 +406,10 @@ public class SqlSchema {
             try {
                 DeleteConditionStep<Record> delete = context
                         .deleteFrom(table.table())
-                        .where(table.id().in(stateIds));
+                        .where(table.idField().in(stateIds));
 
                 if (onlyIndex != null) {
-                    delete = delete.and(table.symbolId().eq(database.getReadSymbolId(onlyIndex.getUniqueName())));
+                    delete = delete.and(table.symbolIdField().eq(database.getReadSymbolId(onlyIndex.getUniqueName())));
                 }
 
                 context.execute(delete);

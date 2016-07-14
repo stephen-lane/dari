@@ -132,10 +132,10 @@ final class SqlQueryJoin {
 
                 sqlIndex = sqlQuery.schema.findSelectIndexTable(index);
                 table = DSL.table(DSL.name(sqlIndex.table().getName())).as(sqlQuery.aliasPrefix + alias);
-                idField = sqlQuery.aliasedField(alias, sqlIndex.id().getName());
-                typeIdField = sqlQuery.aliasedField(alias, sqlIndex.typeId().getName());
-                symbolIdField = sqlQuery.aliasedField(alias, sqlIndex.symbolId().getName());
-                valueField = sqlQuery.aliasedField(alias, sqlIndex.value().getName());
+                idField = sqlQuery.aliasedField(alias, sqlIndex.idField().getName());
+                typeIdField = sqlQuery.aliasedField(alias, sqlIndex.typeIdField().getName());
+                symbolIdField = sqlQuery.aliasedField(alias, sqlIndex.symbolIdField().getName());
+                valueField = sqlQuery.aliasedField(alias, sqlIndex.valueField().getName());
 
                 addSymbolId(queryKey);
                 break;
