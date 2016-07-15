@@ -6,19 +6,17 @@ import com.psddev.dari.db.Query;
 import com.psddev.dari.db.SqlDatabase;
 import com.psddev.dari.db.UnsupportedIndexException;
 import com.psddev.dari.util.ObjectUtils;
-import com.psddev.dari.util.StringUtils;
 import org.jooq.Field;
 import org.jooq.Table;
 import org.jooq.impl.DSL;
 
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-final class SqlQueryJoin {
+final class SqlJoin {
 
     public Predicate parent;
     private boolean leftOuter;
@@ -39,10 +37,10 @@ final class SqlQueryJoin {
 
     public final Set<Integer> symbolIds = new HashSet<>();
 
-    public static SqlQueryJoin create(SqlQuery sqlQuery, String queryKey) {
-        List<SqlQueryJoin> joins = sqlQuery.joins;
+    public static SqlJoin create(SqlQuery sqlQuery, String queryKey) {
+        List<SqlJoin> joins = sqlQuery.joins;
         String alias = "i" + joins.size();
-        SqlQueryJoin join = new SqlQueryJoin(sqlQuery, alias, queryKey);
+        SqlJoin join = new SqlJoin(sqlQuery, alias, queryKey);
 
         joins.add(join);
 
@@ -53,11 +51,11 @@ final class SqlQueryJoin {
         return join;
     }
 
-    public static SqlQueryJoin findOrCreate(SqlQuery sqlQuery, String queryKey) {
+    public static SqlJoin findOrCreate(SqlQuery sqlQuery, String queryKey) {
         Map<String, ObjectIndex> selectedIndexes = sqlQuery.selectedIndexes;
         ObjectIndex index = selectedIndexes.get(queryKey);
 
-        for (SqlQueryJoin join : sqlQuery.joins) {
+        for (SqlJoin join : sqlQuery.joins) {
             if (queryKey.equals(join.queryKey)) {
                 return join;
 
@@ -77,7 +75,7 @@ final class SqlQueryJoin {
     }
 
     @SuppressWarnings("unchecked")
-    private SqlQueryJoin(SqlQuery sqlQuery, String alias, String queryKey) {
+    private SqlJoin(SqlQuery sqlQuery, String alias, String queryKey) {
         this.sqlQuery = sqlQuery;
         this.queryKey = queryKey;
         this.index = sqlQuery.selectedIndexes.get(queryKey);

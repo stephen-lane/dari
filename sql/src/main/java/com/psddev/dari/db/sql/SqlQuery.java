@@ -55,12 +55,12 @@ class SqlQuery {
 
     private Condition whereCondition;
     private final List<SortField<?>> orderByFields = new ArrayList<>();
-    protected final List<SqlQueryJoin> joins = new ArrayList<>();
+    protected final List<SqlJoin> joins = new ArrayList<>();
     private final Map<Query<?>, String> subQueries = new LinkedHashMap<>();
     private final Map<Query<?>, SqlQuery> subSqlQueries = new HashMap<>();
 
     private boolean needsDistinct;
-    protected SqlQueryJoin mysqlIndexHint;
+    protected SqlJoin mysqlIndexHint;
     private boolean forceLeftJoins;
 
     /**
@@ -164,14 +164,14 @@ class SqlQuery {
 
         // Creates jOOQ SortField from Dari Sorter.
         for (Sorter sorter : query.getSorters()) {
-            SqlQuerySorter sqlQuerySorter = SqlQuerySorter.find(sorter.getOperator());
+            SqlSorter sqlSorter = SqlSorter.find(sorter.getOperator());
 
-            if (sqlQuerySorter == null) {
+            if (sqlSorter == null) {
                 throw new UnsupportedSorterException(database, sorter);
             }
 
             String queryKey = (String) sorter.getOptions().get(0);
-            SqlQueryJoin join = SqlQueryJoin.findOrCreate(this, queryKey);
+            SqlJoin join = SqlJoin.findOrCreate(this, queryKey);
 
             join.useLeftOuter();
 
@@ -185,7 +185,7 @@ class SqlQuery {
 
             } else {
                 orderByFields.add(
-                        sqlQuerySorter.createSortField(
+                        sqlSorter.createSortField(
                                 schema,
                                 join,
                                 sorter.getOptions()));
@@ -193,7 +193,7 @@ class SqlQuery {
         }
 
         // Join all index tables used so far.
-        for (SqlQueryJoin join : joins) {
+        for (SqlJoin join : joins) {
             if (!join.symbolIds.isEmpty()) {
                 table = table.join(join.table, forceLeftJoins || join.isLeftOuter() ? JoinType.LEFT_OUTER_JOIN : JoinType.JOIN)
                         .on(join.idField.eq(recordIdField))
@@ -284,13 +284,13 @@ class SqlQuery {
             String queryKey = comparisonPredicate.getKey();
             Query.MappedKey mappedKey = mappedKeys.get(queryKey);
             boolean isFieldCollection = mappedKey.isInternalCollectionType();
-            SqlQueryJoin join = null;
+            SqlJoin join = null;
 
             if (mappedKey.getField() != null
                     && parentPredicate instanceof CompoundPredicate
                     && PredicateParser.OR_OPERATOR.equals(parentPredicate.getOperator())) {
 
-                for (SqlQueryJoin j : joins) {
+                for (SqlJoin j : joins) {
                     if (j.parent == parentPredicate
                             && j.sqlIndex.equals(schema.findSelectIndexTable(mappedKeys.get(queryKey).getInternalType()))) {
 
@@ -303,15 +303,15 @@ class SqlQuery {
                 }
 
                 if (join == null) {
-                    join = SqlQueryJoin.findOrCreate(this, queryKey);
+                    join = SqlJoin.findOrCreate(this, queryKey);
                     join.parent = parentPredicate;
                 }
 
             } else if (isFieldCollection) {
-                join = SqlQueryJoin.create(this, queryKey);
+                join = SqlJoin.create(this, queryKey);
 
             } else {
-                join = SqlQueryJoin.findOrCreate(this, queryKey);
+                join = SqlJoin.findOrCreate(this, queryKey);
             }
 
             if (usesLeftJoin) {
@@ -413,10 +413,10 @@ class SqlQuery {
                 }
 
             } else {
-                SqlQueryComparison sqlQueryComparison = SqlQueryComparison.find(operator);
+                SqlComparison sqlComparison = SqlComparison.find(operator);
 
                 // e.g. field OP value1 OR field OP value2 OR ... field OP value#
-                if (sqlQueryComparison != null) {
+                if (sqlComparison != null) {
                     for (Object value : comparisonPredicate.resolveValues(database)) {
                         if (value == null) {
                             comparisonConditions.add(DSL.falseCondition());
@@ -442,7 +442,7 @@ class SqlQuery {
                             comparisonConditions.add(join.valueField.isNull());
 
                         } else {
-                            comparisonConditions.add(sqlQueryComparison.createCondition(join, value));
+                            comparisonConditions.add(sqlComparison.createCondition(join, value));
                         }
                     }
                 }
@@ -548,7 +548,7 @@ class SqlQuery {
             mappedKeys.put(groupKey, mappedKey);
             selectIndex(groupKey, mappedKey);
 
-            SqlQueryJoin join = SqlQueryJoin.findOrCreate(this, groupKey);
+            SqlJoin join = SqlJoin.findOrCreate(this, groupKey);
             Query<?> subQuery = mappedKey.getSubQueryWithGroupBy();
 
             if (subQuery == null) {

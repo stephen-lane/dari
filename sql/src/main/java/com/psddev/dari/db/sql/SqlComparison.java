@@ -5,23 +5,23 @@ import org.jooq.Condition;
 import org.jooq.Param;
 
 @FunctionalInterface
-interface SqlQueryComparison {
+interface SqlComparison {
 
     @SuppressWarnings("unchecked")
-    SqlQueryComparison CONTAINS = (join, value) -> join.valueField.like((Param) join.value("%" + value + "%"));
+    SqlComparison CONTAINS = (join, value) -> join.valueField.like((Param) join.value("%" + value + "%"));
 
     @SuppressWarnings("unchecked")
-    SqlQueryComparison STARTS_WITH = (join, value) -> join.valueField.like((Param) join.value(value + "%"));
+    SqlComparison STARTS_WITH = (join, value) -> join.valueField.like((Param) join.value(value + "%"));
 
-    SqlQueryComparison LESS_THAN = (join, value) -> join.valueField.lt(join.value(value));
+    SqlComparison LESS_THAN = (join, value) -> join.valueField.lt(join.value(value));
 
-    SqlQueryComparison LESS_THAN_OR_EQUALS = (join, value) -> join.valueField.le(join.value(value));
+    SqlComparison LESS_THAN_OR_EQUALS = (join, value) -> join.valueField.le(join.value(value));
 
-    SqlQueryComparison GREATER_THAN = (join, value) -> join.valueField.gt(join.value(value));
+    SqlComparison GREATER_THAN = (join, value) -> join.valueField.gt(join.value(value));
 
-    SqlQueryComparison GREATER_THAN_OR_EQUALS = (join, value) -> join.valueField.ge(join.value(value));
+    SqlComparison GREATER_THAN_OR_EQUALS = (join, value) -> join.valueField.ge(join.value(value));
 
-    static SqlQueryComparison find(String operator) {
+    static SqlComparison find(String operator) {
         switch (operator) {
             case PredicateParser.CONTAINS_OPERATOR :
                 return CONTAINS;
@@ -46,5 +46,5 @@ interface SqlQueryComparison {
         }
     }
 
-    Condition createCondition(SqlQueryJoin join, Object value);
+    Condition createCondition(SqlJoin join, Object value);
 }

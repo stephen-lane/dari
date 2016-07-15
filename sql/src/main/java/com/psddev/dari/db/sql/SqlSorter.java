@@ -10,17 +10,17 @@ import org.jooq.impl.DSL;
 import java.util.List;
 
 @FunctionalInterface
-interface SqlQuerySorter {
+interface SqlSorter {
 
-    SqlQuerySorter ASCENDING = (schema, join, options) -> join.valueField.sort(SortOrder.ASC);
+    SqlSorter ASCENDING = (schema, join, options) -> join.valueField.sort(SortOrder.ASC);
 
-    SqlQuerySorter DESCENDING = (schema, join, options) -> join.valueField.sort(SortOrder.DESC);
+    SqlSorter DESCENDING = (schema, join, options) -> join.valueField.sort(SortOrder.DESC);
 
-    SqlQuerySorter CLOSEST = (schema, join, options) -> distance(schema, join, options).sort(SortOrder.ASC);
+    SqlSorter CLOSEST = (schema, join, options) -> distance(schema, join, options).sort(SortOrder.ASC);
 
-    SqlQuerySorter FARTHEST = (schema, join, options) -> distance(schema, join, options).sort(SortOrder.DESC);
+    SqlSorter FARTHEST = (schema, join, options) -> distance(schema, join, options).sort(SortOrder.DESC);
 
-    static SqlQuerySorter find(String operator) {
+    static SqlSorter find(String operator) {
         switch (operator) {
             case Sorter.ASCENDING_OPERATOR :
                 return ASCENDING;
@@ -39,7 +39,7 @@ interface SqlQuerySorter {
         }
     }
 
-    static Field<Double> distance(SqlSchema schema, SqlQueryJoin join, List<Object> options) {
+    static Field<Double> distance(SqlSchema schema, SqlJoin join, List<Object> options) {
         if (!(join.sqlIndex instanceof LocationSqlIndex)) {
             throw new IllegalArgumentException("Can't sort by distance against non-location field!");
         }
@@ -50,5 +50,5 @@ interface SqlQuerySorter {
                         join.valueField));
     }
 
-    SortField<?> createSortField(SqlSchema schema, SqlQueryJoin join, List<Object> options);
+    SortField<?> createSortField(SqlSchema schema, SqlJoin join, List<Object> options);
 }
