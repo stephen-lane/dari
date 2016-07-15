@@ -2,22 +2,24 @@ package com.psddev.dari.db.sql;
 
 import com.psddev.dari.db.PredicateParser;
 import org.jooq.Condition;
-import org.jooq.Field;
+import org.jooq.Param;
 
 @FunctionalInterface
 interface SqlQueryComparison {
 
-    SqlQueryComparison CONTAINS = (field, value) -> field.like("%" + value + "%");
+    @SuppressWarnings("unchecked")
+    SqlQueryComparison CONTAINS = (join, value) -> join.valueField.like((Param) join.value("%" + value + "%"));
 
-    SqlQueryComparison STARTS_WITH = (field, value) -> field.like(value + "%");
+    @SuppressWarnings("unchecked")
+    SqlQueryComparison STARTS_WITH = (join, value) -> join.valueField.like((Param) join.value(value + "%"));
 
-    SqlQueryComparison LESS_THAN = Field::lt;
+    SqlQueryComparison LESS_THAN = (join, value) -> join.valueField.lt(join.value(value));
 
-    SqlQueryComparison LESS_THAN_OR_EQUALS = Field::le;
+    SqlQueryComparison LESS_THAN_OR_EQUALS = (join, value) -> join.valueField.le(join.value(value));
 
-    SqlQueryComparison GREATER_THAN = Field::gt;
+    SqlQueryComparison GREATER_THAN = (join, value) -> join.valueField.gt(join.value(value));
 
-    SqlQueryComparison GREATER_THAN_OR_EQUALS = Field::ge;
+    SqlQueryComparison GREATER_THAN_OR_EQUALS = (join, value) -> join.valueField.ge(join.value(value));
 
     static SqlQueryComparison find(String operator) {
         switch (operator) {
@@ -44,5 +46,5 @@ interface SqlQueryComparison {
         }
     }
 
-    Condition createCondition(Field<Object> field, Object value);
+    Condition createCondition(SqlQueryJoin join, Object value);
 }

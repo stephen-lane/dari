@@ -442,10 +442,7 @@ class SqlQuery {
                             comparisonConditions.add(join.valueField.isNull());
 
                         } else {
-                            comparisonConditions.add(
-                                    sqlQueryComparison.createCondition(
-                                            join.valueField,
-                                            join.value(value)));
+                            comparisonConditions.add(sqlQueryComparison.createCondition(join, value));
                         }
                     }
                 }
