@@ -24,7 +24,6 @@ import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -37,6 +36,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 
+import javax.annotation.ParametersAreNonnullByDefault;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
 import javax.sql.DataSource;
@@ -145,7 +145,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     private static final long NOW_EXPIRATION_SECONDS = 300;
     public static final long DEFAULT_DATA_CACHE_SIZE = 10000L;
 
-    private static final List<AbstractSqlDatabase> INSTANCES = new ArrayList<AbstractSqlDatabase>();
+    private static final List<AbstractSqlDatabase> INSTANCES = new ArrayList<>();
 
     {
         INSTANCES.add(this);
@@ -257,9 +257,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
     /** Closes all resources used by all instances. */
     public static void closeAll() {
-        for (AbstractSqlDatabase database : INSTANCES) {
-            database.close();
-        }
+        INSTANCES.forEach(AbstractSqlDatabase::close);
         INSTANCES.clear();
     }
 
@@ -286,7 +284,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     }
 
     private static final Map<String, Class<? extends SqlVendor>> VENDOR_CLASSES; static {
-        Map<String, Class<? extends SqlVendor>> m = new HashMap<String, Class<? extends SqlVendor>>();
+        Map<String, Class<? extends SqlVendor>> m = new HashMap<>();
         m.put("H2", SqlVendor.H2.class);
         m.put("MySQL", SqlVendor.MySQL.class);
         m.put("PostgreSQL", SqlVendor.PostgreSQL.class);
@@ -699,6 +697,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             .concurrencyLevel(20)
             .build(new CacheLoader<Query<?>, String>() {
                 @Override
+                @ParametersAreNonnullByDefault
                 public String load(Query<?> query) throws Exception {
                     return new SqlQuery(AbstractSqlDatabase.this, query).selectStatement();
                 }
@@ -799,7 +798,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
     @SuppressWarnings("unchecked")
     public static Map<String, Object> unserializeData(byte[] dataBytes) {
-        char format = '\0';
+        char format;
 
         while (true) {
             format = (char) dataBytes[0];
@@ -985,7 +984,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         Connection connection = null;
         Statement statement = null;
         ResultSet result = null;
-        List<T> objects = new ArrayList<T>();
+        List<T> objects = new ArrayList<>();
         int timeout = getQueryReadTimeout(query);
 
         try {
@@ -1019,17 +1018,8 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
      * Returns an iterable that selects all objects matching the given
      * {@code sqlQuery} with options from the given {@code query}.
      */
-    public <T> Iterable<T> selectIterableWithOptions(
-            final String sqlQuery,
-            final int fetchSize,
-            final Query<T> query) {
-
-        return new Iterable<T>() {
-            @Override
-            public Iterator<T> iterator() {
-                return new SqlIterator<T>(sqlQuery, fetchSize, query);
-            }
-        };
+    public <T> Iterable<T> selectIterableWithOptions(String sqlQuery, int fetchSize, Query<T> query) {
+        return () -> new SqlIterator<>(sqlQuery, fetchSize, query);
     }
 
     private class SqlIterator<T> implements java.io.Closeable, Iterator<T> {
@@ -1108,52 +1098,9 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         }
 
         @Override
-        protected void finalize() {
+        protected void finalize() throws Throwable {
+            super.finalize();
             close();
-        }
-    }
-
-    /**
-     * Fills the placeholders in the given {@code sqlQuery} with the given
-     * {@code parameters}.
-     */
-    private static String fillPlaceholders(String sqlQuery, Object... parameters) {
-        StringBuilder filled = new StringBuilder();
-        int prevPh = 0;
-        for (int ph, index = 0; (ph = sqlQuery.indexOf('?', prevPh)) > -1; ++ index) {
-            filled.append(sqlQuery.substring(prevPh, ph));
-            prevPh = ph + 1;
-            filled.append(quoteValue(parameters[index]));
-        }
-        filled.append(sqlQuery.substring(prevPh));
-        return filled.toString();
-    }
-
-    /**
-     * Reads the given {@code resultSet} into a list of maps
-     * and closes it.
-     */
-    public List<Map<String, Object>> readResultSet(ResultSet resultSet) throws SQLException {
-        try {
-            ResultSetMetaData meta = resultSet.getMetaData();
-            List<String> columnNames = new ArrayList<String>();
-            for (int i = 1, count = meta.getColumnCount(); i < count; ++ i) {
-                columnNames.add(meta.getColumnName(i));
-            }
-
-            List<Map<String, Object>> maps = new ArrayList<Map<String, Object>>();
-            while (resultSet.next()) {
-                Map<String, Object> map = new LinkedHashMap<String, Object>();
-                maps.add(map);
-                for (int i = 0, size = columnNames.size(); i < size; ++ i) {
-                    map.put(columnNames.get(i), resultSet.getObject(i + 1));
-                }
-            }
-
-            return maps;
-
-        } finally {
-            resultSet.close();
         }
     }
 
@@ -1360,7 +1307,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     }
 
     private static final Map<String, String> DRIVER_CLASS_NAMES; static {
-        Map<String, String> m = new HashMap<String, String>();
+        Map<String, String> m = new HashMap<>();
         m.put("h2", "org.h2.Driver");
         m.put("jtds", "net.sourceforge.jtds.jdbc.Driver");
         m.put("mysql", "com.mysql.jdbc.Driver");
@@ -1368,7 +1315,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         DRIVER_CLASS_NAMES = m;
     }
 
-    private static final Set<WeakReference<Driver>> REGISTERED_DRIVERS = new HashSet<WeakReference<Driver>>();
+    private static final Set<WeakReference<Driver>> REGISTERED_DRIVERS = new HashSet<>();
 
     private DataSource createDataSource(
             Map<String, Object> settings,
@@ -1452,9 +1399,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                         }
                     }
 
-                    if (driver != null) {
-                        REGISTERED_DRIVERS.add(new WeakReference<Driver>(driver));
-                    }
+                    REGISTERED_DRIVERS.add(new WeakReference<>(driver));
                 }
 
                 String user = ObjectUtils.to(String.class, settings.get(jdbcUserSetting));
@@ -1549,7 +1494,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         if (useJdbc) {
             return selectIterableWithOptions(buildSelectStatement(query), fetchSize, query);
         } else {
-            return new ByIdIterable<T>(query, fetchSize);
+            return new ByIdIterable<>(query, fetchSize);
         }
     }
 
@@ -1565,7 +1510,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
         @Override
         public Iterator<T> iterator() {
-            return new ByIdIterator<T>(query, fetchSize);
+            return new ByIdIterator<>(query, fetchSize);
         }
     }
 
@@ -1685,7 +1630,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
         int size = objects.size();
         if (size <= limit) {
-            return new PaginatedResult<T>(offset, limit, offset + size, objects);
+            return new PaginatedResult<>(offset, limit, offset + size, objects);
 
         } else {
             objects.remove(size - 1);
@@ -1718,7 +1663,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             }
         }
 
-        List<Grouping<T>> groupings = new ArrayList<Grouping<T>>();
+        List<Grouping<T>> groupings = new ArrayList<>();
         String sqlQuery = buildGroupStatement(query, fields);
         Connection connection = null;
         Statement statement = null;
@@ -1737,7 +1682,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                     continue;
                 }
 
-                List<Object> keys = new ArrayList<Object>();
+                List<Object> keys = new ArrayList<>();
 
                 SqlGrouping<T> grouping;
                 ResultSetMetaData meta = result.getMetaData();
@@ -1747,7 +1692,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                     for (int j = 0; j < fieldsLength; ++ j) {
                         keys.add(result.getObject(j + 2));
                     }
-                    grouping = new SqlGrouping<T>(keys, query, fields, count, groupings);
+                    grouping = new SqlGrouping<>(keys, query, fields, count, groupings);
                 } else {
                     throw new UnsupportedOperationException();
                 }
@@ -1755,7 +1700,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             }
 
             int groupingsSize = groupings.size();
-            List<Integer> removes = new ArrayList<Integer>();
+            List<Integer> removes = new ArrayList<>();
 
             for (int i = 0; i < fieldsLength; ++ i) {
                 Query.MappedKey key = query.mapEmbeddedKey(getEnvironment(), fields[i]);
@@ -1765,7 +1710,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                 }
 
                 if (field != null) {
-                    Map<String, Object> rawKeys = new HashMap<String, Object>();
+                    Map<String, Object> rawKeys = new HashMap<>();
                     for (int j = 0; j < groupingsSize; ++ j) {
                         rawKeys.put(String.valueOf(j), groupings.get(j).getKeys().get(i));
                     }
@@ -1773,13 +1718,13 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                     String itemType = field.getInternalItemType();
                     if (ObjectField.RECORD_TYPE.equals(itemType)) {
                         for (Map.Entry<String, Object> entry : rawKeys.entrySet()) {
-                            Map<String, Object> ref = new HashMap<String, Object>();
+                            Map<String, Object> ref = new HashMap<>();
                             ref.put(StateValueUtils.REFERENCE_KEY, entry.getValue());
                             entry.setValue(ref);
                         }
                     }
 
-                    Map<String, Object> rawKeysCopy = new HashMap<String, Object>(rawKeys);
+                    Map<String, Object> rawKeysCopy = new HashMap<>(rawKeys);
                     Map<?, ?> convertedKeys = (Map<?, ?>) StateValueUtils.toJavaValue(query.getDatabase(), null, field, "map/" + itemType, rawKeys);
 
                     for (int j = 0; j < groupingsSize; ++ j) {
@@ -1800,7 +1745,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                 groupings.remove((int) i);
             }
 
-            return new PaginatedResult<Grouping<T>>(offset, limit, groupingsCount - removes.size(), groupings);
+            return new PaginatedResult<>(offset, limit, groupingsCount - removes.size(), groupings);
 
         } catch (SQLException ex) {
             throw createQueryException(ex, sqlQuery, query);
@@ -1917,7 +1862,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         List<State> indexStates = null;
         for (State state1 : states) {
             if (Boolean.TRUE.equals(state1.getExtra(SKIP_INDEX_STATE_EXTRA))) {
-                indexStates = new ArrayList<State>();
+                indexStates = new ArrayList<>();
                 for (State state2 : states) {
                     if (!Boolean.TRUE.equals(state2.getExtra(SKIP_INDEX_STATE_EXTRA))) {
                         indexStates.add(state2);
