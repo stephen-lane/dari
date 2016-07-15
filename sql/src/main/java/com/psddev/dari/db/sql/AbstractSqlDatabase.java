@@ -1,17 +1,14 @@
 package com.psddev.dari.db.sql;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
-import java.sql.BatchUpdateException;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.Driver;
 import java.sql.DriverManager;
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -241,14 +238,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             }
         }
     };
-
-    /**
-     * Quotes the given {@code identifier} so that it's safe to use
-     * in a SQL query.
-     */
-    public static String quoteIdentifier(String identifier) {
-        return "\"" + StringUtils.replaceAll(identifier, "\\\\", "\\\\\\\\", "\"", "\"\"") + "\"";
-    }
 
     /**
      * Quotes the given {@code value} so that it's safe to use
@@ -1949,7 +1938,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             schema.deleteIndexes(this, connection, context, null, indexStates);
             schema.insertIndexes(this, connection, context, null, indexStates);
 
-            SqlVendor vendor = getVendor();
             double now = System.currentTimeMillis() / 1000.0;
 
             for (State state : states) {
@@ -2218,237 +2206,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                     } catch (SQLException ex) {
                         LOGGER.warn("Can't deregister [{}]!", driver);
                     }
-                }
-            }
-        }
-
-        /**
-         * Log a batch update exception with values.
-         */
-        static void logBatchUpdateException(BatchUpdateException bue, String sqlQuery, List<? extends List<?>> parameters) {
-            int i = 0;
-
-            StringBuilder errorBuilder = new StringBuilder();
-            for (int code : bue.getUpdateCounts()) {
-                if (code == Statement.EXECUTE_FAILED) {
-                    List<?> rowData = parameters.get(i);
-
-                    errorBuilder.append("Batch update failed with query '");
-                    errorBuilder.append(sqlQuery);
-                    errorBuilder.append("' with values (");
-                    int o = 0;
-                    for (Object value : rowData) {
-                        if (o++ != 0) {
-                            errorBuilder.append(", ");
-                        }
-
-                        if (value instanceof byte[]) {
-                            errorBuilder.append(StringUtils.hex((byte[]) value));
-                        } else {
-                            errorBuilder.append(value);
-                        }
-                    }
-                    errorBuilder.append(')');
-                }
-
-                i++;
-            }
-
-            Exception ex = bue.getNextException() != null ? bue.getNextException() : bue;
-            LOGGER.error(errorBuilder.toString(), ex);
-        }
-
-        static void logUpdateException(String sqlQuery, List<?> parameters) {
-            int i = 0;
-
-            StringBuilder errorBuilder = new StringBuilder();
-            errorBuilder.append("Batch update failed with query '");
-            errorBuilder.append(sqlQuery);
-            errorBuilder.append("' with values (");
-            for (Object value : parameters) {
-                if (i++ != 0) {
-                    errorBuilder.append(", ");
-                }
-
-                if (value instanceof byte[]) {
-                    errorBuilder.append(StringUtils.hex((byte[]) value));
-                } else {
-                    errorBuilder.append(value);
-                }
-            }
-            errorBuilder.append(')');
-
-            LOGGER.error(errorBuilder.toString());
-        }
-
-        // Safely binds the given parameter to the given statement at the
-        // given index.
-        private static void bindParameter(PreparedStatement statement, int index, Object parameter) throws SQLException {
-            if (parameter instanceof String) {
-                parameter = ((String) parameter).getBytes(StandardCharsets.UTF_8);
-            }
-
-            if (parameter instanceof StringBuilder) {
-                parameter = ((StringBuilder) parameter).toString();
-            }
-
-            if (parameter instanceof byte[]) {
-                byte[] parameterBytes = (byte[]) parameter;
-                int parameterBytesLength = parameterBytes.length;
-                if (parameterBytesLength > 2000) {
-                    statement.setBinaryStream(index, new ByteArrayInputStream(parameterBytes), parameterBytesLength);
-                    return;
-                }
-            }
-
-            statement.setObject(index, parameter);
-        }
-
-        /**
-         * Executes the given batch update {@code sqlQuery} with the given
-         * list of {@code parameters} within the given {@code connection}.
-         *
-         * @return Array of number of rows affected by the update query.
-         */
-        public static int[] executeBatchUpdate(
-                Connection connection,
-                String sqlQuery,
-                List<? extends List<?>> parameters) throws SQLException {
-
-            PreparedStatement prepared = connection.prepareStatement(sqlQuery);
-            List<?> currentRow = null;
-
-            try {
-                for (List<?> row : parameters) {
-                    currentRow = row;
-                    int columnIndex = 1;
-
-                    for (Object parameter : row) {
-                        bindParameter(prepared, columnIndex, parameter);
-                        columnIndex++;
-                    }
-
-                    prepared.addBatch();
-                }
-
-                int[] affected = null;
-                Stats.Timer timer = STATS.startTimer();
-                Profiler.Static.startThreadEvent(UPDATE_PROFILER_EVENT);
-
-                try {
-                    affected = prepared.executeBatch();
-
-                    return affected;
-
-                } finally {
-                    double time = timer.stop(UPDATE_STATS_OPERATION);
-                    Profiler.Static.stopThreadEvent(sqlQuery);
-
-                    if (LOGGER.isDebugEnabled()) {
-                        LOGGER.debug(
-                                "SQL batch update: [{}], Parameters: {}, Affected: {}, Time: [{}]ms",
-                                new Object[] { sqlQuery, parameters, affected != null ? Arrays.toString(affected) : "[]", time * 1000.0 });
-                    }
-                }
-
-            } catch (SQLException error) {
-                logUpdateException(sqlQuery, currentRow);
-                throw error;
-
-            } finally {
-                try {
-                    prepared.close();
-                } catch (SQLException error) {
-                    // Not likely and probably harmless.
-                }
-            }
-        }
-
-        /**
-         * Executes the given update {@code sqlQuery} with the given
-         * {@code parameters} within the given {@code connection}.
-         *
-         * @return Number of rows affected by the update query.
-         */
-        public static int executeUpdateWithArray(
-                SqlVendor vendor,
-                Connection connection,
-                String sqlQuery,
-                Object... parameters)
-                throws SQLException {
-
-            boolean hasParameters = parameters != null && parameters.length > 0;
-            PreparedStatement prepared;
-            Statement statement;
-
-            if (hasParameters) {
-                prepared = connection.prepareStatement(sqlQuery);
-                statement = prepared;
-
-            } else {
-                prepared = null;
-                statement = connection.createStatement();
-            }
-
-            try {
-                if (hasParameters) {
-                    for (int i = 0; i < parameters.length; i++) {
-                        bindParameter(prepared, i + 1, parameters[i]);
-                    }
-                }
-
-                Integer affected = null;
-                Stats.Timer timer = STATS.startTimer();
-                Profiler.Static.startThreadEvent(UPDATE_PROFILER_EVENT);
-                Savepoint savePoint = null;
-
-                try {
-                    if ((vendor == null || vendor.useSavepoint()) && !connection.getAutoCommit()) {
-                        savePoint = connection.setSavepoint();
-                    }
-
-                    affected = hasParameters
-                            ? prepared.executeUpdate()
-                            : statement.executeUpdate(sqlQuery);
-
-                    return affected;
-                } catch (SQLException sqlEx) {
-                    if (savePoint != null) {
-                        try {
-                            connection.rollback(savePoint);
-
-                        } catch (SQLException error) {
-                            // Safe to ignore?
-                        }
-                    }
-
-                    throw sqlEx;
-
-                } finally {
-                    if (savePoint != null) {
-                        try {
-                            connection.releaseSavepoint(savePoint);
-
-                        } catch (SQLException error) {
-                            // Safe to ignore?
-                        }
-                    }
-
-                    double time = timer.stop(UPDATE_STATS_OPERATION);
-                    Profiler.Static.stopThreadEvent(sqlQuery);
-
-                    if (LOGGER.isDebugEnabled()) {
-                        LOGGER.debug(
-                                "SQL update: [{}], Affected: [{}], Time: [{}]ms",
-                                new Object[] { fillPlaceholders(sqlQuery, parameters), affected, time * 1000.0 });
-                    }
-                }
-
-            } finally {
-                try {
-                    statement.close();
-                } catch (SQLException error) {
-                    // Not likely and probably harmless.
                 }
             }
         }
