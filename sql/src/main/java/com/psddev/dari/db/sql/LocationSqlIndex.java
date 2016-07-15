@@ -26,7 +26,7 @@ class LocationSqlIndex extends AbstractSqlIndex {
     }
 
     @Override
-    public Map<String, Object> createBindValues(AbstractSqlDatabase database, SqlSchema schema, ObjectIndex index, int fieldIndex, Object value) {
+    public Map<String, Object> valueBindValues(ObjectIndex index, Object value) {
         if (value instanceof Location) {
             Map<String, Object> bindValues = new CompactMap<>();
             bindValues.put(locationParam.getName(), ((Location) value).toWkt());

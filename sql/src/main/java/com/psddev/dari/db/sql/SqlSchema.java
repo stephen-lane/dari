@@ -369,7 +369,7 @@ public class SqlSchema {
                     boolean bound = false;
 
                     for (Object[] valuesArray : sqlIndexValue.getValuesArray()) {
-                        Map<String, Object> bindValues = sqlIndex.createBindValues(database, this, index, 0, valuesArray[0]);
+                        Map<String, Object> bindValues = sqlIndex.valueBindValues(index, valuesArray[0]);
 
                         if (bindValues != null) {
                             bindValues.put(idParam.getName(), id);

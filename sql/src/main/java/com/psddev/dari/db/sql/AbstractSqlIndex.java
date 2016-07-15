@@ -70,5 +70,5 @@ abstract class AbstractSqlIndex {
 
     public abstract Object valueParam();
 
-    public abstract Map<String, Object> createBindValues(AbstractSqlDatabase database, SqlSchema schema, ObjectIndex index, int fieldIndex, Object value);
+    public abstract Map<String, Object> valueBindValues(ObjectIndex index, Object value);
 }

@@ -25,7 +25,7 @@ class UuidSqlIndex extends AbstractSqlIndex {
     }
 
     @Override
-    public Map<String, Object> createBindValues(AbstractSqlDatabase database, SqlSchema schema, ObjectIndex index, int fieldIndex, Object value) {
+    public Map<String, Object> valueBindValues(ObjectIndex index, Object value) {
         UUID valueUuid = ObjectUtils.to(UUID.class, value);
 
         if (valueUuid == null) {

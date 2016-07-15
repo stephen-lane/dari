@@ -26,7 +26,7 @@ class StringSqlIndex extends AbstractSqlIndex {
     }
 
     @Override
-    public Map<String, Object> createBindValues(AbstractSqlDatabase database, SqlSchema schema, ObjectIndex index, int fieldIndex, Object value) {
+    public Map<String, Object> valueBindValues(ObjectIndex index, Object value) {
         String valueString = ObjectUtils.to(String.class, value);
 
         if (ObjectUtils.isBlank(valueString)) {
