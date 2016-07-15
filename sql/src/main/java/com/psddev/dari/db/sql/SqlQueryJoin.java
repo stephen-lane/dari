@@ -183,7 +183,7 @@ final class SqlQueryJoin {
                 valueString = valueString.toLowerCase(Locale.ENGLISH);
             }
 
-            return DSL.inline(valueString, sqlQuery.schema.byteStringType());
+            return DSL.inline(valueString, sqlQuery.schema.stringIndexType());
 
         } else if (sqlIndex instanceof UuidSqlIndex) {
             return DSL.inline(ObjectUtils.to(UUID.class, value), sqlQuery.schema.uuidType());

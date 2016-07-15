@@ -17,7 +17,7 @@ class StringSqlIndex extends AbstractSqlIndex {
     public StringSqlIndex(SqlSchema schema, String namePrefix, int version) {
         super(schema, namePrefix, version);
 
-        this.valueParam = DSL.param("value", schema.byteStringType());
+        this.valueParam = DSL.param("value", schema.stringIndexType());
     }
 
     @Override

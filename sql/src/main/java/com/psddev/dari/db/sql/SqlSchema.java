@@ -33,7 +33,9 @@ import java.util.stream.Collectors;
 
 public class SqlSchema {
 
-    private static final DataType<String> BYTE_STRING_TYPE = SQLDataType.LONGVARBINARY.asConvertedDataType(new Converter<byte[], String>() {
+    private static final int MAX_STRING_INDEX_TYPE_LENGTH = 500;
+
+    private static final DataType<String> STRING_INDEX_TYPE = SQLDataType.LONGVARBINARY.asConvertedDataType(new Converter<byte[], String>() {
 
         @Override
         public String from(byte[] bytes) {
@@ -42,7 +44,21 @@ public class SqlSchema {
 
         @Override
         public byte[] to(String string) {
-            return string != null ? string.getBytes(StandardCharsets.UTF_8) : null;
+            if (string != null) {
+                byte[] bytes = string.getBytes(StandardCharsets.UTF_8);
+
+                if (bytes.length <= MAX_STRING_INDEX_TYPE_LENGTH) {
+                    return bytes;
+
+                } else {
+                    byte[] shortened = new byte[MAX_STRING_INDEX_TYPE_LENGTH];
+                    System.arraycopy(bytes, 0, shortened, 0, MAX_STRING_INDEX_TYPE_LENGTH);
+                    return shortened;
+                }
+
+            } else {
+                return null;
+            }
         }
 
         @Override
@@ -79,9 +95,9 @@ public class SqlSchema {
 
     protected SqlSchema(AbstractSqlDatabase database) {
         DataType<byte[]> byteArrayType = byteArrayType();
-        DataType<String> byteStringType = byteStringType();
         DataType<Double> doubleType = doubleType();
         DataType<Integer> integerType = integerType();
+        DataType<String> stringIndexType = stringIndexType();
         DataType<UUID> uuidType = uuidType();
 
         recordTable = DSL.table(DSL.name("Record"));
@@ -96,7 +112,7 @@ public class SqlSchema {
 
         symbolTable = DSL.table(DSL.name("Symbol"));
         symbolIdField = DSL.field(DSL.name("symbolId"), integerType);
-        symbolValueField = DSL.field(DSL.name("value"), byteStringType);
+        symbolValueField = DSL.field(DSL.name("value"), stringIndexType);
 
         numberSqlIndexes = supportedTables(database, new NumberSqlIndex(this, "RecordNumber", 3));
         stringSqlIndexes = supportedTables(database, new StringSqlIndex(this, "RecordString", 4));
@@ -173,16 +189,16 @@ public class SqlSchema {
         return SQLDataType.LONGVARBINARY;
     }
 
-    public DataType<String> byteStringType() {
-        return BYTE_STRING_TYPE;
-    }
-
     public DataType<Double> doubleType() {
         return SQLDataType.DOUBLE;
     }
 
     public DataType<Integer> integerType() {
         return SQLDataType.INTEGER;
+    }
+
+    public DataType<String> stringIndexType() {
+        return STRING_INDEX_TYPE;
     }
 
     public DataType<UUID> uuidType() {
