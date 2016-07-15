@@ -243,12 +243,11 @@ public class MySQLDatabase extends AbstractSqlDatabase {
             try {
                 Connection connection = null;
                 String sqlQuery = null;
-                ConnectionRef extraConnectionRef = new ConnectionRef();
                 Statement statement = null;
                 ResultSet result = null;
 
                 try {
-                    connection = extraConnectionRef.getOrOpen(query);
+                    connection = openQueryConnection(query);
 
                     try (DSLContext context = openContext(connection)) {
                         SqlSchema schema = schema();
@@ -301,7 +300,6 @@ public class MySQLDatabase extends AbstractSqlDatabase {
 
                 } finally {
                     closeResources(query, connection, statement, result);
-                    extraConnectionRef.close();
                 }
 
             } finally {
