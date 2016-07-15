@@ -1118,10 +1118,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             Connection connection = getConnectionFromDataSource(dataSource);
 
             connection.setReadOnly(false);
-
-            if (vendor != null) {
-                vendor.setTransactionIsolation(connection);
-            }
+            schema().setTransactionIsolation(connection);
 
             return connection;
 

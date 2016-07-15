@@ -266,6 +266,18 @@ public class SqlSchema {
     }
 
     /**
+     * Sets the most appropriate transaction isolation on the given
+     * {@code connection} in preparation for writing to the database.
+     *
+     * <p>The default implementation sets it to READ COMMITTED.</p>
+     *
+     * @param connection Can't be {@code null}.
+     */
+    public void setTransactionIsolation(Connection connection) throws SQLException {
+        connection.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
+    }
+
+    /**
      * Finds the index table that should be used with SELECT SQL queries.
      *
      * @param type May be {@code null}.

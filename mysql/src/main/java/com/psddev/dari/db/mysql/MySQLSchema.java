@@ -8,10 +8,18 @@ import org.jooq.DataType;
 import org.jooq.Field;
 import org.jooq.impl.DSL;
 import org.jooq.util.mysql.MySQLDataType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.UUID;
 
 public class MySQLSchema extends SqlSchema {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(MySQLSchema.class);
 
     private static final DataType<UUID> UUID_TYPE = MySQLDataType.BINARY.asConvertedDataType(new Converter<byte[], UUID>() {
 
@@ -35,6 +43,8 @@ public class MySQLSchema extends SqlSchema {
             return UUID.class;
         }
     });
+
+    private volatile Boolean binlogFormatStatement;
 
     protected MySQLSchema(MySQLDatabase database) {
         super(database);
@@ -63,5 +73,47 @@ public class MySQLSchema extends SqlSchema {
     @Override
     public Field<Object> stMakeLine(Field<Object> x, Field<Object> y) {
         return DSL.field("LineString({0}, {1})", x, y);
+    }
+
+    @Override
+    public void setTransactionIsolation(Connection connection) throws SQLException {
+        if (binlogFormatStatement == null) {
+            synchronized (this) {
+                if (binlogFormatStatement == null) {
+                    try (Statement statement = connection.createStatement();
+                            ResultSet result = statement.executeQuery("SHOW VARIABLES WHERE variable_name IN ('log_bin', 'binlog_format')")) {
+
+                        boolean logBin = false;
+
+                        while (result.next()) {
+                            String name = result.getString(1);
+                            String value = result.getString(2);
+
+                            if ("binlog_format".equalsIgnoreCase(name)) {
+                                binlogFormatStatement = "STATEMENT".equalsIgnoreCase(value);
+
+                            } else if ("log_bin".equalsIgnoreCase(name)) {
+                                logBin = !"OFF".equalsIgnoreCase(value);
+                            }
+                        }
+
+                        binlogFormatStatement = logBin && Boolean.TRUE.equals(binlogFormatStatement);
+
+                        if (binlogFormatStatement) {
+                            LOGGER.warn("Can't set transaction isolation to"
+                                    + " READ COMMITTED because binlog_format"
+                                    + " is set to STATEMENT. Please set it to"
+                                    + " MIXED (my.cnf: binlog_format = mixed)"
+                                    + " to prevent reduced performance under"
+                                    + " load.");
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!binlogFormatStatement) {
+            connection.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
+        }
     }
 }
