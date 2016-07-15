@@ -2,7 +2,6 @@ package com.psddev.dari.db.sql;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -46,7 +45,7 @@ class SqlQuery {
     private final RenderContext tableRenderContext;
     protected final RenderContext renderContext;
 
-    private final String recordTableAlias;
+    protected final String recordTableAlias;
     private final Table<?> recordTable;
     protected final Field<UUID> recordIdField;
     protected final Field<UUID> recordTypeIdField;
@@ -56,12 +55,11 @@ class SqlQuery {
     private Condition whereCondition;
     private final List<SortField<?>> orderByFields = new ArrayList<>();
     protected final List<SqlJoin> joins = new ArrayList<>();
-    private final Map<Query<?>, String> subQueries = new LinkedHashMap<>();
-    private final Map<Query<?>, SqlQuery> subSqlQueries = new HashMap<>();
+    protected final List<SqlSubJoin> subJoins = new ArrayList<>();
 
-    private boolean needsDistinct;
+    protected boolean needsDistinct;
     protected SqlJoin mysqlIndexHint;
-    private boolean forceLeftJoins;
+    protected boolean forceLeftJoins;
 
     /**
      * Creates an instance that can translate the given {@code query}
@@ -132,20 +130,7 @@ class SqlQuery {
         return field != null ? DSL.field(DSL.name(aliasPrefix + alias, field)) : null;
     }
 
-    private SqlQuery getOrCreateSubSqlQuery(Query<?> subQuery, boolean forceLeftJoins) {
-        SqlQuery subSqlQuery = subSqlQueries.get(subQuery);
-
-        if (subSqlQuery == null) {
-            subSqlQuery = new SqlQuery(database, subQuery, aliasPrefix + "s" + subSqlQueries.size());
-            subSqlQuery.forceLeftJoins = forceLeftJoins;
-
-            subSqlQueries.put(subQuery, subSqlQuery);
-        }
-
-        return subSqlQuery;
-    }
-
-    private Table<?> initialize(Table<?> table) {
+    protected Table<?> initialize(Table<?> table) {
 
         // Build the WHERE clause.
         whereCondition = query.isFromAll()
@@ -178,10 +163,10 @@ class SqlQuery {
             Query<?> subQuery = mappedKeys.get(queryKey).getSubQueryWithSorter(sorter, 0);
 
             if (subQuery != null) {
-                SqlQuery subSqlQuery = getOrCreateSubSqlQuery(subQuery, true);
-
-                subQueries.put(subQuery, renderContext.render(join.valueField) + " = ");
-                orderByFields.addAll(subSqlQuery.orderByFields);
+                orderByFields.addAll(
+                        SqlSubJoin.create(this, subQuery, true, join, true)
+                                .sqlQuery
+                                .orderByFields);
 
             } else {
                 orderByFields.add(
@@ -203,20 +188,8 @@ class SqlQuery {
         }
 
         // Join all index tables used in sub-queries.
-        for (Map.Entry<Query<?>, String> entry : subQueries.entrySet()) {
-            Query<?> subQuery = entry.getKey();
-            SqlQuery subSqlQuery = getOrCreateSubSqlQuery(subQuery, false);
-            String alias = subSqlQuery.recordTableAlias;
-
-            table = subSqlQuery.initialize(
-                    table.join(DSL.table(DSL.name(schema.recordTable().getName())).as(alias))
-                            .on(entry.getValue() + renderContext.render(DSL.field(DSL.name(alias, schema.recordIdField().getName())))));
-
-            whereCondition = whereCondition.and(subSqlQuery.whereCondition);
-
-            if (subSqlQuery.needsDistinct) {
-                needsDistinct = true;
-            }
+        for (SqlSubJoin subJoin : subJoins) {
+            table = table.join(subJoin.table).on(subJoin.on);
         }
 
         return table;
@@ -340,9 +313,9 @@ class SqlQuery {
                             : join.valueField.in(subQueryTable);
 
                 } else {
-                    SqlQuery subSqlQuery = getOrCreateSubSqlQuery(valueQuery, join.isLeftOuter());
-                    subQueries.put(valueQuery, renderContext.render(join.valueField) + (isNotEqualsAll ? " != " : " = "));
-                    return subSqlQuery.whereCondition;
+                    return SqlSubJoin.create(this, valueQuery, join.isLeftOuter(), join, !isNotEqualsAll)
+                            .sqlQuery
+                            .whereCondition;
                 }
             }
 
@@ -555,10 +528,10 @@ class SqlQuery {
                 groupByFields.add(join.valueField);
 
             } else {
-                SqlQuery subSqlQuery = getOrCreateSubSqlQuery(subQuery, true);
-
-                subQueries.put(subQuery, renderContext.render(join.valueField) + " = ");
-                subSqlQuery.joins.forEach(j -> groupByFields.add(j.valueField));
+                SqlSubJoin.create(this, subQuery, true, join, true)
+                        .sqlQuery
+                        .joins
+                        .forEach(j -> groupByFields.add(j.valueField));
             }
         }
 
