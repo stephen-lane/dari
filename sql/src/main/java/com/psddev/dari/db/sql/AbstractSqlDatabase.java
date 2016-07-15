@@ -48,7 +48,6 @@ import com.psddev.dari.db.AbstractGrouping;
 import com.psddev.dari.db.AtomicOperation;
 import com.psddev.dari.db.DatabaseException;
 import com.psddev.dari.db.Grouping;
-import com.psddev.dari.db.MetricAccess;
 import com.psddev.dari.db.MetricSqlDatabase;
 import com.psddev.dari.db.ObjectField;
 import com.psddev.dari.db.ObjectIndex;
@@ -327,7 +326,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                                 new Object[] { getName(), vendorName, vendorClass });
 
                         vendor = vendorClass != null ? TypeDefinition.getInstance(vendorClass).newInstance() : new SqlVendor();
-                        vendor.setDatabase(this);
 
                     } finally {
                         closeConnection(connection);
@@ -393,19 +391,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             this.metricCatalog = null;
 
         } else {
-            StringBuilder str = new StringBuilder();
-
-            vendor.appendIdentifier(str, metricCatalog);
-            str.append(".");
-            vendor.appendIdentifier(str, MetricAccess.METRIC_TABLE);
-
-            if (getVendor().checkTableExists(str.toString())) {
-                this.metricCatalog = metricCatalog;
-
-            } else {
-                LOGGER.error("SqlDatabase#setMetricCatalog error: " + str.toString() + " does not exist or is not accessible. Falling back to default catalog.");
-                this.metricCatalog = null;
-            }
+            this.metricCatalog = metricCatalog;
         }
     }
 
@@ -1116,9 +1102,13 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
         try {
             Connection connection = getConnectionFromDataSource(dataSource);
+            SqlSchema schema = schema();
 
             connection.setReadOnly(false);
-            schema().setTransactionIsolation(connection);
+
+            if (schema != null) {
+                schema.setTransactionIsolation(connection);
+            }
 
             return connection;
 

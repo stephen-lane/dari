@@ -8,17 +8,19 @@ import com.psddev.dari.db.Predicate;
 import com.psddev.dari.db.PredicateParser;
 import com.psddev.dari.db.Query;
 import com.psddev.dari.db.Singleton;
+import com.psddev.dari.db.SqlVendor;
 import com.psddev.dari.db.State;
 import com.psddev.dari.db.StateValueUtils;
 import com.psddev.dari.db.sql.AbstractSqlDatabase;
 import com.psddev.dari.db.sql.SqlSchema;
-import com.psddev.dari.db.sql.SqlVendor;
 import com.psddev.dari.util.CompactMap;
 import com.psddev.dari.util.Lazy;
 import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.Profiler;
 import com.psddev.dari.util.UuidUtils;
+import org.jooq.DSLContext;
 import org.jooq.SQLDialect;
+import org.jooq.conf.ParamType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -91,8 +93,8 @@ public class MySQLDatabase extends AbstractSqlDatabase {
     }
 
     @Override
-    public com.psddev.dari.db.SqlVendor getMetricVendor() {
-        return new com.psddev.dari.db.SqlVendor.MySQL();
+    public SqlVendor getMetricVendor() {
+        return new SqlVendor.MySQL();
     }
 
     @Override
@@ -239,38 +241,25 @@ public class MySQLDatabase extends AbstractSqlDatabase {
             Profiler.Static.startThreadEvent(REPLICATION_CACHE_PUT_PROFILER_EVENT);
 
             try {
-                SqlVendor vendor = getVendor();
-                StringBuilder sqlQuery = new StringBuilder();
-
-                sqlQuery.append("SELECT ");
-                vendor.appendIdentifier(sqlQuery, TYPE_ID_COLUMN);
-                sqlQuery.append(", ");
-                vendor.appendIdentifier(sqlQuery, DATA_COLUMN);
-                sqlQuery.append(", ");
-                vendor.appendIdentifier(sqlQuery, ID_COLUMN);
-                sqlQuery.append(" FROM ");
-                vendor.appendIdentifier(sqlQuery, RECORD_TABLE);
-                sqlQuery.append(" WHERE ");
-                vendor.appendIdentifier(sqlQuery, ID_COLUMN);
-                sqlQuery.append(" IN (");
-
-                for (UUID missingId : missingIds) {
-                    vendor.appendUuid(sqlQuery, missingId);
-                    sqlQuery.append(", ");
-                }
-
-                sqlQuery.setLength(sqlQuery.length() - 2);
-                sqlQuery.append(")");
-
                 Connection connection = null;
+                String sqlQuery = null;
                 ConnectionRef extraConnectionRef = new ConnectionRef();
                 Statement statement = null;
                 ResultSet result = null;
 
                 try {
                     connection = extraConnectionRef.getOrOpen(query);
+
+                    try (DSLContext context = openContext(connection)) {
+                        SqlSchema schema = schema();
+                        sqlQuery = context.select(schema.recordTypeIdField(), schema.recordDataField(), schema.recordIdField())
+                                .from(schema.recordTable())
+                                .where(schema.recordIdField().in(missingIds))
+                                .getSQL(ParamType.INLINED);
+                    }
+
                     statement = connection.createStatement();
-                    result = executeQueryBeforeTimeout(statement, sqlQuery.toString(), 0);
+                    result = executeQueryBeforeTimeout(statement, sqlQuery, 0);
 
                     while (result.next()) {
                         UUID id = ObjectUtils.to(UUID.class, result.getBytes(3));
@@ -308,7 +297,7 @@ public class MySQLDatabase extends AbstractSqlDatabase {
                     }
 
                 } catch (SQLException error) {
-                    throw createQueryException(error, sqlQuery.toString(), query);
+                    throw createQueryException(error, sqlQuery, query);
 
                 } finally {
                     closeResources(query, connection, statement, result);
