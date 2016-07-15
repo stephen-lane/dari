@@ -31,10 +31,10 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 public class MySQLDatabase extends AbstractSqlDatabase {
 
@@ -119,11 +119,12 @@ public class MySQLDatabase extends AbstractSqlDatabase {
     }
 
     // Creates a previously saved object from the replication cache.
+    @SuppressWarnings("unchecked")
     public <T> T createSavedObjectFromReplicationCache(byte[] typeId, UUID id, byte[] data, Map<String, Object> dataJson, Query<T> query) {
         T object = createSavedObject(typeId, id, query);
         State objectState = State.getInstance(object);
 
-        objectState.setValues(cloneDataJson(dataJson));
+        objectState.setValues((Map<String, Object>) cloneJson(dataJson));
 
         Boolean returnOriginal = query != null ? ObjectUtils.to(Boolean.class, query.getOptions().get(RETURN_ORIGINAL_DATA_QUERY_OPTION)) : null;
 
@@ -139,33 +140,21 @@ public class MySQLDatabase extends AbstractSqlDatabase {
     }
 
     @SuppressWarnings("unchecked")
-    private static Map<String, Object> cloneDataJson(Map<String, Object> dataJson) {
-        return (Map<String, Object>) cloneDataJsonRecursively(dataJson);
-    }
-
-    private static Object cloneDataJsonRecursively(Object object) {
+    private static Object cloneJson(Object object) {
         if (object instanceof Map) {
-            Map<?, ?> objectMap = (Map<?, ?>) object;
-            int objectMapSize = objectMap.size();
-            Map<String, Object> clone = objectMapSize <= 8
-                    ? new CompactMap<String, Object>()
-                    : new LinkedHashMap<String, Object>(objectMapSize);
+            Map<String, Object> map = (Map<String, Object>) object;
+            Map<String, Object> clone = new CompactMap<>(map.size());
 
-            for (Map.Entry<?, ?> entry : objectMap.entrySet()) {
-                clone.put((String) entry.getKey(), cloneDataJsonRecursively(entry.getValue()));
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                clone.put((String) entry.getKey(), cloneJson(entry.getValue()));
             }
 
             return clone;
 
         } else if (object instanceof List) {
-            List<?> objectList = (List<?>) object;
-            List<Object> clone = new ArrayList<Object>(objectList.size());
-
-            for (Object item : objectList) {
-                clone.add(cloneDataJsonRecursively(item));
-            }
-
-            return clone;
+            return ((List<Object>) object).stream()
+                    .map(MySQLDatabase::cloneJson)
+                    .collect(Collectors.toList());
 
         } else {
             return object;
@@ -175,12 +164,11 @@ public class MySQLDatabase extends AbstractSqlDatabase {
     // Tries to find objects by the given ids from the replication cache.
     // If not found, execute the given query to populate it.
     private <T> List<T> findObjectsFromReplicationCache(List<Object> ids, Query<T> query) {
-        List<T> objects = null;
-
         if (ids == null || ids.isEmpty()) {
-            return objects;
+            return null;
         }
 
+        List<T> objects = null;
         List<UUID> missingIds = null;
 
         Profiler.Static.startThreadEvent(REPLICATION_CACHE_GET_PROFILER_EVENT);
@@ -200,14 +188,14 @@ public class MySQLDatabase extends AbstractSqlDatabase {
 
                 if (value == null) {
                     if (missingIds == null) {
-                        missingIds = new ArrayList<UUID>();
+                        missingIds = new ArrayList<>();
                     }
 
                     missingIds.add(id);
                     continue;
                 }
 
-                UUID typeId = ObjectUtils.to(UUID.class, (byte[]) value[0]);
+                UUID typeId = ObjectUtils.to(UUID.class, value[0]);
 
                 ObjectType type = typeId != null ? ObjectType.getInstance(typeId) : null;
 
@@ -226,7 +214,7 @@ public class MySQLDatabase extends AbstractSqlDatabase {
 
                 if (object != null) {
                     if (objects == null) {
-                        objects = new ArrayList<T>();
+                        objects = new ArrayList<>();
                     }
 
                     objects.add(object);
@@ -288,7 +276,7 @@ public class MySQLDatabase extends AbstractSqlDatabase {
 
                         if (object != null) {
                             if (objects == null) {
-                                objects = new ArrayList<T>();
+                                objects = new ArrayList<>();
                             }
 
                             objects.add(object);
@@ -352,7 +340,7 @@ public class MySQLDatabase extends AbstractSqlDatabase {
             if (ids != null && !ids.isEmpty()) {
                 List<T> objects = findObjectsFromReplicationCache(ids, query);
 
-                return objects != null ? objects : new ArrayList<T>();
+                return objects != null ? objects : new ArrayList<>();
             }
         }
 
