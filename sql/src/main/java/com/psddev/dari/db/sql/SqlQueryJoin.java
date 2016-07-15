@@ -173,23 +173,8 @@ final class SqlQueryJoin {
                     return value;
             }
 
-        } else if (sqlIndex instanceof NumberSqlIndex) {
-            return DSL.inline(ObjectUtils.to(double.class, value), sqlQuery.schema.doubleType());
-
-        } else if (sqlIndex instanceof StringSqlIndex) {
-            String valueString = StringUtils.trimAndCollapseWhitespaces(value.toString());
-
-            if (!index.isCaseSensitive()) {
-                valueString = valueString.toLowerCase(Locale.ENGLISH);
-            }
-
-            return DSL.inline(valueString, sqlQuery.schema.stringIndexType());
-
-        } else if (sqlIndex instanceof UuidSqlIndex) {
-            return DSL.inline(ObjectUtils.to(UUID.class, value), sqlQuery.schema.uuidType());
-
         } else {
-            return value;
+            return sqlIndex.valueInline(index, value);
         }
     }
 }

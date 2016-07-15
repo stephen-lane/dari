@@ -25,8 +25,7 @@ class StringSqlIndex extends AbstractSqlIndex {
         return valueParam;
     }
 
-    @Override
-    public Map<String, Object> valueBindValues(ObjectIndex index, Object value) {
+    private String valueString(ObjectIndex index, Object value) {
         String valueString = ObjectUtils.to(String.class, value);
 
         if (ObjectUtils.isBlank(valueString)) {
@@ -39,9 +38,26 @@ class StringSqlIndex extends AbstractSqlIndex {
                 valueString = valueString.toLowerCase(Locale.ENGLISH);
             }
 
+            return valueString;
+        }
+    }
+
+    @Override
+    public Map<String, Object> valueBindValues(ObjectIndex index, Object value) {
+        String valueString = valueString(index, value);
+
+        if (valueString == null) {
+            return null;
+
+        } else {
             Map<String, Object> bindValues = new CompactMap<>();
             bindValues.put(valueParam.getName(), valueString);
             return bindValues;
         }
+    }
+
+    @Override
+    public Param<?> valueInline(ObjectIndex index, Object value) {
+        return DSL.inline(valueString(index, value), schema.stringIndexType());
     }
 }

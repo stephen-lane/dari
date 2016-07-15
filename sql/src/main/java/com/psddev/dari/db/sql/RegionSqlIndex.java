@@ -36,4 +36,11 @@ class RegionSqlIndex extends AbstractSqlIndex {
             return null;
         }
     }
+
+    @Override
+    public Param<?> valueInline(ObjectIndex index, Object value) {
+        return value instanceof Region
+                ? DSL.inline(schema.stGeomFromText(DSL.inline(((Region) value).toMultiPolygonWkt(), String.class)))
+                : null;
+    }
 }

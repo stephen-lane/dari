@@ -36,4 +36,11 @@ class LocationSqlIndex extends AbstractSqlIndex {
             return null;
         }
     }
+
+    @Override
+    public Param<?> valueInline(ObjectIndex index, Object value) {
+        return value instanceof Location
+                ? DSL.inline(schema.stGeomFromText(DSL.inline(((Location) value).toWkt(), String.class)))
+                : null;
+    }
 }

@@ -37,4 +37,9 @@ class UuidSqlIndex extends AbstractSqlIndex {
             return bindValues;
         }
     }
+
+    @Override
+    public Param<?> valueInline(ObjectIndex index, Object value) {
+        return DSL.inline(ObjectUtils.to(UUID.class, value), schema.uuidType());
+    }
 }

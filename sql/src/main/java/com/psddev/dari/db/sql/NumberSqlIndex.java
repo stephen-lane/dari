@@ -36,4 +36,9 @@ class NumberSqlIndex extends AbstractSqlIndex {
             return bindValues;
         }
     }
+
+    @Override
+    public Param<?> valueInline(ObjectIndex index, Object value) {
+        return DSL.inline(ObjectUtils.to(Double.class, value), schema.doubleType());
+    }
 }
