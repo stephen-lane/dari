@@ -8,7 +8,7 @@ import org.jooq.impl.DSL;
 
 import java.util.List;
 
-class SqlSubJoin {
+final class SqlSubJoin {
 
     public final SqlQuery sqlQuery;
     public final Table<?> table;
