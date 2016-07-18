@@ -59,10 +59,13 @@ import com.psddev.dari.db.UpdateNotifier;
 import com.zaxxer.hikari.HikariDataSource;
 import org.iq80.snappy.Snappy;
 import org.jooq.DSLContext;
+import org.jooq.Field;
+import org.jooq.Record;
 import org.jooq.Record1;
 import org.jooq.Record2;
 import org.jooq.ResultQuery;
 import org.jooq.SQLDialect;
+import org.jooq.Table;
 import org.jooq.conf.ParamType;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
@@ -559,12 +562,19 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
         try (DSLContext context = openContext(connection)) {
             SqlSchema schema = schema();
+            Table<Record> symbolTable = schema.symbolTable();
+            Field<Integer> symbolIdField = schema.symbolIdField();
+            Field<String> symbolValueField = schema.symbolValueField();
 
             if (create) {
                 org.jooq.Query createQuery = context
-                        .insertInto(schema.symbolTable(), schema.symbolValueField())
-                        .values(symbol)
-                        .onDuplicateKeyIgnore();
+                        .insertInto(symbolTable, symbolValueField)
+                        .select(context
+                                .select(DSL.inline(symbol, schema.stringIndexType()))
+                                .whereNotExists(context
+                                        .selectOne()
+                                        .from(symbolTable)
+                                        .where(symbolValueField.eq(symbol))));
 
                 try {
                     createQuery.execute();
@@ -575,9 +585,9 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             }
 
             ResultQuery<Record1<Integer>> selectQuery = context
-                    .select(schema.symbolIdField())
-                    .from(schema.symbolTable())
-                    .where(schema.symbolValueField().eq(symbol));
+                    .select(symbolIdField)
+                    .from(symbolTable)
+                    .where(symbolValueField.eq(symbol));
 
             try {
                 id = selectQuery
