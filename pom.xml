@@ -34,6 +34,7 @@
         <module>db</module>
         <module>elasticsearch</module>
         <module>grandparent</module>
+        <module>h2</module>
         <module>image</module>
         <module>jclouds</module>
         <module>mail</module>

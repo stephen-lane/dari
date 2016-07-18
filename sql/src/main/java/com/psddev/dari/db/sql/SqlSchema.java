@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
 
 public class SqlSchema {
 
-    private static final int MAX_STRING_INDEX_TYPE_LENGTH = 500;
+    public static final int MAX_STRING_INDEX_TYPE_LENGTH = 500;
 
     private static final DataType<String> STRING_INDEX_TYPE = SQLDataType.LONGVARBINARY.asConvertedDataType(new Converter<byte[], String>() {
 
