@@ -5,6 +5,7 @@ import com.google.common.collect.ImmutableList;
 import com.psddev.dari.db.ObjectField;
 import com.psddev.dari.db.ObjectIndex;
 import com.psddev.dari.db.State;
+import com.psddev.dari.util.IoUtils;
 import org.jooq.BatchBindStep;
 import org.jooq.Condition;
 import org.jooq.Converter;
@@ -19,6 +20,8 @@ import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -264,6 +267,84 @@ public class SqlSchema {
 
     public Field<String> symbolValueField() {
         return symbolValueField;
+    }
+
+    /**
+     * Sets up the given {@code database}.
+     *
+     * <p>This method should create all the necessary elements, such as tables,
+     * that are required for proper operation.</p>
+     *
+     * <p>The default implementation executes all SQL statements from
+     * the resource at {@link #setUpResourcePath()} and processes the errors
+     * using {@link #catchSetUpError(SQLException)}.</p>
+     *
+     * @param database Can't be {@code null}.
+     */
+    public void setUp(AbstractSqlDatabase database) throws IOException, SQLException {
+        String resourcePath = setUpResourcePath();
+
+        if (resourcePath == null) {
+            return;
+        }
+
+        Connection connection = database.openConnection();
+
+        try (DSLContext context = database.openContext(connection)) {
+
+            // Skip set-up if the Record table already exists.
+            if (context.meta().getTables().stream()
+                    .filter(t -> t.getName().equals(recordTable().getName()))
+                    .findFirst()
+                    .isPresent()) {
+
+                return;
+            }
+
+            try (InputStream resourceInput = getClass().getResourceAsStream(resourcePath)) {
+                for (String ddl : IoUtils.toString(resourceInput, StandardCharsets.UTF_8).trim().split("(?:\r\n?|\n){2,}")) {
+                    try {
+                        context.execute(ddl);
+
+                    } catch (DataAccessException error) {
+                        Throwables.propagateIfInstanceOf(error.getCause(), SQLException.class);
+                        throw error;
+                    }
+                }
+            }
+
+        } finally {
+            database.closeConnection(connection);
+        }
+    }
+
+    /**
+     * Returns the path to the resource that contains the SQL statements to
+     * be executed during {@link #setUp(AbstractSqlDatabase)}.
+     *
+     * <p>The default implementation returns {@code null} to signal that
+     * there's nothing to do.</p>
+     *
+     * @return May be {@code null}.
+     */
+    protected String setUpResourcePath() {
+        return null;
+    }
+
+    /**
+     * Catches the given {@code error} thrown in
+     * {@link #setUp(AbstractSqlDatabase)} to be processed in vendor-specific way.
+     *
+     * <p>Typically, this is used to ignore errors when the underlying
+     * database doesn't natively support a specific capability (e.g.
+     * {@code CREATE TABLE IF NOT EXISTS}).</p>
+     *
+     * <p>The default implementation always rethrows the error.</p>
+     *
+     * @param error Can't be {@code null}.
+     */
+    protected void catchSetUpError(SQLException error) throws SQLException {
+        throw error;
     }
 
     /**

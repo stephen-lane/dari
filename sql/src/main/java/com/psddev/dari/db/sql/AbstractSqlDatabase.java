@@ -6,7 +6,6 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
-import java.sql.DatabaseMetaData;
 import java.sql.Driver;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -109,7 +108,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
     public static final String CATALOG_SUB_SETTING = "catalog";
     public static final String METRIC_CATALOG_SUB_SETTING = "metricCatalog";
-    public static final String VENDOR_CLASS_SETTING = "vendorClass";
     public static final String COMPRESS_DATA_SUB_SETTING = "compressData";
 
     public static final String INDEX_SPATIAL_SUB_SETTING = "indexSpatial";
@@ -146,8 +144,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     private volatile DataSource readDataSource;
     private volatile String catalog;
     private volatile String metricCatalog;
-    private transient volatile String defaultCatalog;
-    private volatile SqlVendor vendor;
     private volatile boolean compressData;
     private volatile boolean indexSpatial;
 
@@ -274,62 +270,18 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         return dataSource;
     }
 
-    private static final Map<String, Class<? extends SqlVendor>> VENDOR_CLASSES; static {
-        Map<String, Class<? extends SqlVendor>> m = new HashMap<>();
-        m.put("H2", SqlVendor.H2.class);
-        m.put("MySQL", SqlVendor.MySQL.class);
-        m.put("PostgreSQL", SqlVendor.PostgreSQL.class);
-        m.put("EnterpriseDB", SqlVendor.PostgreSQL.class);
-        m.put("Oracle", SqlVendor.Oracle.class);
-        VENDOR_CLASSES = m;
-    }
-
     /** Sets the JDBC data source used for general database operations. */
     public void setDataSource(DataSource dataSource) {
         this.dataSource = dataSource;
+
         if (dataSource == null) {
             return;
         }
 
         synchronized (this) {
             try {
-                boolean writable = false;
-
-                if (vendor == null) {
-                    Connection connection;
-
-                    try {
-                        connection = openConnection();
-                        writable = true;
-
-                    } catch (DatabaseException error) {
-                        LOGGER.debug("Can't read vendor information from the writable server!", error);
-                        connection = openReadConnection();
-                    }
-
-                    try {
-                        defaultCatalog = connection.getCatalog();
-                        DatabaseMetaData meta = connection.getMetaData();
-                        String vendorName = meta.getDatabaseProductName();
-                        Class<? extends SqlVendor> vendorClass = VENDOR_CLASSES.get(vendorName);
-
-                        LOGGER.info(
-                                "Initializing SQL vendor for [{}]: [{}] -> [{}]",
-                                new Object[] { getName(), vendorName, vendorClass });
-
-                        vendor = vendorClass != null ? TypeDefinition.getInstance(vendorClass).newInstance() : new SqlVendor();
-
-                    } finally {
-                        closeConnection(connection);
-                    }
-                }
-
+                schema().setUp(this);
                 invalidateCaches();
-
-                if (writable) {
-                    vendor.setUp(this);
-                    invalidateCaches();
-                }
 
             } catch (IOException error) {
                 throw new IllegalStateException(error);
@@ -358,7 +310,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         this.catalog = catalog;
 
         try {
-            getVendor().setUp(this);
+            schema().setUp(this);
             invalidateCaches();
 
         } catch (IOException error) {
@@ -385,16 +337,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         } else {
             this.metricCatalog = metricCatalog;
         }
-    }
-
-    /** Returns the vendor-specific SQL engine information. */
-    public SqlVendor getVendor() {
-        return vendor;
-    }
-
-    /** Sets the vendor-specific SQL engine information. */
-    public void setVendor(SqlVendor vendor) {
-        this.vendor = vendor;
     }
 
     /** Returns {@code true} if the data should be compressed. */
@@ -845,7 +787,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             int timeout)
             throws SQLException {
 
-        if (timeout > 0 && !(vendor instanceof SqlVendor.PostgreSQL)) {
+        if (timeout > 0) {
             statement.setQueryTimeout(timeout);
         }
 
@@ -870,7 +812,12 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
      * with options from the given {@code query}.
      */
     public <T> T selectFirstWithOptions(String sqlQuery, Query<T> query) {
-        sqlQuery = vendor.rewriteQueryWithLimitClause(sqlQuery, 1, 0);
+        sqlQuery = DSL.using(dialect())
+                .selectFrom(DSL.table("(" + sqlQuery + ")").as("q"))
+                .offset(0)
+                .limit(1)
+                .getSQL(ParamType.INLINED);
+
         Connection connection = null;
         Statement statement = null;
         ResultSet result = null;
@@ -960,9 +907,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             try {
                 connection = openQueryConnection(query);
                 statement = connection.createStatement();
-                statement.setFetchSize(getVendor() instanceof SqlVendor.MySQL ? Integer.MIN_VALUE
-                        : fetchSize <= 0 ? 200
-                        : fetchSize);
+                statement.setFetchSize(fetchSize <= 0 ? 200 : fetchSize);
                 result = statement.executeQuery(sqlQuery);
                 moveToNext();
 
@@ -1138,14 +1083,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     public void closeConnection(Connection connection) {
         if (connection != null) {
             try {
-                if (defaultCatalog != null) {
-                    String catalog = getCatalog();
-
-                    if (catalog != null) {
-                        connection.setCatalog(defaultCatalog);
-                    }
-                }
-
                 if (!connection.isClosed()) {
                     connection.close();
                 }
@@ -1191,28 +1128,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         setCatalog(ObjectUtils.to(String.class, settings.get(CATALOG_SUB_SETTING)));
 
         setMetricCatalog(ObjectUtils.to(String.class, settings.get(METRIC_CATALOG_SUB_SETTING)));
-
-        String vendorClassName = ObjectUtils.to(String.class, settings.get(VENDOR_CLASS_SETTING));
-        Class<?> vendorClass = null;
-
-        if (vendorClassName != null) {
-            vendorClass = ObjectUtils.getClassByName(vendorClassName);
-            if (vendorClass == null) {
-                throw new SettingsException(
-                        VENDOR_CLASS_SETTING,
-                        String.format("Can't find [%s]!",
-                        vendorClassName));
-            } else if (!SqlVendor.class.isAssignableFrom(vendorClass)) {
-                throw new SettingsException(
-                        VENDOR_CLASS_SETTING,
-                        String.format("[%s] doesn't implement [%s]!",
-                        vendorClass, Driver.class));
-            }
-        }
-
-        if (vendorClass != null) {
-            setVendor((SqlVendor) TypeDefinition.getInstance(vendorClass).newInstance());
-        }
 
         Boolean compressData = ObjectUtils.firstNonNull(
                 ObjectUtils.to(Boolean.class, settings.get(COMPRESS_DATA_SUB_SETTING)),
@@ -1543,7 +1458,11 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             limit --;
         }
         List<T> objects = selectListWithOptions(
-                vendor.rewriteQueryWithLimitClause(buildSelectStatement(query), limit + 1, offset),
+                DSL.using(dialect())
+                        .selectFrom(DSL.table("(" + buildSelectStatement(query) + ")").as("q"))
+                        .offset((int) offset)
+                        .limit(limit + 1)
+                        .getSQL(ParamType.INLINED),
                 query);
 
         int size = objects.size();

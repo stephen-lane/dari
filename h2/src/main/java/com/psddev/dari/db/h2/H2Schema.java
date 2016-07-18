@@ -40,4 +40,9 @@ public class H2Schema extends SqlSchema {
     public DataType<String> stringIndexType() {
         return STRING_INDEX_TYPE;
     }
+
+    @Override
+    protected String setUpResourcePath() {
+        return "schema-12.sql";
+    }
 }
