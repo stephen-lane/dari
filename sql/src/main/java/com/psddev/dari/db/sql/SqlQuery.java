@@ -19,7 +19,6 @@ import com.psddev.dari.db.Region;
 import com.psddev.dari.db.Sorter;
 import com.psddev.dari.db.SqlDatabase;
 import com.psddev.dari.db.UnsupportedPredicateException;
-import com.psddev.dari.db.UnsupportedSorterException;
 
 import org.jooq.Condition;
 import org.jooq.DSLContext;
