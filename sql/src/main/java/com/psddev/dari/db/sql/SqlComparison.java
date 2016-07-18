@@ -42,7 +42,9 @@ interface SqlComparison {
                 return GREATER_THAN_OR_EQUALS;
 
             default :
-                return null;
+                throw new UnsupportedOperationException(String.format(
+                        "[%s] comparison isn't supported in SQL!",
+                        operator));
         }
     }
 

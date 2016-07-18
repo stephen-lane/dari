@@ -35,7 +35,9 @@ interface SqlSorter {
                 return FARTHEST;
 
             default :
-                return null;
+                throw new UnsupportedOperationException(String.format(
+                        "[%s] sorter isn't supported in SQL!",
+                        operator));
         }
     }
 

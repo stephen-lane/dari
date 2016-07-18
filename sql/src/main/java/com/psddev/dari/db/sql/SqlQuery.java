@@ -150,11 +150,6 @@ class SqlQuery {
         // Creates jOOQ SortField from Dari Sorter.
         for (Sorter sorter : query.getSorters()) {
             SqlSorter sqlSorter = SqlSorter.find(sorter.getOperator());
-
-            if (sqlSorter == null) {
-                throw new UnsupportedSorterException(database, sorter);
-            }
-
             String queryKey = (String) sorter.getOptions().get(0);
             SqlJoin join = SqlJoin.findOrCreate(this, queryKey);
 
@@ -389,34 +384,32 @@ class SqlQuery {
                 SqlComparison sqlComparison = SqlComparison.find(operator);
 
                 // e.g. field OP value1 OR field OP value2 OR ... field OP value#
-                if (sqlComparison != null) {
-                    for (Object value : comparisonPredicate.resolveValues(database)) {
-                        if (value == null) {
-                            comparisonConditions.add(DSL.falseCondition());
+                for (Object value : comparisonPredicate.resolveValues(database)) {
+                    if (value == null) {
+                        comparisonConditions.add(DSL.falseCondition());
 
-                        } else if (value instanceof Location) {
-                            if (!database.isIndexSpatial()) {
-                                throw new UnsupportedOperationException();
-                            }
-
-                            if (!(join.sqlIndex instanceof RegionSqlIndex)) {
-                                throw new UnsupportedOperationException();
-                            }
-
-                            comparisonConditions.add(
-                                    schema.stContains(
-                                            join.valueField,
-                                            schema.stGeomFromText(DSL.inline(((Location) value).toWkt()))));
-
-                        } else if (value == Query.MISSING_VALUE) {
-                            hasMissing = true;
-
-                            join.useLeftOuter();
-                            comparisonConditions.add(join.valueField.isNull());
-
-                        } else {
-                            comparisonConditions.add(sqlComparison.createCondition(join, value));
+                    } else if (value instanceof Location) {
+                        if (!database.isIndexSpatial()) {
+                            throw new UnsupportedOperationException();
                         }
+
+                        if (!(join.sqlIndex instanceof RegionSqlIndex)) {
+                            throw new UnsupportedOperationException();
+                        }
+
+                        comparisonConditions.add(
+                                schema.stContains(
+                                        join.valueField,
+                                        schema.stGeomFromText(DSL.inline(((Location) value).toWkt()))));
+
+                    } else if (value == Query.MISSING_VALUE) {
+                        hasMissing = true;
+
+                        join.useLeftOuter();
+                        comparisonConditions.add(join.valueField.isNull());
+
+                    } else {
+                        comparisonConditions.add(sqlComparison.createCondition(join, value));
                     }
                 }
             }
