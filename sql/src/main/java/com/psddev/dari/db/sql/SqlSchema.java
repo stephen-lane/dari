@@ -24,6 +24,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -348,6 +349,7 @@ public class SqlSchema {
             throws SQLException {
 
         Map<Table<Record>, BatchBindStep> batches = new HashMap<>();
+        Map<Table<Record>, Set<Map<String, Object>>> bindValuesSets = new HashMap<>();
 
         for (State state : states) {
             UUID id = state.getId();
@@ -374,8 +376,7 @@ public class SqlSchema {
                                 .set(sqlIndex.idField(), idParam)
                                 .set(sqlIndex.typeIdField(), typeIdParam)
                                 .set(sqlIndex.symbolIdField(), symbolIdParam)
-                                .set(sqlIndex.valueField(), sqlIndex.valueParam())
-                                .onDuplicateKeyIgnore());
+                                .set(sqlIndex.valueField(), sqlIndex.valueParam()));
                     }
 
                     boolean bound = false;
@@ -388,8 +389,18 @@ public class SqlSchema {
                             bindValues.put(typeIdParam.getName(), typeId);
                             bindValues.put(symbolIdParam.getName(), symbolId);
 
-                            batch = batch.bind(bindValues);
-                            bound = true;
+                            Set<Map<String, Object>> bindValuesSet = bindValuesSets.get(table);
+
+                            if (bindValuesSet == null) {
+                                bindValuesSet = new HashSet<>();
+                                bindValuesSets.put(table, bindValuesSet);
+                            }
+
+                            if (!bindValuesSet.contains(bindValues)) {
+                                batch = batch.bind(bindValues);
+                                bound = true;
+                                bindValuesSet.add(bindValues);
+                            }
                         }
                     }
 
