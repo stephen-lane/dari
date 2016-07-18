@@ -115,13 +115,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     public static final String INDEX_SPATIAL_SUB_SETTING = "indexSpatial";
 
     public static final String RECORD_TABLE = "Record";
-    public static final String SYMBOL_TABLE = "Symbol";
-    public static final String ID_COLUMN = "id";
-    public static final String TYPE_ID_COLUMN = "typeId";
-    public static final String DATA_COLUMN = "data";
-    public static final String SYMBOL_ID_COLUMN = "symbolId";
-    public static final String UPDATE_DATE_COLUMN = "updateDate";
-    public static final String VALUE_COLUMN = "value";
 
     public static final String CONNECTION_QUERY_OPTION = "sql.connection";
     public static final String RETURN_ORIGINAL_DATA_QUERY_OPTION = "sql.returnOriginalData";
@@ -129,11 +122,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     public static final String USE_READ_DATA_SOURCE_QUERY_OPTION = "sql.useReadDataSource";
     public static final String SKIP_INDEX_STATE_EXTRA = "sql.skipIndex";
 
-    public static final String INDEX_TABLE_INDEX_OPTION = "sql.indexTable";
-
     public static final String ORIGINAL_DATA_EXTRA = "sql.originalData";
-
-    public static final String SUB_DATA_COLUMN_ALIAS_PREFIX = "subData_";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AbstractSqlDatabase.class);
 
@@ -840,35 +829,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                 if (returnOriginal) {
                     objectState.getExtras().put(ORIGINAL_DATA_EXTRA, data);
                 }
-            }
-        }
-
-        ResultSetMetaData meta = resultSet.getMetaData();
-        Object subId = null, subTypeId = null;
-        byte[] subData;
-
-        for (int i = 4, count = meta.getColumnCount(); i <= count; ++ i) {
-            String columnName = meta.getColumnLabel(i);
-            if (columnName.startsWith(SUB_DATA_COLUMN_ALIAS_PREFIX)) {
-                if (columnName.endsWith("_" + ID_COLUMN)) {
-                    subId = resultSet.getObject(i);
-                } else if (columnName.endsWith("_" + TYPE_ID_COLUMN)) {
-                    subTypeId = resultSet.getObject(i);
-                } else if (columnName.endsWith("_" + DATA_COLUMN)) {
-                    subData = resultSet.getBytes(i);
-                    if (subId != null && subTypeId != null && subData != null && !subId.equals(objectState.getId())) {
-                        Object subObject = createSavedObject(subTypeId, subId, query);
-                        State subObjectState = State.getInstance(subObject);
-                        subObjectState.setValues(unserializeData(subData));
-                        subObject = swapObjectType(null, subObject);
-                        subId = null;
-                        subTypeId = null;
-                        subData = null;
-                        objectState.getExtras().put(State.SUB_DATA_STATE_EXTRA_PREFIX + subObjectState.getId(), subObject);
-                    }
-                }
-            } else if (query.getExtraSourceColumns().containsKey(columnName)) {
-                objectState.put(query.getExtraSourceColumns().get(columnName), resultSet.getObject(i));
             }
         }
 
