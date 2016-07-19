@@ -58,6 +58,17 @@ public abstract class AbstractIndexTest<T> extends AbstractTest {
         assertThat(notPredicate, query().where(notPredicate, parameters).count(), is(total - count));
     }
 
+    private void createMissingTestModels() {
+        model().create();
+        model().field(0).create();
+        model().set(0).create();
+        model().list(0).create();
+        model().field(0).set(0).create();
+        model().field(0).list(0).create();
+        model().set(0).list(0).create();
+        model().all(0).create();
+    }
+
     private void missing(String field, long count) {
         assertCount(count,
                 field + " = missing",
@@ -66,30 +77,42 @@ public abstract class AbstractIndexTest<T> extends AbstractTest {
 
     @Test
     public void missing() {
-        model().create();
-        model().field(0).create();
-        missing("field", 1L);
-        missing("set", 1L);
-        missing("list", 1L);
+        createMissingTestModels();
+        missing("field", 4L);
+        missing("set", 4L);
+        missing("list", 4L);
     }
 
-    private void missingCompound(String operator, String field1, String field2, long count) {
+    private void missingBoth(String field1, String field2, long count) {
         assertCount(count,
-                field1 + " = missing " + operator + " " + field2 + " = missing",
-                field1 + " != missing " + operator + " " + field2 + " != missing");
+                field1 + " = missing and " + field2 + " = missing",
+                field1 + " != missing or " + field2 + " != missing");
     }
 
     @Test
     public void missingBoth() {
-        model().create();
-        model().field(0).create();
-        missingCompound("and", "field", "set", 1L);
-        missingCompound("and", "field", "list", 1L);
-        missingCompound("and", "set", "list", 1L);
+        createMissingTestModels();
+        missingBoth("field", "set", 2L);
+        missingBoth("field", "list", 2L);
+        missingBoth("set", "list", 2L);
+    }
+
+    private void missingEither(String field1, String field2, long count) {
+        assertCount(count,
+                field1 + " = missing or " + field2 + " = missing",
+                field1 + " != missing and " + field2 + " != missing");
     }
 
     @Test
     public void missingEither() {
+        createMissingTestModels();
+        missingEither("field", "set", 6L);
+        missingEither("field", "list", 6L);
+        missingEither("set", "list", 6L);
+    }
+
+    private void createCompareTestModels() {
+        IntStream.range(0, 5).forEach(i -> model().all(i).create());
     }
 
     private void compare(String field, String operator, String notOperator, int index, long count) {
@@ -101,7 +124,7 @@ public abstract class AbstractIndexTest<T> extends AbstractTest {
 
     @Test
     public void eq() {
-        IntStream.range(0, 5).forEach(i -> model().field(i).create());
+        createCompareTestModels();
         compare("field", "=", "!=", 2, 1L);
         compare("set", "=", "!=", 2, 1L);
         compare("list", "=", "!=", 2, 1L);
@@ -109,13 +132,13 @@ public abstract class AbstractIndexTest<T> extends AbstractTest {
 
     @Test
     public void gt() {
-        IntStream.range(0, 5).forEach(i -> model().field(i).create());
+        createCompareTestModels();
         compare("field", ">", "<=", 2, 2L);
     }
 
     @Test
     public void lt() {
-        IntStream.range(0, 5).forEach(i -> model().field(i).create());
+        createCompareTestModels();
         compare("field", "<", ">=", 2, 2L);
     }
 
@@ -139,10 +162,27 @@ public abstract class AbstractIndexTest<T> extends AbstractTest {
             model = TypeDefinition.getInstance(modelClass()).newInstance();
         }
 
-        public ModelBuilder field(int index) {
+        public ModelBuilder all(int index) {
             T value = value(index);
             model.field = value;
             model.set.add(value);
+            model.list.add(value);
+            model.list.add(value);
+            return this;
+        }
+
+        public ModelBuilder field(int index) {
+            model.field = value(index);
+            return this;
+        }
+
+        public ModelBuilder set(int index) {
+            model.set.add(value(index));
+            return this;
+        }
+
+        public ModelBuilder list(int index) {
+            T value = value(index);
             model.list.add(value);
             model.list.add(value);
             return this;
