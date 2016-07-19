@@ -138,7 +138,7 @@ class SqlQuery {
         Predicate predicate = query.getPredicate();
 
         if (predicate != null) {
-            Condition condition = createWhereCondition(predicate, null, false);
+            Condition condition = createWhereCondition(predicate, false);
 
             if (condition != null) {
                 whereCondition = whereCondition.and(condition);
@@ -189,11 +189,7 @@ class SqlQuery {
     }
 
     // Creates jOOQ Condition from Dari Predicate.
-    private Condition createWhereCondition(
-            Predicate predicate,
-            Predicate parentPredicate,
-            boolean usesLeftJoin) {
-
+    private Condition createWhereCondition(Predicate predicate, boolean usesLeftJoin) {
         if (predicate instanceof CompoundPredicate) {
             CompoundPredicate compoundPredicate = (CompoundPredicate) predicate;
             String operator = compoundPredicate.getOperator();
@@ -215,7 +211,7 @@ class SqlQuery {
                 Condition compoundCondition = null;
 
                 for (Predicate child : children) {
-                    Condition childCondition = createWhereCondition(child, predicate, usesLeftJoinChildren);
+                    Condition childCondition = createWhereCondition(child, usesLeftJoinChildren);
 
                     if (childCondition != null) {
                         compoundCondition = compoundCondition != null
@@ -233,7 +229,7 @@ class SqlQuery {
                 Condition compoundCondition = null;
 
                 for (Predicate child : compoundPredicate.getChildren()) {
-                    Condition childCondition = createWhereCondition(child, predicate, usesLeftJoin);
+                    Condition childCondition = createWhereCondition(child, usesLeftJoin);
 
                     if (childCondition != null) {
                         compoundCondition = compoundCondition != null
@@ -250,35 +246,9 @@ class SqlQuery {
             String queryKey = comparisonPredicate.getKey();
             Query.MappedKey mappedKey = mappedKeys.get(queryKey);
             boolean isFieldCollection = mappedKey.isInternalCollectionType();
-            SqlJoin join = null;
-
-            if (mappedKey.getField() != null
-                    && parentPredicate instanceof CompoundPredicate
-                    && PredicateParser.OR_OPERATOR.equals(parentPredicate.getOperator())) {
-
-                for (SqlJoin j : joins) {
-                    if (j.parent == parentPredicate
-                            && j.sqlIndex.equals(schema.findSelectIndexTable(mappedKeys.get(queryKey).getInternalType()))) {
-
-                        needsDistinct = true;
-                        join = j;
-
-                        join.addSymbolId(queryKey);
-                        break;
-                    }
-                }
-
-                if (join == null) {
-                    join = SqlJoin.findOrCreate(this, queryKey);
-                    join.parent = parentPredicate;
-                }
-
-            } else if (isFieldCollection) {
-                join = SqlJoin.create(this, queryKey);
-
-            } else {
-                join = SqlJoin.findOrCreate(this, queryKey);
-            }
+            SqlJoin join = isFieldCollection
+                    ? SqlJoin.create(this, queryKey)
+                    : SqlJoin.findOrCreate(this, queryKey);
 
             if (usesLeftJoin) {
                 join.useLeftOuter();
