@@ -84,7 +84,6 @@ import com.psddev.dari.util.Profiler;
 import com.psddev.dari.util.Settings;
 import com.psddev.dari.util.SettingsException;
 import com.psddev.dari.util.Stats;
-import com.psddev.dari.util.StringUtils;
 import com.psddev.dari.util.TypeDefinition;
 
 /** Database backed by a SQL engine. */
@@ -225,22 +224,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             }
         }
     };
-
-    /**
-     * Quotes the given {@code value} so that it's safe to use
-     * in a SQL query.
-     */
-    public static String quoteValue(Object value) {
-        if (value == null) {
-            return "NULL";
-        } else if (value instanceof Number) {
-            return value.toString();
-        } else if (value instanceof byte[]) {
-            return "X'" + StringUtils.hex((byte[]) value) + "'";
-        } else {
-            return "'" + value.toString().replace("'", "''").replace("\\", "\\\\") + "'";
-        }
-    }
 
     /** Closes all resources used by all instances. */
     public static void closeAll() {

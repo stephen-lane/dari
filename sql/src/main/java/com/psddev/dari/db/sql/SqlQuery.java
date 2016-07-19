@@ -57,7 +57,6 @@ class SqlQuery {
     protected final List<SqlSubJoin> subJoins = new ArrayList<>();
 
     protected boolean needsDistinct;
-    protected SqlJoin mysqlIndexHint;
     protected boolean forceLeftJoins;
 
     /**

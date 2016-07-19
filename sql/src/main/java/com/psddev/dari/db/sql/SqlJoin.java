@@ -3,7 +3,6 @@ package com.psddev.dari.db.sql;
 import com.psddev.dari.db.ObjectIndex;
 import com.psddev.dari.db.Predicate;
 import com.psddev.dari.db.Query;
-import com.psddev.dari.db.SqlDatabase;
 import com.psddev.dari.db.UnsupportedIndexException;
 import com.psddev.dari.util.ObjectUtils;
 import org.jooq.Field;
@@ -43,10 +42,6 @@ final class SqlJoin {
         SqlJoin join = new SqlJoin(sqlQuery, alias, queryKey);
 
         joins.add(join);
-
-        if (queryKey.equals(sqlQuery.query.getOptions().get(SqlDatabase.MYSQL_INDEX_HINT_QUERY_OPTION))) {
-            sqlQuery.mysqlIndexHint = join;
-        }
 
         return join;
     }
