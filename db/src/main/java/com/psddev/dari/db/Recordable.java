@@ -296,6 +296,18 @@ public interface Recordable {
         String value();
     }
 
+    /**
+     * Specifies that the values in the target collection field should
+     * remain raw (not reference resolved).
+     */
+    @Documented
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target({ ElementType.FIELD, ElementType.METHOD })
+    @ObjectField.AnnotationProcessorClass(RawProcessor.class)
+    @interface Raw {
+        boolean value() default true;
+    }
+
     /** Specifies how the method index should be updated. */
     @Documented
     @Retention(RetentionPolicy.RUNTIME)
@@ -712,6 +724,14 @@ class InternalNameProcessor implements ObjectType.AnnotationProcessor<Recordable
     @Override
     public void process(ObjectType type, Recordable.InternalName annotation) {
         type.setInternalName(annotation.value());
+    }
+}
+
+class RawProcessor implements ObjectField.AnnotationProcessor<Recordable.Raw> {
+
+    @Override
+    public void process(ObjectType type, ObjectField field, Recordable.Raw annotation) {
+        field.setRaw(annotation.value());
     }
 }
 
