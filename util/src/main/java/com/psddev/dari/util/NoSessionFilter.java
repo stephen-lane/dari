@@ -42,7 +42,7 @@ public class NoSessionFilter extends AbstractFilter {
 
         if (cookies != null) {
             Stream.of(cookies)
-                    .filter (c -> "JSESSIONID".equals(c.getName()))
+                    .filter(c -> "JSESSIONID".equals(c.getName()))
                     .findFirst()
                     .ifPresent(c -> {
                         c.setMaxAge(0);
