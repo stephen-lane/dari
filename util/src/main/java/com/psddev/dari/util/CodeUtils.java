@@ -444,14 +444,14 @@ public final class CodeUtils {
                         && method.getParameterTypes().length == 0
                     )
                     .collect(Collectors.toList());
-                
+
                 Method chosenOne = declaredMethods
                     .stream()
                     .filter(method -> "main".equals(method.getName()))
                     .findAny()
                     .orElseGet(() -> declaredMethods.stream().findAny().orElse(null));
-                
-                if(chosenOne != null) {
+
+                if (chosenOne != null) {
                     chosenOne.setAccessible(true);
                     try {
                         return chosenOne.invoke(null);
