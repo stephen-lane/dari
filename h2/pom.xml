@@ -31,6 +31,31 @@
         </dependency>
 
         <dependency>
+            <groupId>org.orbisgis</groupId>
+            <artifactId>h2gis-api</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.orbisgis</groupId>
+            <artifactId>h2gis-ext</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.orbisgis</groupId>
+            <artifactId>h2gis-functions</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.orbisgis</groupId>
+            <artifactId>h2gis-network</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.orbisgis</groupId>
+            <artifactId>h2gis-utilities</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <scope>test</scope>

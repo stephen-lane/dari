@@ -1,9 +1,14 @@
 package com.psddev.dari.db.h2;
 
+import com.psddev.dari.db.sql.AbstractSqlDatabase;
 import com.psddev.dari.db.sql.SqlSchema;
 import org.jooq.Converter;
 import org.jooq.DataType;
 import org.jooq.impl.SQLDataType;
+
+import java.io.IOException;
+import java.sql.Connection;
+import java.sql.SQLException;
 
 public class H2Schema extends SqlSchema {
 
@@ -39,6 +44,20 @@ public class H2Schema extends SqlSchema {
     @Override
     public DataType<String> stringIndexType() {
         return STRING_INDEX_TYPE;
+    }
+
+    @Override
+    public void setUp(AbstractSqlDatabase database) throws IOException, SQLException {
+        Connection connection = database.openConnection();
+
+        try {
+            org.h2gis.ext.H2GISExtension.load(connection);
+
+        } finally {
+            database.closeConnection(connection);
+        }
+
+        super.setUp(database);
     }
 
     @Override

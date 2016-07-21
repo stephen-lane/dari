@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS "RecordLocation3" (
 
 CREATE INDEX IF NOT EXISTS "k_RecordLocation3_id" ON "RecordLocation3" ("id");
 
+CREATE SPATIAL INDEX IF NOT EXISTS "k_RecordLocation3_value" ON "RecordLocation3" ("value");
+
 CREATE TABLE IF NOT EXISTS "RecordNumber3" (
     "id" UUID NOT NULL,
     "typeId" UUID NOT NULL,
@@ -36,6 +38,8 @@ CREATE TABLE IF NOT EXISTS "RecordRegion2" (
 );
 
 CREATE INDEX IF NOT EXISTS "k_RecordRegion2_id" ON "RecordRegion2" ("id");
+
+CREATE SPATIAL INDEX IF NOT EXISTS "k_RecordRegion2_value" ON "RecordRegion2" ("value");
 
 CREATE TABLE IF NOT EXISTS "RecordString4" (
     "id" UUID NOT NULL,
