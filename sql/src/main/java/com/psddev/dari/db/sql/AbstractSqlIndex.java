@@ -74,5 +74,5 @@ abstract class AbstractSqlIndex {
 
     public abstract Map<String, Object> valueBindValues(ObjectIndex index, Object value);
 
-    public abstract Param<?> valueInline(ObjectIndex index, Object value);
+    public abstract Object valueInline(ObjectIndex index, Object value);
 }

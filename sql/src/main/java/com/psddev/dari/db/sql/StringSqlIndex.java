@@ -57,7 +57,7 @@ class StringSqlIndex extends AbstractSqlIndex {
     }
 
     @Override
-    public Param<?> valueInline(ObjectIndex index, Object value) {
+    public Object valueInline(ObjectIndex index, Object value) {
         return DSL.inline(valueString(index, value), schema.stringIndexType());
     }
 }

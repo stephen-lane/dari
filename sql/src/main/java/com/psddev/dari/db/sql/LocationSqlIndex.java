@@ -3,6 +3,7 @@ package com.psddev.dari.db.sql;
 import com.psddev.dari.db.Location;
 import com.psddev.dari.db.ObjectIndex;
 import com.psddev.dari.util.CompactMap;
+import org.jooq.Field;
 import org.jooq.Param;
 import org.jooq.impl.DSL;
 
@@ -38,9 +39,9 @@ class LocationSqlIndex extends AbstractSqlIndex {
     }
 
     @Override
-    public Param<?> valueInline(ObjectIndex index, Object value) {
+    public Object valueInline(ObjectIndex index, Object value) {
         return value instanceof Location
-                ? DSL.inline(schema.stGeomFromText(DSL.inline(((Location) value).toWkt(), String.class)))
+                ? schema.stGeomFromText(DSL.inline(((Location) value).toWkt(), String.class))
                 : null;
     }
 }
