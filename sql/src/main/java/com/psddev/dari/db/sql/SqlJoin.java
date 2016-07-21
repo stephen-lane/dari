@@ -123,7 +123,7 @@ final class SqlJoin {
                 needsIndexTable = true;
                 needsIsNotNull = true;
 
-                sqlIndex = sqlQuery.schema.findSelectIndexTable(index);
+                sqlIndex = sqlQuery.database.findSelectIndexTable(index);
                 table = DSL.table(DSL.name(sqlIndex.table().getName())).as(sqlQuery.aliasPrefix + alias);
                 idField = sqlQuery.aliasedField(alias, sqlIndex.idField().getName());
                 typeIdField = sqlQuery.aliasedField(alias, sqlIndex.typeIdField().getName());
@@ -160,7 +160,7 @@ final class SqlJoin {
             switch (queryKey) {
                 case Query.ID_KEY :
                 case Query.TYPE_KEY :
-                    return DSL.inline(ObjectUtils.to(UUID.class, value), sqlQuery.schema.uuidType());
+                    return DSL.inline(ObjectUtils.to(UUID.class, value), sqlQuery.database.uuidType());
 
                 default :
                     return value;

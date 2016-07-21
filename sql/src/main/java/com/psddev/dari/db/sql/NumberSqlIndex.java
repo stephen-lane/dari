@@ -12,10 +12,10 @@ class NumberSqlIndex extends AbstractSqlIndex {
 
     private final Param<Double> valueParam;
 
-    public NumberSqlIndex(SqlSchema schema, String namePrefix, int version) {
-        super(schema, namePrefix, version);
+    public NumberSqlIndex(AbstractSqlDatabase database, String namePrefix, int version) {
+        super(database, namePrefix, version);
 
-        this.valueParam = DSL.param("value", schema.doubleType());
+        this.valueParam = DSL.param("value", database.doubleType());
     }
 
     @Override
@@ -39,6 +39,6 @@ class NumberSqlIndex extends AbstractSqlIndex {
 
     @Override
     public Object valueInline(ObjectIndex index, Object value) {
-        return DSL.inline(ObjectUtils.to(Double.class, value), schema.doubleType());
+        return DSL.inline(ObjectUtils.to(Double.class, value), database.doubleType());
     }
 }

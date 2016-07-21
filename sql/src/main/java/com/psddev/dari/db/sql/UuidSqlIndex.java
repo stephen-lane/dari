@@ -13,10 +13,10 @@ class UuidSqlIndex extends AbstractSqlIndex {
 
     private final Param<UUID> valueParam;
 
-    public UuidSqlIndex(SqlSchema schema, String namePrefix, int version) {
-        super(schema, namePrefix, version);
+    public UuidSqlIndex(AbstractSqlDatabase database, String namePrefix, int version) {
+        super(database, namePrefix, version);
 
-        this.valueParam = DSL.param("value", schema.uuidType());
+        this.valueParam = DSL.param("value", database.uuidType());
     }
 
     @Override
@@ -40,6 +40,6 @@ class UuidSqlIndex extends AbstractSqlIndex {
 
     @Override
     public Object valueInline(ObjectIndex index, Object value) {
-        return DSL.inline(ObjectUtils.to(UUID.class, value), schema.uuidType());
+        return DSL.inline(ObjectUtils.to(UUID.class, value), database.uuidType());
     }
 }

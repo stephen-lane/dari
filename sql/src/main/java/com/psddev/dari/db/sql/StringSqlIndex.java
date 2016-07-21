@@ -14,10 +14,10 @@ class StringSqlIndex extends AbstractSqlIndex {
 
     private final Param<String> valueParam;
 
-    public StringSqlIndex(SqlSchema schema, String namePrefix, int version) {
-        super(schema, namePrefix, version);
+    public StringSqlIndex(AbstractSqlDatabase database, String namePrefix, int version) {
+        super(database, namePrefix, version);
 
-        this.valueParam = DSL.param("value", schema.stringIndexType());
+        this.valueParam = DSL.param("value", database.stringIndexType());
     }
 
     @Override
@@ -58,6 +58,6 @@ class StringSqlIndex extends AbstractSqlIndex {
 
     @Override
     public Object valueInline(ObjectIndex index, Object value) {
-        return DSL.inline(valueString(index, value), schema.stringIndexType());
+        return DSL.inline(valueString(index, value), database.stringIndexType());
     }
 }

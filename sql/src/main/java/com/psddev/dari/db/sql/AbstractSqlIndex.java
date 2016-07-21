@@ -13,7 +13,7 @@ import java.util.UUID;
 
 abstract class AbstractSqlIndex {
 
-    protected final SqlSchema schema;
+    protected final AbstractSqlDatabase database;
     private final Table<Record> table;
     private final Field<UUID> idField;
     private final Param<UUID> idParam;
@@ -23,11 +23,11 @@ abstract class AbstractSqlIndex {
     private final Param<Integer> symbolIdParam;
     private final Field<Object> valueField;
 
-    protected AbstractSqlIndex(SqlSchema schema, String namePrefix, int version) {
-        DataType<Integer> integerType = schema.integerType();
-        DataType<UUID> uuidType = schema.uuidType();
+    protected AbstractSqlIndex(AbstractSqlDatabase database, String namePrefix, int version) {
+        DataType<Integer> integerType = database.integerType();
+        DataType<UUID> uuidType = database.uuidType();
 
-        this.schema = schema;
+        this.database = database;
         this.table = DSL.table(DSL.name(namePrefix + version));
         this.idField = DSL.field(DSL.name("id"), uuidType);
         this.idParam = DSL.param(idField.getName(), uuidType);

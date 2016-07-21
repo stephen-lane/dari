@@ -13,11 +13,11 @@ class RegionSqlIndex extends AbstractSqlIndex {
     private final Param<String> regionParam;
     private final Object valueParam;
 
-    public RegionSqlIndex(SqlSchema schema, String namePrefix, int version) {
-        super(schema, namePrefix, version);
+    public RegionSqlIndex(AbstractSqlDatabase database, String namePrefix, int version) {
+        super(database, namePrefix, version);
 
         this.regionParam = DSL.param("region", String.class);
-        this.valueParam = schema.stGeomFromText(regionParam);
+        this.valueParam = database.stGeomFromText(regionParam);
     }
 
     @Override
@@ -40,7 +40,7 @@ class RegionSqlIndex extends AbstractSqlIndex {
     @Override
     public Object valueInline(ObjectIndex index, Object value) {
         return value instanceof Region
-                ? schema.stGeomFromText(DSL.inline(((Region) value).toMultiPolygonWkt(), String.class))
+                ? database.stGeomFromText(DSL.inline(((Region) value).toMultiPolygonWkt(), String.class))
                 : null;
     }
 }

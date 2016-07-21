@@ -13,11 +13,11 @@ class LocationSqlIndex extends AbstractSqlIndex {
     private final Param<String> locationParam;
     private final Object valueParam;
 
-    public LocationSqlIndex(SqlSchema schema, String namePrefix, int version) {
-        super(schema, namePrefix, version);
+    public LocationSqlIndex(AbstractSqlDatabase database, String namePrefix, int version) {
+        super(database, namePrefix, version);
 
         this.locationParam = DSL.param("location", String.class);
-        this.valueParam = schema.stGeomFromText(locationParam);
+        this.valueParam = database.stGeomFromText(locationParam);
     }
 
     @Override
@@ -40,7 +40,7 @@ class LocationSqlIndex extends AbstractSqlIndex {
     @Override
     public Object valueInline(ObjectIndex index, Object value) {
         return value instanceof Location
-                ? schema.stGeomFromText(DSL.inline(((Location) value).toWkt(), String.class))
+                ? database.stGeomFromText(DSL.inline(((Location) value).toWkt(), String.class))
                 : null;
     }
 }

@@ -1,6 +1,7 @@
 package com.psddev.dari.db.sql;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -18,6 +19,7 @@ import java.sql.Savepoint;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -42,6 +44,7 @@ import javax.sql.DataSource;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
+import com.google.common.collect.ImmutableList;
 import com.psddev.dari.db.AbstractDatabase;
 import com.psddev.dari.db.AbstractGrouping;
 import com.psddev.dari.db.AtomicOperation;
@@ -55,10 +58,17 @@ import com.psddev.dari.db.Singleton;
 import com.psddev.dari.db.State;
 import com.psddev.dari.db.StateValueUtils;
 import com.psddev.dari.db.UpdateNotifier;
+import com.psddev.dari.util.IoUtils;
 import com.zaxxer.hikari.HikariDataSource;
 import org.iq80.snappy.Snappy;
+import org.jooq.BatchBindStep;
+import org.jooq.Condition;
+import org.jooq.Converter;
 import org.jooq.DSLContext;
+import org.jooq.DataType;
+import org.jooq.DeleteConditionStep;
 import org.jooq.Field;
+import org.jooq.Param;
 import org.jooq.Record;
 import org.jooq.Record1;
 import org.jooq.Record2;
@@ -68,6 +78,7 @@ import org.jooq.Table;
 import org.jooq.conf.ParamType;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
+import org.jooq.impl.SQLDataType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -88,6 +99,45 @@ import com.psddev.dari.util.TypeDefinition;
 
 /** Database backed by a SQL engine. */
 public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> implements MetricSqlDatabase {
+
+    public static final int MAX_STRING_INDEX_TYPE_LENGTH = 500;
+
+    private static final DataType<String> STRING_INDEX_TYPE = SQLDataType.LONGVARBINARY.asConvertedDataType(new Converter<byte[], String>() {
+
+        @Override
+        public String from(byte[] bytes) {
+            return bytes != null ? new String(bytes, StandardCharsets.UTF_8) : null;
+        }
+
+        @Override
+        public byte[] to(String string) {
+            if (string != null) {
+                byte[] bytes = string.getBytes(StandardCharsets.UTF_8);
+
+                if (bytes.length <= MAX_STRING_INDEX_TYPE_LENGTH) {
+                    return bytes;
+
+                } else {
+                    byte[] shortened = new byte[MAX_STRING_INDEX_TYPE_LENGTH];
+                    System.arraycopy(bytes, 0, shortened, 0, MAX_STRING_INDEX_TYPE_LENGTH);
+                    return shortened;
+                }
+
+            } else {
+                return null;
+            }
+        }
+
+        @Override
+        public Class<byte[]> fromType() {
+            return byte[].class;
+        }
+
+        @Override
+        public Class<String> toType() {
+            return String.class;
+        }
+    });
 
     public static final String DATA_SOURCE_SETTING = "dataSource";
     public static final String DATA_SOURCE_JNDI_NAME_SETTING = "dataSourceJndiName";
@@ -138,6 +188,27 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     {
         INSTANCES.add(this);
     }
+
+    private final Table<Record> recordTable;
+    private final Field<UUID> recordIdField;
+    private final Field<UUID> recordTypeIdField;
+    private final Field<byte[]> recordDataField;
+
+    private final Table<Record> recordUpdateTable;
+    private final Field<UUID> recordUpdateIdField;
+    private final Field<UUID> recordUpdateTypeIdField;
+    private final Field<Double> recordUpdateDateField;
+
+    private final Table<Record> symbolTable;
+    private final Field<Integer> symbolIdField;
+    private final Field<String> symbolValueField;
+
+    private volatile List<AbstractSqlIndex> locationSqlIndexes;
+    private volatile List<AbstractSqlIndex> numberSqlIndexes;
+    private volatile List<AbstractSqlIndex> regionSqlIndexes;
+    private volatile List<AbstractSqlIndex> stringSqlIndexes;
+    private volatile List<AbstractSqlIndex> uuidSqlIndexes;
+    private volatile List<AbstractSqlIndex> deleteSqlIndexes;
 
     private volatile DataSource dataSource;
     private volatile DataSource readDataSource;
@@ -205,10 +276,9 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             Connection connection = openConnection();
 
             try (DSLContext context = openContext(connection)) {
-                SqlSchema schema = schema();
                 ResultQuery<Record2<Integer, String>> query = context
-                        .select(schema.symbolIdField(), schema.symbolValueField())
-                        .from(schema.symbolTable());
+                        .select(symbolIdField(), symbolValueField())
+                        .from(symbolTable());
 
                 try {
                     Map<String, Integer> symbolIds = new ConcurrentHashMap<>();
@@ -229,6 +299,380 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     public static void closeAll() {
         INSTANCES.forEach(AbstractSqlDatabase::close);
         INSTANCES.clear();
+    }
+
+    protected AbstractSqlDatabase() {
+        DataType<byte[]> byteArrayType = byteArrayType();
+        DataType<Double> doubleType = doubleType();
+        DataType<Integer> integerType = integerType();
+        DataType<String> stringIndexType = stringIndexType();
+        DataType<UUID> uuidType = uuidType();
+
+        recordTable = DSL.table(DSL.name("Record"));
+        recordIdField = DSL.field(DSL.name("id"), uuidType);
+        recordTypeIdField = DSL.field(DSL.name("typeId"), uuidType);
+        recordDataField = DSL.field(DSL.name("data"), byteArrayType);
+
+        recordUpdateTable = DSL.table(DSL.name("RecordUpdate"));
+        recordUpdateIdField = DSL.field(DSL.name("id"), uuidType);
+        recordUpdateTypeIdField = DSL.field(DSL.name("typeId"), uuidType);
+        recordUpdateDateField = DSL.field(DSL.name("updateDate"), doubleType);
+
+        symbolTable = DSL.table(DSL.name("Symbol"));
+        symbolIdField = DSL.field(DSL.name("symbolId"), integerType);
+        symbolValueField = DSL.field(DSL.name("value"), stringIndexType);
+    }
+
+    public DataType<byte[]> byteArrayType() {
+        return SQLDataType.LONGVARBINARY;
+    }
+
+    public DataType<Double> doubleType() {
+        return SQLDataType.DOUBLE;
+    }
+
+    public DataType<Integer> integerType() {
+        return SQLDataType.INTEGER;
+    }
+
+    public DataType<String> stringIndexType() {
+        return STRING_INDEX_TYPE;
+    }
+
+    public DataType<UUID> uuidType() {
+        return SQLDataType.UUID;
+    }
+
+    public Condition stContains(Field<Object> x, Field<Object> y) {
+        return DSL.condition("ST_Contains({0}, {1})", x, y);
+    }
+
+    public Field<Object> stGeomFromText(Field<String> wkt) {
+        return DSL.field("ST_GeomFromText({0})", wkt);
+    }
+
+    public Field<Double> stLength(Field<Object> field) {
+        return DSL.field("ST_Length({0})", Double.class, field);
+    }
+
+    public Field<Object> stMakeLine(Field<Object> x, Field<Object> y) {
+        return DSL.field("ST_MakeLine({0}, {1})", x, y);
+    }
+
+    public Table<Record> recordTable() {
+        return recordTable;
+    }
+
+    public Field<UUID> recordIdField() {
+        return recordIdField;
+    }
+
+    public Field<UUID> recordTypeIdField() {
+        return recordTypeIdField;
+    }
+
+    public Field<byte[]> recordDataField() {
+        return recordDataField;
+    }
+
+    public Table<Record> recordUpdateTable() {
+        return recordUpdateTable;
+    }
+
+    public Field<UUID> recordUpdateIdField() {
+        return recordUpdateIdField;
+    }
+
+    public Field<UUID> recordUpdateTypeIdField() {
+        return recordUpdateTypeIdField;
+    }
+
+    public Field<Double> recordUpdateDateField() {
+        return recordUpdateDateField;
+    }
+
+    public Table<Record> symbolTable() {
+        return symbolTable;
+    }
+
+    public Field<Integer> symbolIdField() {
+        return symbolIdField;
+    }
+
+    public Field<String> symbolValueField() {
+        return symbolValueField;
+    }
+
+    /**
+     * Sets up the given {@code database}.
+     *
+     * <p>This method should create all the necessary elements, such as tables,
+     * that are required for proper operation.</p>
+     *
+     * <p>The default implementation executes all SQL statements from
+     * the resource at {@link #setUpResourcePath()} and processes the errors
+     * using {@link #catchSetUpError(SQLException)}.</p>
+     *
+     * @param database Can't be {@code null}.
+     */
+    public void setUp(AbstractSqlDatabase database) throws IOException, SQLException {
+        String resourcePath = setUpResourcePath();
+
+        if (resourcePath == null) {
+            return;
+        }
+
+        Connection connection = database.openConnection();
+
+        try (DSLContext context = database.openContext(connection)) {
+
+            // Skip set-up if the Record table already exists.
+            if (context.meta().getTables().stream()
+                    .filter(t -> t.getName().equals(recordTable().getName()))
+                    .findFirst()
+                    .isPresent()) {
+
+                return;
+            }
+
+            try (InputStream resourceInput = getClass().getResourceAsStream(resourcePath)) {
+                for (String ddl : IoUtils.toString(resourceInput, StandardCharsets.UTF_8).trim().split("(?:\r\n?|\n){2,}")) {
+                    try {
+                        context.execute(ddl);
+
+                    } catch (DataAccessException error) {
+                        Throwables.propagateIfInstanceOf(error.getCause(), SQLException.class);
+                        throw error;
+                    }
+                }
+            }
+
+        } finally {
+            database.closeConnection(connection);
+        }
+    }
+
+    /**
+     * Returns the path to the resource that contains the SQL statements to
+     * be executed during {@link #setUp(AbstractSqlDatabase)}.
+     *
+     * <p>The default implementation returns {@code null} to signal that
+     * there's nothing to do.</p>
+     *
+     * @return May be {@code null}.
+     */
+    protected String setUpResourcePath() {
+        return null;
+    }
+
+    /**
+     * Catches the given {@code error} thrown in
+     * {@link #setUp(AbstractSqlDatabase)} to be processed in vendor-specific way.
+     *
+     * <p>Typically, this is used to ignore errors when the underlying
+     * database doesn't natively support a specific capability (e.g.
+     * {@code CREATE TABLE IF NOT EXISTS}).</p>
+     *
+     * <p>The default implementation always rethrows the error.</p>
+     *
+     * @param error Can't be {@code null}.
+     */
+    protected void catchSetUpError(SQLException error) throws SQLException {
+        throw error;
+    }
+
+    /**
+     * Sets the most appropriate transaction isolation on the given
+     * {@code connection} in preparation for writing to the database.
+     *
+     * <p>The default implementation sets it to READ COMMITTED.</p>
+     *
+     * @param connection Can't be {@code null}.
+     */
+    public void setTransactionIsolation(Connection connection) throws SQLException {
+        connection.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
+    }
+
+    /**
+     * Finds the index table that should be used with SELECT SQL queries.
+     *
+     * @param type May be {@code null}.
+     * @return Never {@code null}.
+     */
+    public AbstractSqlIndex findSelectIndexTable(String type) {
+        List<AbstractSqlIndex> tables = findUpdateIndexTables(type);
+
+        if (tables.isEmpty()) {
+            throw new UnsupportedOperationException();
+
+        } else {
+            return tables.get(tables.size() - 1);
+        }
+    }
+
+    private String indexType(ObjectIndex index) {
+        List<String> fieldNames = index.getFields();
+        ObjectField field = index.getParent().getField(fieldNames.get(0));
+
+        return field != null ? field.getInternalItemType() : index.getType();
+    }
+
+    public AbstractSqlIndex findSelectIndexTable(ObjectIndex index) {
+        return findSelectIndexTable(indexType(index));
+    }
+
+    /**
+     * Finds all the index tables that should be used with UPDATE SQL queries.
+     *
+     * @param type May be {@code null}.
+     * @return Never {@code null}.
+     */
+    public List<AbstractSqlIndex> findUpdateIndexTables(String type) {
+        switch (type) {
+            case ObjectField.RECORD_TYPE :
+            case ObjectField.UUID_TYPE :
+                return uuidSqlIndexes;
+
+            case ObjectField.DATE_TYPE :
+            case ObjectField.NUMBER_TYPE :
+                return numberSqlIndexes;
+
+            case ObjectField.LOCATION_TYPE :
+                return locationSqlIndexes;
+
+            case ObjectField.REGION_TYPE :
+                return regionSqlIndexes;
+
+            default :
+                return stringSqlIndexes;
+        }
+    }
+
+    public List<AbstractSqlIndex> findUpdateIndexTables(ObjectIndex index) {
+        return findUpdateIndexTables(indexType(index));
+    }
+
+    /**
+     * Inserts indexes associated with the given {@code states}.
+     */
+    public void insertIndexes(
+            AbstractSqlDatabase database,
+            Connection connection,
+            DSLContext context,
+            ObjectIndex onlyIndex,
+            List<State> states)
+            throws SQLException {
+
+        Map<Table<Record>, BatchBindStep> batches = new HashMap<>();
+        Map<Table<Record>, Set<Map<String, Object>>> bindValuesSets = new HashMap<>();
+
+        for (State state : states) {
+            UUID id = state.getId();
+            UUID typeId = state.getVisibilityAwareTypeId();
+
+            for (SqlIndexValue sqlIndexValue : SqlIndexValue.find(state)) {
+                ObjectIndex index = sqlIndexValue.getIndex();
+
+                if (onlyIndex != null && !onlyIndex.equals(index)) {
+                    continue;
+                }
+
+                Object symbolId = database.getSymbolId(sqlIndexValue.getUniqueName());
+
+                for (AbstractSqlIndex sqlIndex : findUpdateIndexTables(index)) {
+                    Table<Record> table = sqlIndex.table();
+                    BatchBindStep batch = batches.get(table);
+                    Param<UUID> idParam = sqlIndex.idParam();
+                    Param<UUID> typeIdParam = sqlIndex.typeIdParam();
+                    Param<Integer> symbolIdParam = sqlIndex.symbolIdParam();
+
+                    if (batch == null) {
+                        batch = context.batch(context.insertInto(table)
+                                .set(sqlIndex.idField(), idParam)
+                                .set(sqlIndex.typeIdField(), typeIdParam)
+                                .set(sqlIndex.symbolIdField(), symbolIdParam)
+                                .set(sqlIndex.valueField(), sqlIndex.valueParam()));
+                    }
+
+                    boolean bound = false;
+
+                    for (Object[] valuesArray : sqlIndexValue.getValuesArray()) {
+                        Map<String, Object> bindValues = sqlIndex.valueBindValues(index, valuesArray[0]);
+
+                        if (bindValues != null) {
+                            bindValues.put(idParam.getName(), id);
+                            bindValues.put(typeIdParam.getName(), typeId);
+                            bindValues.put(symbolIdParam.getName(), symbolId);
+
+                            Set<Map<String, Object>> bindValuesSet = bindValuesSets.get(table);
+
+                            if (bindValuesSet == null) {
+                                bindValuesSet = new HashSet<>();
+                                bindValuesSets.put(table, bindValuesSet);
+                            }
+
+                            if (!bindValuesSet.contains(bindValues)) {
+                                batch = batch.bind(bindValues);
+                                bound = true;
+                                bindValuesSet.add(bindValues);
+                            }
+                        }
+                    }
+
+                    if (bound) {
+                        batches.put(table, batch);
+                    }
+                }
+            }
+        }
+
+        for (BatchBindStep batch : batches.values()) {
+            try {
+                batch.execute();
+
+            } catch (DataAccessException error) {
+                Throwables.propagateIfInstanceOf(error.getCause(), SQLException.class);
+                throw error;
+            }
+        }
+    }
+
+    /**
+     * Deletes indexes associated with the given {@code states}.
+     */
+    public void deleteIndexes(
+            AbstractSqlDatabase database,
+            Connection connection,
+            DSLContext context,
+            ObjectIndex onlyIndex,
+            List<State> states)
+            throws SQLException {
+
+        if (states == null || states.isEmpty()) {
+            return;
+        }
+
+        Set<UUID> stateIds = states.stream()
+                .map(State::getId)
+                .collect(Collectors.toSet());
+
+        for (AbstractSqlIndex sqlIndex : deleteSqlIndexes) {
+            try {
+                DeleteConditionStep<Record> delete = context
+                        .deleteFrom(sqlIndex.table())
+                        .where(sqlIndex.idField().in(stateIds));
+
+                if (onlyIndex != null) {
+                    delete = delete.and(sqlIndex.symbolIdField().eq(database.getReadSymbolId(onlyIndex.getUniqueName())));
+                }
+
+                context.execute(delete);
+
+            } catch (DataAccessException error) {
+                Throwables.propagateIfInstanceOf(error, SQLException.class);
+                throw error;
+            }
+        }
     }
 
     /**
@@ -263,7 +707,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
         synchronized (this) {
             try {
-                schema().setUp(this);
+                setUp(this);
                 invalidateCaches();
 
             } catch (IOException error) {
@@ -293,7 +737,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         this.catalog = catalog;
 
         try {
-            schema().setUp(this);
+            setUp(this);
             invalidateCaches();
 
         } catch (IOException error) {
@@ -360,11 +804,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
      * @return Never {@code null}.
      */
     protected abstract SQLDialect dialect();
-
-    /**
-     * @return Never {@code null}.
-     */
-    protected abstract SqlSchema schema();
 
     /**
      * @return Never {@code null}.
@@ -475,16 +914,15 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         Connection connection = openAnyConnection();
 
         try (DSLContext context = openContext(connection)) {
-            SqlSchema schema = schema();
-            Table<Record> symbolTable = schema.symbolTable();
-            Field<Integer> symbolIdField = schema.symbolIdField();
-            Field<String> symbolValueField = schema.symbolValueField();
+            Table<Record> symbolTable = symbolTable();
+            Field<Integer> symbolIdField = symbolIdField();
+            Field<String> symbolValueField = symbolValueField();
 
             if (create) {
                 org.jooq.Query createQuery = context
                         .insertInto(symbolTable, symbolValueField)
                         .select(context
-                                .select(DSL.inline(symbol, schema.stringIndexType()))
+                                .select(DSL.inline(symbol, stringIndexType()))
                                 .whereNotExists(context
                                         .selectOne()
                                         .from(symbolTable)
@@ -961,13 +1399,9 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
         try {
             Connection connection = getConnectionFromDataSource(dataSource);
-            SqlSchema schema = schema();
 
             connection.setReadOnly(false);
-
-            if (schema != null) {
-                schema.setTransactionIsolation(connection);
-            }
+            setTransactionIsolation(connection);
 
             return connection;
 
@@ -1120,6 +1554,49 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         }
 
         setIndexSpatial(ObjectUtils.firstNonNull(ObjectUtils.to(Boolean.class, settings.get(INDEX_SPATIAL_SUB_SETTING)), Boolean.TRUE));
+
+        numberSqlIndexes = sqlIndexes(new NumberSqlIndex(this, "RecordNumber", 3));
+        stringSqlIndexes = sqlIndexes(new StringSqlIndex(this, "RecordString", 4));
+        uuidSqlIndexes = sqlIndexes(new UuidSqlIndex(this, "RecordUuid", 3));
+
+        if (isIndexSpatial()) {
+            locationSqlIndexes = sqlIndexes(new LocationSqlIndex(this, "RecordLocation", 3));
+            regionSqlIndexes = sqlIndexes(new RegionSqlIndex(this, "RecordRegion", 2));
+
+        } else {
+            locationSqlIndexes = Collections.emptyList();
+            regionSqlIndexes = Collections.emptyList();
+        }
+
+        deleteSqlIndexes = ImmutableList.<AbstractSqlIndex>builder()
+                .addAll(locationSqlIndexes)
+                .addAll(numberSqlIndexes)
+                .addAll(regionSqlIndexes)
+                .addAll(stringSqlIndexes)
+                .addAll(uuidSqlIndexes)
+                .build();
+    }
+
+    private List<AbstractSqlIndex> sqlIndexes(AbstractSqlIndex... sqlIndexes) {
+        ImmutableList.Builder<AbstractSqlIndex> builder = ImmutableList.builder();
+        boolean empty = true;
+
+        for (AbstractSqlIndex sqlIndex : sqlIndexes) {
+            if (hasTable(sqlIndex.table().getName())) {
+                builder.add(sqlIndex);
+                empty = false;
+            }
+        }
+
+        if (empty) {
+            int length = sqlIndexes.length;
+
+            if (length > 0) {
+                builder.add(sqlIndexes[length - 1]);
+            }
+        }
+
+        return builder.build();
     }
 
     private static final Map<String, String> DRIVER_CLASS_NAMES; static {
@@ -1697,11 +2174,10 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         }
 
         try (DSLContext context = openContext(connection)) {
-            SqlSchema schema = schema();
 
             // Save all indexes.
-            schema.deleteIndexes(this, connection, context, null, indexStates);
-            schema.insertIndexes(this, connection, context, null, indexStates);
+            deleteIndexes(this, connection, context, null, indexStates);
+            insertIndexes(this, connection, context, null, indexStates);
 
             double now = System.currentTimeMillis() / 1000.0;
 
@@ -1722,10 +2198,10 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                             }
 
                             execute(connection, context, context
-                                    .insertInto(schema.recordTable())
-                                    .set(schema.recordIdField(), id)
-                                    .set(schema.recordTypeIdField(), typeId)
-                                    .set(schema.recordDataField(), data));
+                                    .insertInto(recordTable())
+                                    .set(recordIdField(), id)
+                                    .set(recordTypeIdField(), typeId)
+                                    .set(recordDataField(), data));
 
                         } catch (SQLException error) {
 
@@ -1749,10 +2225,10 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                             }
 
                             if (execute(connection, context, context
-                                    .update(schema.recordTable())
-                                    .set(schema.recordTypeIdField(), typeId)
-                                    .set(schema.recordDataField(), data)
-                                    .where(schema.recordIdField().eq(id))) < 1) {
+                                    .update(recordTable())
+                                    .set(recordTypeIdField(), typeId)
+                                    .set(recordDataField(), data)
+                                    .where(recordIdField().eq(id))) < 1) {
 
                                 // UPDATE failed so retry with INSERT.
                                 isNew = true;
@@ -1796,12 +2272,12 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                             data = serializeState(state);
 
                             if (execute(connection, context, context
-                                    .update(schema.recordTable())
-                                    .set(schema.recordTypeIdField(), typeId)
-                                    .set(schema.recordDataField(), data)
-                                    .where(schema.recordIdField().eq(id))
-                                    .and(schema.recordTypeIdField().eq(oldTypeId))
-                                    .and(schema.recordDataField().eq(oldData))) < 1) {
+                                    .update(recordTable())
+                                    .set(recordTypeIdField(), typeId)
+                                    .set(recordDataField(), data)
+                                    .where(recordIdField().eq(id))
+                                    .and(recordTypeIdField().eq(oldTypeId))
+                                    .and(recordDataField().eq(oldData))) < 1) {
 
                                 // UPDATE failed so start over.
                                 retryWrites();
@@ -1819,10 +2295,10 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                     if (isNew) {
                         try {
                             execute(connection, context, context
-                                    .insertInto(schema.recordUpdateTable())
-                                    .set(schema.recordUpdateIdField(), id)
-                                    .set(schema.recordUpdateTypeIdField(), typeId)
-                                    .set(schema.recordUpdateDateField(), now));
+                                    .insertInto(recordUpdateTable())
+                                    .set(recordUpdateIdField(), id)
+                                    .set(recordUpdateTypeIdField(), typeId)
+                                    .set(recordUpdateDateField(), now));
 
                         } catch (SQLException error) {
 
@@ -1838,10 +2314,10 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
                     } else {
                         if (execute(connection, context, context
-                                .update(schema.recordUpdateTable())
-                                .set(schema.recordUpdateTypeIdField(), typeId)
-                                .set(schema.recordUpdateDateField(), now)
-                                .where(schema.recordUpdateIdField().eq(id))) < 1) {
+                                .update(recordUpdateTable())
+                                .set(recordUpdateTypeIdField(), typeId)
+                                .set(recordUpdateDateField(), now)
+                                .where(recordUpdateIdField().eq(id))) < 1) {
 
                             // UPDATE failed so retry with INSERT.
                             isNew = true;
@@ -1858,30 +2334,25 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     @Override
     protected void doIndexes(Connection connection, boolean isImmediate, List<State> states) throws SQLException {
         try (DSLContext context = openContext(connection)) {
-            SqlSchema schema = schema();
-
-            schema.deleteIndexes(this, connection, context, null, states);
-            schema.insertIndexes(this, connection, context, null, states);
+            deleteIndexes(this, connection, context, null, states);
+            insertIndexes(this, connection, context, null, states);
         }
     }
 
     @Override
     public void doRecalculations(Connection connection, boolean isImmediate, ObjectIndex index, List<State> states) throws SQLException {
         try (DSLContext context = openContext(connection)) {
-            SqlSchema schema = schema();
-
-            schema.deleteIndexes(this, connection, context, index, states);
-            schema.insertIndexes(this, connection, context, index, states);
+            deleteIndexes(this, connection, context, index, states);
+            insertIndexes(this, connection, context, index, states);
         }
     }
 
     @Override
     protected void doDeletes(Connection connection, boolean isImmediate, List<State> states) throws SQLException {
         try (DSLContext context = openContext(connection)) {
-            SqlSchema schema = schema();
 
             // Delete all indexes.
-            schema.deleteIndexes(this, connection, context, null, states);
+            deleteIndexes(this, connection, context, null, states);
 
             Set<UUID> stateIds = states.stream()
                     .map(State::getId)
@@ -1889,14 +2360,14 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
             // Delete data.
             execute(connection, context, context
-                    .delete(schema.recordTable())
-                    .where(schema.recordIdField().in(stateIds)));
+                    .delete(recordTable())
+                    .where(recordIdField().in(stateIds)));
 
             // Save delete date.
             execute(connection, context, context
-                    .update(schema.recordUpdateTable())
-                    .set(schema.recordUpdateDateField(), System.currentTimeMillis() / 1000.0)
-                    .where(schema.recordUpdateIdField().in(stateIds)));
+                    .update(recordUpdateTable())
+                    .set(recordUpdateDateField(), System.currentTimeMillis() / 1000.0)
+                    .where(recordUpdateIdField().in(stateIds)));
         }
     }
 

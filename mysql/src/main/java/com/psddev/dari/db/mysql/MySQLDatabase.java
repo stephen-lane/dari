@@ -12,15 +12,19 @@ import com.psddev.dari.db.SqlVendor;
 import com.psddev.dari.db.State;
 import com.psddev.dari.db.StateValueUtils;
 import com.psddev.dari.db.sql.AbstractSqlDatabase;
-import com.psddev.dari.db.sql.SqlSchema;
 import com.psddev.dari.util.CompactMap;
-import com.psddev.dari.util.Lazy;
 import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.Profiler;
 import com.psddev.dari.util.UuidUtils;
+import org.jooq.Condition;
+import org.jooq.Converter;
 import org.jooq.DSLContext;
+import org.jooq.DataType;
+import org.jooq.Field;
 import org.jooq.SQLDialect;
 import org.jooq.conf.ParamType;
+import org.jooq.impl.DSL;
+import org.jooq.util.mysql.MySQLDataType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,6 +42,29 @@ import java.util.stream.Collectors;
 
 public class MySQLDatabase extends AbstractSqlDatabase {
 
+    private static final DataType<UUID> UUID_TYPE = MySQLDataType.BINARY.asConvertedDataType(new Converter<byte[], UUID>() {
+
+        @Override
+        public UUID from(byte[] bytes) {
+            return bytes != null ? UuidUtils.fromBytes(bytes) : null;
+        }
+
+        @Override
+        public byte[] to(UUID uuid) {
+            return uuid != null ? UuidUtils.toBytes(uuid) : null;
+        }
+
+        @Override
+        public Class<byte[]> fromType() {
+            return byte[].class;
+        }
+
+        @Override
+        public Class<UUID> toType() {
+            return UUID.class;
+        }
+    });
+
     public static final String ENABLE_REPLICATION_CACHE_SUB_SETTING = "enableReplicationCache";
     public static final String REPLICATION_CACHE_SIZE_SUB_SETTING = "replicationCacheSize";
 
@@ -52,19 +79,79 @@ public class MySQLDatabase extends AbstractSqlDatabase {
 
     private static final long DEFAULT_REPLICATION_CACHE_SIZE = 10000L;
 
+    private volatile Boolean binlogFormatStatement;
     private volatile boolean enableReplicationCache;
     private volatile long replicationCacheMaximumSize;
 
     private transient volatile Cache<UUID, Object[]> replicationCache;
     private transient volatile MySQLBinaryLogReader mysqlBinaryLogReader;
 
-    private final transient Lazy<MySQLSchema> schema = new Lazy<MySQLSchema>() {
+    @Override
+    public DataType<UUID> uuidType() {
+        return UUID_TYPE;
+    }
 
-        @Override
-        protected MySQLSchema create() {
-            return new MySQLSchema(MySQLDatabase.this);
+    @Override
+    public Condition stContains(Field<Object> x, Field<Object> y) {
+        return DSL.condition("MBRContains({0}, {1})", x, y);
+    }
+
+    @Override
+    public Field<Object> stGeomFromText(Field<String> wkt) {
+        return DSL.field("GeomFromText({0})", wkt);
+    }
+
+    @Override
+    public Field<Double> stLength(Field<Object> field) {
+        return DSL.field("GLength({0})", Double.class, field);
+    }
+
+    @Override
+    public Field<Object> stMakeLine(Field<Object> x, Field<Object> y) {
+        return DSL.field("LineString({0}, {1})", x, y);
+    }
+
+    @Override
+    public void setTransactionIsolation(Connection connection) throws SQLException {
+        if (binlogFormatStatement == null) {
+            synchronized (this) {
+                if (binlogFormatStatement == null) {
+                    try (Statement statement = connection.createStatement();
+                            ResultSet result = statement.executeQuery("SHOW VARIABLES WHERE variable_name IN ('log_bin', 'binlog_format')")) {
+
+                        boolean logBin = false;
+
+                        while (result.next()) {
+                            String name = result.getString(1);
+                            String value = result.getString(2);
+
+                            if ("binlog_format".equalsIgnoreCase(name)) {
+                                binlogFormatStatement = "STATEMENT".equalsIgnoreCase(value);
+
+                            } else if ("log_bin".equalsIgnoreCase(name)) {
+                                logBin = !"OFF".equalsIgnoreCase(value);
+                            }
+                        }
+
+                        binlogFormatStatement = logBin && Boolean.TRUE.equals(binlogFormatStatement);
+
+                        if (binlogFormatStatement) {
+                            LOGGER.warn("Can't set transaction isolation to"
+                                    + " READ COMMITTED because binlog_format"
+                                    + " is set to STATEMENT. Please set it to"
+                                    + " MIXED (my.cnf: binlog_format = mixed)"
+                                    + " to prevent reduced performance under"
+                                    + " load.");
+                        }
+                    }
+                }
+            }
         }
-    };
+
+        if (!binlogFormatStatement) {
+            connection.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
+        }
+    }
 
     public boolean isEnableReplicationCache() {
         return enableReplicationCache;
@@ -85,11 +172,6 @@ public class MySQLDatabase extends AbstractSqlDatabase {
     @Override
     protected SQLDialect dialect() {
         return SQLDialect.MYSQL;
-    }
-
-    @Override
-    protected SqlSchema schema() {
-        return schema.get();
     }
 
     @Override
@@ -238,10 +320,9 @@ public class MySQLDatabase extends AbstractSqlDatabase {
                     connection = openQueryConnection(query);
 
                     try (DSLContext context = openContext(connection)) {
-                        SqlSchema schema = schema();
-                        sqlQuery = context.select(schema.recordTypeIdField(), schema.recordDataField(), schema.recordIdField())
-                                .from(schema.recordTable())
-                                .where(schema.recordIdField().in(missingIds))
+                        sqlQuery = context.select(recordTypeIdField(), recordDataField(), recordIdField())
+                                .from(recordTable())
+                                .where(recordIdField().in(missingIds))
                                 .getSQL(ParamType.INLINED);
                     }
 

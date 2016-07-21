@@ -12,13 +12,13 @@ import java.util.List;
 @FunctionalInterface
 interface SqlSorter {
 
-    SqlSorter ASCENDING = (schema, join, options) -> join.valueField.sort(SortOrder.ASC);
+    SqlSorter ASCENDING = (database, join, options) -> join.valueField.sort(SortOrder.ASC);
 
-    SqlSorter DESCENDING = (schema, join, options) -> join.valueField.sort(SortOrder.DESC);
+    SqlSorter DESCENDING = (database, join, options) -> join.valueField.sort(SortOrder.DESC);
 
-    SqlSorter CLOSEST = (schema, join, options) -> distance(schema, join, options).sort(SortOrder.ASC);
+    SqlSorter CLOSEST = (database, join, options) -> distance(database, join, options).sort(SortOrder.ASC);
 
-    SqlSorter FARTHEST = (schema, join, options) -> distance(schema, join, options).sort(SortOrder.DESC);
+    SqlSorter FARTHEST = (database, join, options) -> distance(database, join, options).sort(SortOrder.DESC);
 
     static SqlSorter find(String operator) {
         switch (operator) {
@@ -41,16 +41,16 @@ interface SqlSorter {
         }
     }
 
-    static Field<Double> distance(SqlSchema schema, SqlJoin join, List<Object> options) {
+    static Field<Double> distance(AbstractSqlDatabase database, SqlJoin join, List<Object> options) {
         if (!(join.sqlIndex instanceof LocationSqlIndex)) {
             throw new IllegalArgumentException("Can't sort by distance against non-location field!");
         }
 
-        return schema.stLength(
-                schema.stMakeLine(
-                        schema.stGeomFromText(DSL.inline(((Location) options.get(1)).toWkt())),
+        return database.stLength(
+                database.stMakeLine(
+                        database.stGeomFromText(DSL.inline(((Location) options.get(1)).toWkt())),
                         join.valueField));
     }
 
-    SortField<?> createSortField(SqlSchema schema, SqlJoin join, List<Object> options);
+    SortField<?> createSortField(AbstractSqlDatabase database, SqlJoin join, List<Object> options);
 }

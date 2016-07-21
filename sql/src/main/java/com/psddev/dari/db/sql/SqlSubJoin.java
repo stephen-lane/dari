@@ -40,11 +40,11 @@ final class SqlSubJoin {
     private SqlSubJoin(SqlQuery parent, SqlQuery sub, SqlJoin join, boolean in) {
         this.sqlQuery = sub;
 
-        SqlSchema schema = sub.schema;
+        AbstractSqlDatabase database = sub.database;
         String alias = sub.recordTableAlias;
-        Field<?> id = DSL.field(DSL.name(alias, schema.recordIdField().getName()), schema.uuidType());
+        Field<?> id = DSL.field(DSL.name(alias, database.recordIdField().getName()), database.uuidType());
 
-        this.table = sub.initialize(DSL.table(DSL.name(schema.recordTable().getName())).as(alias));
+        this.table = sub.initialize(DSL.table(DSL.name(database.recordTable().getName())).as(alias));
         this.on = in
                 ? join.valueField.eq(id)
                 : join.valueField.ne(id);

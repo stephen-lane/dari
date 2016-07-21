@@ -39,7 +39,6 @@ class SqlQuery {
     protected final Query<?> query;
     protected final String aliasPrefix;
 
-    protected final SqlSchema schema;
     private final DSLContext dslContext;
     private final RenderContext tableRenderContext;
     protected final RenderContext renderContext;
@@ -68,15 +67,14 @@ class SqlQuery {
         this.query = query;
         this.aliasPrefix = aliasPrefix;
 
-        schema = database.schema();
         dslContext = DSL.using(database.dialect());
         tableRenderContext = dslContext.renderContext().paramType(ParamType.INLINED).declareTables(true);
         renderContext = dslContext.renderContext().paramType(ParamType.INLINED);
 
         recordTableAlias = aliasPrefix + "r";
-        recordTable = DSL.table(DSL.name(schema.recordTable().getName())).as(recordTableAlias);
-        recordIdField = DSL.field(DSL.name(recordTableAlias, schema.recordIdField().getName()), schema.uuidType());
-        recordTypeIdField = DSL.field(DSL.name(recordTableAlias, schema.recordTypeIdField().getName()), schema.uuidType());
+        recordTable = DSL.table(DSL.name(database.recordTable().getName())).as(recordTableAlias);
+        recordIdField = DSL.field(DSL.name(recordTableAlias, database.recordIdField().getName()), database.uuidType());
+        recordTypeIdField = DSL.field(DSL.name(recordTableAlias, database.recordTypeIdField().getName()), database.uuidType());
         mappedKeys = query.mapEmbeddedKeys(database.getEnvironment());
         selectedIndexes = new HashMap<>();
 
@@ -164,7 +162,7 @@ class SqlQuery {
             } else {
                 orderByFields.add(
                         sqlSorter.createSortField(
-                                schema,
+                                database,
                                 join,
                                 sorter.getOptions()));
             }
@@ -316,8 +314,8 @@ class SqlQuery {
                             throw new UnsupportedOperationException();
                         }
 
-                        Condition contains = schema.stContains(
-                                schema.stGeomFromText(DSL.inline(((Region) value).toPolygonWkt())),
+                        Condition contains = database.stContains(
+                                database.stGeomFromText(DSL.inline(((Region) value).toPolygonWkt())),
                                 join.valueField);
 
                         comparisonConditions.add(isNotEqualsAll
@@ -366,9 +364,9 @@ class SqlQuery {
                         }
 
                         comparisonConditions.add(
-                                schema.stContains(
+                                database.stContains(
                                         join.valueField,
-                                        schema.stGeomFromText(DSL.inline(((Location) value).toWkt()))));
+                                        database.stGeomFromText(DSL.inline(((Location) value).toWkt()))));
 
                     } else if (value == Query.MISSING_VALUE) {
                         hasMissing = true;
@@ -519,10 +517,10 @@ class SqlQuery {
      * matching the query were last updated.
      */
     public String lastUpdateStatement() {
-        Table<?> table = initialize(DSL.table(schema.recordUpdateTable().getName()).as(recordTableAlias));
+        Table<?> table = initialize(DSL.table(database.recordUpdateTable().getName()).as(recordTableAlias));
 
         return tableRenderContext.render(dslContext
-                .select(DSL.field(DSL.name(recordTableAlias, schema.recordUpdateDateField().getName())).max())
+                .select(DSL.field(DSL.name(recordTableAlias, database.recordUpdateDateField().getName())).max())
                 .from(table)
                 .where(whereCondition));
     }
@@ -560,8 +558,8 @@ class SqlQuery {
                     .select(selectFields)
                     .from(recordTable)
                     .join(select.asTable().as(distinctAlias))
-                    .on(recordTypeIdField.eq(DSL.field(DSL.name(distinctAlias, SqlDatabase.TYPE_ID_COLUMN), schema.uuidType())))
-                    .and(recordIdField.eq(DSL.field(DSL.name(distinctAlias, SqlDatabase.ID_COLUMN), schema.uuidType())));
+                    .on(recordTypeIdField.eq(DSL.field(DSL.name(distinctAlias, SqlDatabase.TYPE_ID_COLUMN), database.uuidType())))
+                    .and(recordIdField.eq(DSL.field(DSL.name(distinctAlias, SqlDatabase.ID_COLUMN), database.uuidType())));
         }
 
         return tableRenderContext.render(select);
