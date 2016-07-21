@@ -18,22 +18,22 @@ import static org.junit.Assert.*;
 
 public abstract class AbstractIndexTest<T> extends AbstractTest {
 
-    private long total;
+    protected int total;
 
     protected abstract Class<? extends Model<T>> modelClass();
 
     protected abstract T value(int index);
 
-    private ModelBuilder model() {
+    protected ModelBuilder model() {
         return new ModelBuilder();
     }
 
     @Before
     public void resetTotal() {
-        total = 0L;
+        total = 0;
     }
 
-    private Query<? extends Model<T>> query() {
+    protected Query<? extends Model<T>> query() {
         return Query.from(modelClass());
     }
 
@@ -53,12 +53,12 @@ public abstract class AbstractIndexTest<T> extends AbstractTest {
                 nullValue());
     }
 
-    private void assertCount(long count, String predicate, String notPredicate, Object... parameters) {
+    protected void assertCount(long count, String predicate, String notPredicate, Object... parameters) {
         assertThat(predicate, query().where(predicate, parameters).count(), is(count));
         assertThat(notPredicate, query().where(notPredicate, parameters).count(), is(total - count));
     }
 
-    private void createMissingTestModels() {
+    protected void createMissingTestModels() {
         model().create();
         model().field(0).create();
         model().set(0).create();
@@ -69,7 +69,7 @@ public abstract class AbstractIndexTest<T> extends AbstractTest {
         model().all(0).create();
     }
 
-    private void missing(String field, long count) {
+    protected void missing(String field, long count) {
         assertCount(count,
                 field + " = missing",
                 field + " != missing");
@@ -83,7 +83,7 @@ public abstract class AbstractIndexTest<T> extends AbstractTest {
         missing("list", 4L);
     }
 
-    private void missingBoth(String field1, String field2, long count) {
+    protected void missingBoth(String field1, String field2, long count) {
         assertCount(count,
                 field1 + " = missing and " + field2 + " = missing",
                 field1 + " != missing or " + field2 + " != missing");
@@ -97,7 +97,7 @@ public abstract class AbstractIndexTest<T> extends AbstractTest {
         missingBoth("set", "list", 2L);
     }
 
-    private void missingEither(String field1, String field2, long count) {
+    protected void missingEither(String field1, String field2, long count) {
         assertCount(count,
                 field1 + " = missing or " + field2 + " = missing",
                 field1 + " != missing and " + field2 + " != missing");
@@ -111,11 +111,11 @@ public abstract class AbstractIndexTest<T> extends AbstractTest {
         missingEither("set", "list", 6L);
     }
 
-    private void createCompareTestModels() {
+    protected void createCompareTestModels() {
         IntStream.range(0, 5).forEach(i -> model().all(i).create());
     }
 
-    private void compare(String field, String operator, String notOperator, int index, long count) {
+    protected void compare(String field, String operator, String notOperator, int index, long count) {
         assertCount(count,
                 field + " " + operator + " ?",
                 field + " " + notOperator + " ?",
@@ -154,7 +154,7 @@ public abstract class AbstractIndexTest<T> extends AbstractTest {
         public final List<T> list = new ArrayList<>();
     }
 
-    private class ModelBuilder {
+    protected class ModelBuilder {
 
         private final Model<T> model;
 
