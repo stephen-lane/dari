@@ -15,5 +15,6 @@ public abstract class AbstractTest {
         Settings.setOverride("dari/defaultDatabase", DATABASE_NAME);
         Settings.setOverride(SETTING_KEY_PREFIX + "class", H2Database.class.getName());
         Settings.setOverride(SETTING_KEY_PREFIX + H2Database.JDBC_URL_SETTING, "jdbc:h2:mem:test" + UUID.randomUUID().toString().replaceAll("-", "") + ";DB_CLOSE_DELAY=-1");
+        Settings.setOverride(SETTING_KEY_PREFIX + H2Database.INDEX_SPATIAL_SUB_SETTING, Boolean.TRUE);
     }
 }

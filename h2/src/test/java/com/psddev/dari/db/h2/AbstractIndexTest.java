@@ -1,5 +1,6 @@
 package com.psddev.dari.db.h2;
 
+import com.psddev.dari.db.Location;
 import com.psddev.dari.db.Query;
 import com.psddev.dari.db.Record;
 import com.psddev.dari.util.TypeDefinition;
@@ -140,6 +141,46 @@ public abstract class AbstractIndexTest<T> extends AbstractTest {
     public void lt() {
         createCompareTestModels();
         compare("field", "<", ">=", 2, 2L);
+    }
+
+    protected void createSortTestModels() {
+        for (int i = 0, size = 26; i < size; ++ i) {
+            model().all(i % 2 == 0 ? i : size - i).create();
+        }
+    }
+
+    protected void assertOrder(boolean reverse, Query<? extends Model<T>> query) {
+        List<? extends Model<T>> models = query.selectAll();
+
+        assertThat(models, hasSize(total));
+
+        for (int i = 0; i < total; ++ i) {
+            assertThat(models.get(i).field, is(value(reverse ? total - 1 - i : i)));
+        }
+    }
+
+    @Test
+    public void ascending() {
+        createSortTestModels();
+        assertOrder(false, query().sortAscending("field"));
+    }
+
+    @Test
+    public void descending() {
+        createSortTestModels();
+        assertOrder(true, query().sortDescending("field"));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void closest() {
+        createSortTestModels();
+        query().sortClosest("field", new Location(0, 0)).count();
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void farthest() {
+        createSortTestModels();
+        query().sortFarthest("field", new Location(0, 0)).count();
     }
 
     public static class Model<T> extends Record {
