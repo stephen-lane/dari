@@ -26,6 +26,36 @@ public class RegionIndexTest extends AbstractIndexTest<Region> {
         assertCount(total - 1, "field contains ?", Region.sphericalCircle(0.0d, 0.0d, 1.5d));
     }
 
+    @Test(expected = IllegalArgumentException.class)
+    public void containsIllegal() {
+        createCompareTestModels();
+        query().where("field contains true").count();
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void gtIllegal() {
+        createCompareTestModels();
+        query().where("field > true").count();
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void geIllegal() {
+        createCompareTestModels();
+        query().where("field > true").count();
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void ltIllegal() {
+        createCompareTestModels();
+        query().where("field < true").count();
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void leIllegal() {
+        createCompareTestModels();
+        query().where("field <= true").count();
+    }
+
     public static class Foo extends Model<Region> {
     }
 }
