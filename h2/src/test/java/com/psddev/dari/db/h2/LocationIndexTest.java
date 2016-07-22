@@ -8,7 +8,7 @@ public class LocationIndexTest extends AbstractIndexTest<Location> {
 
     @Override
     protected Class<? extends Model<Location>> modelClass() {
-        return Foo.class;
+        return LocationModel.class;
     }
 
     @Override
@@ -120,6 +120,6 @@ public class LocationIndexTest extends AbstractIndexTest<Location> {
         assertOrder(true, query().sortFarthest("field", new Location(0, 0)));
     }
 
-    public static class Foo extends Model<Location> {
+    public static class LocationModel extends Model<Location> {
     }
 }

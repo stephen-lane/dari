@@ -8,7 +8,7 @@ public class RegionIndexTest extends AbstractIndexTest<Region> {
 
     @Override
     protected Class<? extends Model<Region>> modelClass() {
-        return Foo.class;
+        return RegionModel.class;
     }
 
     @Override
@@ -87,6 +87,6 @@ public class RegionIndexTest extends AbstractIndexTest<Region> {
         query().where("field <= true").count();
     }
 
-    public static class Foo extends Model<Region> {
+    public static class RegionModel extends Model<Region> {
     }
 }

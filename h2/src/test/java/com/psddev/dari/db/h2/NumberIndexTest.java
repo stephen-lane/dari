@@ -6,7 +6,7 @@ public class NumberIndexTest extends AbstractIndexTest<Double> {
 
     @Override
     protected Class<? extends Model<Double>> modelClass() {
-        return Foo.class;
+        return NumberModel.class;
     }
 
     @Override
@@ -33,6 +33,6 @@ public class NumberIndexTest extends AbstractIndexTest<Double> {
     public void invalidValue() {
     }
 
-    public static class Foo extends Model<Double> {
+    public static class NumberModel extends Model<Double> {
     }
 }

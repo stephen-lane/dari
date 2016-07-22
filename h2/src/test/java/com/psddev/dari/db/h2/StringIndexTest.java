@@ -9,7 +9,7 @@ public class StringIndexTest extends AbstractIndexTest<String> {
 
     @Override
     protected Class<? extends Model<String>> modelClass() {
-        return Foo.class;
+        return StringModel.class;
     }
 
     @Override
@@ -20,27 +20,27 @@ public class StringIndexTest extends AbstractIndexTest<String> {
     @Override
     @Test
     public void contains() {
-        Foo foo = new Foo();
+        StringModel model = new StringModel();
 
-        foo.field = "abcde";
-        foo.save();
+        model.field = "abcde";
+        model.save();
 
         assertThat(
                 query().where("field contains ?", "bcd").first(),
-                is(foo));
+                is(model));
     }
 
     @Override
     @Test
     public void startsWith() {
-        Foo foo = new Foo();
+        StringModel model = new StringModel();
 
-        foo.field = "abcde";
-        foo.save();
+        model.field = "abcde";
+        model.save();
 
         assertThat(
                 query().where("field startsWith ?", "abc").first(),
-                is(foo));
+                is(model));
     }
 
     @Override
@@ -48,6 +48,6 @@ public class StringIndexTest extends AbstractIndexTest<String> {
     public void invalidValue() {
     }
 
-    public static class Foo extends Model<String> {
+    public static class StringModel extends Model<String> {
     }
 }

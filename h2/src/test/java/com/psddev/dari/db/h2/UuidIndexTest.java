@@ -8,7 +8,7 @@ public class UuidIndexTest extends AbstractIndexTest<UUID> {
 
     @Override
     protected Class<? extends Model<UUID>> modelClass() {
-        return Foo.class;
+        return UuidModel .class;
     }
 
     @Override
@@ -30,6 +30,6 @@ public class UuidIndexTest extends AbstractIndexTest<UUID> {
         query().and("field startsWith ?", (Object) null).count();
     }
 
-    public static class Foo extends Model<UUID> {
+    public static class UuidModel extends Model<UUID> {
     }
 }
