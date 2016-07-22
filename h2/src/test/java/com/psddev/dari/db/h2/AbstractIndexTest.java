@@ -138,10 +138,34 @@ public abstract class AbstractIndexTest<T> extends AbstractTest {
         query().where("field contains ?", value(0)).count();
     }
 
+    @Test
+    public void containsNull() {
+        createCompareTestModels();
+        assertCount(0, "field contains ?", (Object) null);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void containsMissing() {
+        createCompareTestModels();
+        query().where("field contains missing").count();
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void startsWith() {
         createCompareTestModels();
         query().where("field startsWith ?", value(0)).count();
+    }
+
+    @Test
+    public void startsWithNull() {
+        createCompareTestModels();
+        assertCount(0, "field startsWith ?", (Object) null);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void startsWithMissing() {
+        createCompareTestModels();
+        query().where("field startsWith missing").count();
     }
 
     @Test
@@ -151,9 +175,33 @@ public abstract class AbstractIndexTest<T> extends AbstractTest {
     }
 
     @Test
+    public void gtNull() {
+        createCompareTestModels();
+        assertCount(0, "field > ?", (Object) null);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void gtMissing() {
+        createCompareTestModels();
+        query().where("field > missing").count();
+    }
+
+    @Test
     public void ge() {
         createCompareTestModels();
         compare("field", ">=", 2, 3L);
+    }
+
+    @Test
+    public void geNull() {
+        createCompareTestModels();
+        assertCount(0, "field >= ?", (Object) null);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void geMissing() {
+        createCompareTestModels();
+        query().where("field >= missing").count();
     }
 
     @Test
@@ -163,9 +211,33 @@ public abstract class AbstractIndexTest<T> extends AbstractTest {
     }
 
     @Test
+    public void ltNull() {
+        createCompareTestModels();
+        assertCount(0, "field < ?", (Object) null);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void ltMissing() {
+        createCompareTestModels();
+        query().where("field < missing").count();
+    }
+
+    @Test
     public void le() {
         createCompareTestModels();
         compare("field", "<=", 2, 3L);
+    }
+
+    @Test
+    public void leNull() {
+        createCompareTestModels();
+        assertCount(0, "field <= ?", (Object) null);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void leMissing() {
+        createCompareTestModels();
+        query().where("field <= missing").count();
     }
 
     protected void createSortTestModels() {

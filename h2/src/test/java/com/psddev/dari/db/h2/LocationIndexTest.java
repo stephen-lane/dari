@@ -17,9 +17,30 @@ public class LocationIndexTest extends AbstractIndexTest<Location> {
 
     @Override
     @Test(expected = IllegalArgumentException.class)
+    public void containsNull() {
+        createCompareTestModels();
+        query().and("field contains ?", (Object) null).count();
+    }
+
+    @Override
+    @Test(expected = IllegalArgumentException.class)
+    public void startsWithNull() {
+        createCompareTestModels();
+        query().and("field startsWith ?", (Object) null).count();
+    }
+
+    @Override
+    @Test(expected = IllegalArgumentException.class)
     public void gt() {
         createCompareTestModels();
         query().where("field > ?", value(0)).count();
+    }
+
+    @Override
+    @Test(expected = IllegalArgumentException.class)
+    public void gtNull() {
+        createCompareTestModels();
+        query().and("field > ?", (Object) null).count();
     }
 
     @Override
@@ -31,6 +52,13 @@ public class LocationIndexTest extends AbstractIndexTest<Location> {
 
     @Override
     @Test(expected = IllegalArgumentException.class)
+    public void geNull() {
+        createCompareTestModels();
+        query().and("field >= ?", (Object) null).count();
+    }
+
+    @Override
+    @Test(expected = IllegalArgumentException.class)
     public void lt() {
         createCompareTestModels();
         query().where("field < ?", value(0)).count();
@@ -38,9 +66,23 @@ public class LocationIndexTest extends AbstractIndexTest<Location> {
 
     @Override
     @Test(expected = IllegalArgumentException.class)
+    public void ltNull() {
+        createCompareTestModels();
+        query().and("field < ?", (Object) null).count();
+    }
+
+    @Override
+    @Test(expected = IllegalArgumentException.class)
     public void le() {
         createCompareTestModels();
         query().where("field <= ?", value(0)).count();
+    }
+
+    @Override
+    @Test(expected = IllegalArgumentException.class)
+    public void leNull() {
+        createCompareTestModels();
+        query().and("field <= ?", (Object) null).count();
     }
 
     @Override

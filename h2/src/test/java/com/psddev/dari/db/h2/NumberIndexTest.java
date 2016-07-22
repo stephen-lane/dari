@@ -15,6 +15,20 @@ public class NumberIndexTest extends AbstractIndexTest<Double> {
     }
 
     @Override
+    @Test(expected = IllegalArgumentException.class)
+    public void containsNull() {
+        createCompareTestModels();
+        query().and("field contains ?", (Object) null).count();
+    }
+
+    @Override
+    @Test(expected = IllegalArgumentException.class)
+    public void startsWithNull() {
+        createCompareTestModels();
+        query().and("field startsWith ?", (Object) null).count();
+    }
+
+    @Override
     @Test
     public void invalidValue() {
     }

@@ -26,6 +26,13 @@ public class RegionIndexTest extends AbstractIndexTest<Region> {
         assertCount(total - 1, "field contains ?", Region.sphericalCircle(0.0d, 0.0d, 1.5d));
     }
 
+    @Override
+    @Test(expected = IllegalArgumentException.class)
+    public void startsWithNull() {
+        createCompareTestModels();
+        query().and("field startsWith ?", (Object) null).count();
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void containsIllegal() {
         createCompareTestModels();
