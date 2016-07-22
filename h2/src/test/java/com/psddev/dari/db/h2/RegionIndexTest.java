@@ -32,10 +32,22 @@ public class RegionIndexTest extends AbstractIndexTest<Region> {
         query().where("field contains true").count();
     }
 
+    @Test
+    public void gtNumber() {
+        createCompareTestModels();
+        assertCount(total, "field > 0");
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void gtIllegal() {
         createCompareTestModels();
         query().where("field > true").count();
+    }
+
+    @Test
+    public void geNumber() {
+        createCompareTestModels();
+        assertCount(total, "field >= 0");
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -44,10 +56,22 @@ public class RegionIndexTest extends AbstractIndexTest<Region> {
         query().where("field > true").count();
     }
 
+    @Test
+    public void ltNumber() {
+        createCompareTestModels();
+        assertCount(1, "field < 10");
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void ltIllegal() {
         createCompareTestModels();
         query().where("field < true").count();
+    }
+
+    @Test
+    public void leNumber() {
+        createCompareTestModels();
+        assertCount(1, "field <= 10");
     }
 
     @Test(expected = IllegalArgumentException.class)

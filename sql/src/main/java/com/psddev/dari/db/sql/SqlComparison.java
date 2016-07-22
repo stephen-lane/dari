@@ -5,6 +5,7 @@ import com.google.common.collect.ImmutableSet;
 import com.psddev.dari.db.Location;
 import com.psddev.dari.db.PredicateParser;
 import com.psddev.dari.db.Region;
+import com.psddev.dari.util.ObjectUtils;
 import org.jooq.Condition;
 import org.jooq.Field;
 import org.jooq.Param;
@@ -86,15 +87,24 @@ interface SqlComparison {
 
         if (sqlIndex instanceof RegionSqlIndex) {
             return (value) -> {
-                if (!(value instanceof Region)) {
-                    throw new IllegalArgumentException();
-                }
+                if (value instanceof Region) {
+                    return compareFunction.apply(
+                            (Field) database.stArea(join.valueField),
+                            database.stArea(
+                                    database.stGeomFromText(
+                                            DSL.inline(((Region) value).toMultiPolygonWkt(), String.class))));
 
-                return compareFunction.apply(
-                        (Field) database.stArea(join.valueField),
-                        database.stArea(
-                                database.stGeomFromText(
-                                        DSL.inline(((Region) value).toMultiPolygonWkt(), String.class))));
+                } else {
+                    Double valueDouble = ObjectUtils.to(Double.class, value);
+
+                    if (valueDouble == null) {
+                        throw new IllegalArgumentException();
+                    }
+
+                    return compareFunction.apply(
+                            (Field) database.stArea(join.valueField),
+                            DSL.inline(valueDouble, double.class));
+                }
             };
 
         } else {
