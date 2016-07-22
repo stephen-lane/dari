@@ -19,11 +19,11 @@ public class Model<M extends Model<M, T>, T> extends Record {
     public final List<T> list = new ArrayList<>();
 
     @Indexed
-    public M referenceField;
+    public Model<?, ?> referenceField;
 
     @Indexed
-    public final Set<M> referenceSet = new LinkedHashSet<>();
+    public final Set<Model<?, ?>> referenceSet = new LinkedHashSet<>();
 
     @Indexed
-    public final List<M> referenceList = new ArrayList<>();
+    public final List<Model<?, ?>> referenceList = new ArrayList<>();
 }
