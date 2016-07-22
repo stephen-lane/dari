@@ -54,9 +54,8 @@ public abstract class AbstractIndexTest<T> extends AbstractTest {
                 nullValue());
     }
 
-    protected void assertCount(long count, String predicate, String notPredicate, Object... parameters) {
+    protected void assertCount(long count, String predicate, Object... parameters) {
         assertThat(predicate, query().where(predicate, parameters).count(), is(count));
-        assertThat(notPredicate, query().where(notPredicate, parameters).count(), is(total - count));
     }
 
     protected void createMissingTestModels() {
@@ -71,9 +70,8 @@ public abstract class AbstractIndexTest<T> extends AbstractTest {
     }
 
     protected void missing(String field, long count) {
-        assertCount(count,
-                field + " = missing",
-                field + " != missing");
+        assertCount(count, field + " = missing");
+        assertCount(total - count, field + " != missing");
     }
 
     @Test
@@ -85,9 +83,8 @@ public abstract class AbstractIndexTest<T> extends AbstractTest {
     }
 
     protected void missingBoth(String field1, String field2, long count) {
-        assertCount(count,
-                field1 + " = missing and " + field2 + " = missing",
-                field1 + " != missing or " + field2 + " != missing");
+        assertCount(count, field1 + " = missing and " + field2 + " = missing");
+        assertCount(total - count, field1 + " != missing or " + field2 + " != missing");
     }
 
     @Test
@@ -99,9 +96,8 @@ public abstract class AbstractIndexTest<T> extends AbstractTest {
     }
 
     protected void missingEither(String field1, String field2, long count) {
-        assertCount(count,
-                field1 + " = missing or " + field2 + " = missing",
-                field1 + " != missing and " + field2 + " != missing");
+        assertCount(count, field1 + " = missing or " + field2 + " = missing");
+        assertCount(total - count, field1 + " != missing and " + field2 + " != missing");
     }
 
     @Test
@@ -116,31 +112,48 @@ public abstract class AbstractIndexTest<T> extends AbstractTest {
         IntStream.range(0, 5).forEach(i -> model().all(i).create());
     }
 
-    protected void compare(String field, String operator, String notOperator, int index, long count) {
-        assertCount(count,
-                field + " " + operator + " ?",
-                field + " " + notOperator + " ?",
-                value(index));
+    protected void compare(String field, String operator, int index, long count) {
+        assertCount(count, field + " " + operator + " ?", value(index));
     }
 
     @Test
     public void eq() {
         createCompareTestModels();
-        compare("field", "=", "!=", 2, 1L);
-        compare("set", "=", "!=", 2, 1L);
-        compare("list", "=", "!=", 2, 1L);
+        compare("field", "=", 2, 1L);
+        compare("set", "=", 2, 1L);
+        compare("list", "=", 2, 1L);
+    }
+
+    @Test
+    public void ne() {
+        createCompareTestModels();
+        compare("field", "!=", 2, 4L);
+        compare("set", "!=", 2, 4L);
+        compare("list", "!=", 2, 4L);
     }
 
     @Test
     public void gt() {
         createCompareTestModels();
-        compare("field", ">", "<=", 2, 2L);
+        compare("field", ">", 2, 2L);
+    }
+
+    @Test
+    public void ge() {
+        createCompareTestModels();
+        compare("field", ">=", 2, 3L);
     }
 
     @Test
     public void lt() {
         createCompareTestModels();
-        compare("field", "<", ">=", 2, 2L);
+        compare("field", "<", 2, 2L);
+    }
+
+    @Test
+    public void le() {
+        createCompareTestModels();
+        compare("field", "<=", 2, 3L);
     }
 
     protected void createSortTestModels() {

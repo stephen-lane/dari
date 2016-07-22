@@ -13,9 +13,23 @@ public abstract class AbstractSpatialIndexTest<T> extends AbstractIndexTest<T> {
 
     @Override
     @Test(expected = IllegalArgumentException.class)
+    public void ge() {
+        createCompareTestModels();
+        query().where("field >= ?", value(0)).count();
+    }
+
+    @Override
+    @Test(expected = IllegalArgumentException.class)
     public void lt() {
         createCompareTestModels();
         query().where("field < ?", value(0)).count();
+    }
+
+    @Override
+    @Test(expected = IllegalArgumentException.class)
+    public void le() {
+        createCompareTestModels();
+        query().where("field <= ?", value(0)).count();
     }
 
     @Override
