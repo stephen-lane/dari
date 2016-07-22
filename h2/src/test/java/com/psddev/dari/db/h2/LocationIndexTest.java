@@ -3,11 +3,6 @@ package com.psddev.dari.db.h2;
 import com.psddev.dari.db.Location;
 import org.junit.Test;
 
-import java.util.List;
-
-import static org.hamcrest.Matchers.*;
-import static org.junit.Assert.*;
-
 public class LocationIndexTest extends AbstractSpatialIndexTest<Location> {
 
     @Override
