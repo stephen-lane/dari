@@ -271,13 +271,19 @@ public abstract class AbstractIndexTest<T> extends AbstractTest {
     @Test(expected = IllegalArgumentException.class)
     public void closest() {
         createSortTestModels();
-        query().sortClosest("field", new Location(0, 0)).count();
+        query().sortClosest("field", new Location(0, 0)).first();
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void farthest() {
         createSortTestModels();
-        query().sortFarthest("field", new Location(0, 0)).count();
+        query().sortFarthest("field", new Location(0, 0)).first();
+    }
+
+    @Test(expected = UnsupportedOperationException.class)
+    public void sortUnknown() {
+        createSortTestModels();
+        query().sort("unknown", "field").first();
     }
 
     public static class Model<T> extends Record {

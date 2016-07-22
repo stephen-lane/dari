@@ -1,5 +1,6 @@
 package com.psddev.dari.db.sql;
 
+import com.google.common.collect.ImmutableMap;
 import com.psddev.dari.db.Location;
 import com.psddev.dari.db.Sorter;
 import org.jooq.Field;
@@ -8,36 +9,41 @@ import org.jooq.SortOrder;
 import org.jooq.impl.DSL;
 
 import java.util.List;
+import java.util.Map;
 
 @FunctionalInterface
 interface SqlSorter {
 
-    SqlSorter ASCENDING = (database, join, options) -> join.valueField.sort(SortOrder.ASC);
-
-    SqlSorter DESCENDING = (database, join, options) -> join.valueField.sort(SortOrder.DESC);
-
-    SqlSorter CLOSEST = (database, join, options) -> distance(database, join, options).sort(SortOrder.ASC);
-
-    SqlSorter FARTHEST = (database, join, options) -> distance(database, join, options).sort(SortOrder.DESC);
+    Map<String, SqlSorter> INSTANCES = ImmutableMap.<String, SqlSorter>builder()
+            .put(Sorter.ASCENDING_OPERATOR, (database, join, options) -> area(database, join).sort(SortOrder.ASC))
+            .put(Sorter.DESCENDING_OPERATOR, (database, join, options) -> area(database, join).sort(SortOrder.DESC))
+            .put(Sorter.CLOSEST_OPERATOR, (database, join, options) -> distance(database, join, options).sort(SortOrder.ASC))
+            .put(Sorter.FARTHEST_OPERATOR, (database, join, options) -> distance(database, join, options).sort(SortOrder.DESC))
+            .build();
 
     static SqlSorter find(String operator) {
-        switch (operator) {
-            case Sorter.ASCENDING_OPERATOR :
-                return ASCENDING;
+        SqlSorter sorter = INSTANCES.get(operator);
 
-            case Sorter.DESCENDING_OPERATOR :
-                return DESCENDING;
+        if (sorter != null) {
+            return sorter;
 
-            case Sorter.CLOSEST_OPERATOR :
-                return CLOSEST;
+        } else {
+            throw new UnsupportedOperationException(String.format(
+                    "[%s] sorter isn't supported in SQL!",
+                    operator));
+        }
+    }
 
-            case Sorter.FARTHEST_OPERATOR :
-                return FARTHEST;
+    @SuppressWarnings("unchecked")
+    static Field<Object> area(AbstractSqlDatabase database, SqlJoin join) {
+        if (join.sqlIndex instanceof LocationSqlIndex) {
+            throw new IllegalArgumentException();
 
-            default :
-                throw new UnsupportedOperationException(String.format(
-                        "[%s] sorter isn't supported in SQL!",
-                        operator));
+        } else if (join.sqlIndex instanceof RegionSqlIndex) {
+            return (Field) database.stArea(join.valueField);
+
+        } else {
+            return join.valueField;
         }
     }
 
@@ -46,9 +52,19 @@ interface SqlSorter {
             throw new IllegalArgumentException("Can't sort by distance against non-location field!");
         }
 
+        if (options.size() < 2) {
+            throw new IllegalArgumentException();
+        }
+
+        Object option = options.get(1);
+
+        if (!(option instanceof Location)) {
+            throw new IllegalArgumentException();
+        }
+
         return database.stLength(
                 database.stMakeLine(
-                        database.stGeomFromText(DSL.inline(((Location) options.get(1)).toWkt())),
+                        database.stGeomFromText(DSL.inline(((Location) option).toWkt())),
                         join.valueField));
     }
 
