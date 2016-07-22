@@ -132,6 +132,12 @@ public abstract class AbstractIndexTest<T> extends AbstractTest {
         compare("list", "!=", 2, 4L);
     }
 
+    @Test(expected = IllegalArgumentException.class)
+    public void contains() {
+        createCompareTestModels();
+        query().where("field contains ?", value(0)).count();
+    }
+
     @Test
     public void gt() {
         createCompareTestModels();

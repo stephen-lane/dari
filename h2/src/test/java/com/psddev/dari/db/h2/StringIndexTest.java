@@ -2,6 +2,9 @@ package com.psddev.dari.db.h2;
 
 import org.junit.Test;
 
+import static org.hamcrest.Matchers.*;
+import static org.junit.Assert.*;
+
 public class StringIndexTest extends AbstractIndexTest<String> {
 
     @Override
@@ -12,6 +15,18 @@ public class StringIndexTest extends AbstractIndexTest<String> {
     @Override
     protected String value(int index) {
         return String.valueOf((char) ('a' + index));
+    }
+
+    @Test
+    public void contains() {
+        Foo foo = new Foo();
+
+        foo.field = "abcde";
+        foo.save();
+
+        assertThat(
+                query().where("field contains ?", "bcd").first(),
+                is(foo));
     }
 
     @Override
