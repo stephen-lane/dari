@@ -17,6 +17,7 @@ public class StringIndexTest extends AbstractIndexTest<String> {
         return String.valueOf((char) ('a' + index));
     }
 
+    @Override
     @Test
     public void contains() {
         Foo foo = new Foo();
@@ -29,6 +30,7 @@ public class StringIndexTest extends AbstractIndexTest<String> {
                 is(foo));
     }
 
+    @Override
     @Test
     public void startsWith() {
         Foo foo = new Foo();

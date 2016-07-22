@@ -16,6 +16,7 @@ public class RegionIndexTest extends AbstractIndexTest<Region> {
         return Region.sphericalCircle(0.0d, 0.0d, index + 1);
     }
 
+    @Override
     @Test
     public void contains() {
         createCompareTestModels();
