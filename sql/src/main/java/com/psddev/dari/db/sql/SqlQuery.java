@@ -347,35 +347,18 @@ class SqlQuery {
                 }
 
             } else {
-                SqlComparison sqlComparison = SqlComparison.find(operator);
+                SqlComparison sqlComparison = SqlComparison.find(database, join, operator);
 
                 // e.g. field OP value1 OR field OP value2 OR ... field OP value#
                 for (Object value : comparisonPredicate.resolveValues(database)) {
                     if (value == null) {
                         comparisonConditions.add(DSL.falseCondition());
 
-                    } else if (value instanceof Location) {
-                        if (!database.isIndexSpatial()) {
-                            throw new UnsupportedOperationException();
-                        }
-
-                        if (!(join.sqlIndex instanceof RegionSqlIndex)) {
-                            throw new UnsupportedOperationException();
-                        }
-
-                        comparisonConditions.add(
-                                database.stContains(
-                                        join.valueField,
-                                        database.stGeomFromText(DSL.inline(((Location) value).toWkt()))));
-
                     } else if (value == Query.MISSING_VALUE) {
-                        hasMissing = true;
-
-                        join.useLeftOuter();
-                        comparisonConditions.add(join.valueField.isNull());
+                        throw new IllegalArgumentException();
 
                     } else {
-                        comparisonConditions.add(sqlComparison.createCondition(join, value));
+                        comparisonConditions.add(sqlComparison.createCondition(value));
                     }
                 }
             }

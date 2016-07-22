@@ -343,6 +343,10 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         return SQLDataType.UUID;
     }
 
+    public Field<Double> stArea(Field<Object> field) {
+        return DSL.field("ST_Area({0})", Double.class, field);
+    }
+
     public Condition stContains(Field<Object> x, Field<Object> y) {
         return DSL.condition("ST_Contains({0}, {1})", x, y);
     }

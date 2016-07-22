@@ -1,52 +1,108 @@
 package com.psddev.dari.db.sql;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.psddev.dari.db.Location;
 import com.psddev.dari.db.PredicateParser;
+import com.psddev.dari.db.Region;
 import org.jooq.Condition;
+import org.jooq.Field;
 import org.jooq.Param;
+import org.jooq.impl.DSL;
+
+import java.util.Map;
+import java.util.Set;
+import java.util.function.BiFunction;
 
 @FunctionalInterface
 interface SqlComparison {
 
-    @SuppressWarnings("unchecked")
-    SqlComparison CONTAINS = (join, value) -> join.valueField.like((Param) join.value("%" + value + "%"));
+    Set<String> SUPPORTED_OPERATORS = ImmutableSet.of(
+            PredicateParser.CONTAINS_OPERATOR,
+            PredicateParser.STARTS_WITH_OPERATOR,
+            PredicateParser.LESS_THAN_OPERATOR,
+            PredicateParser.LESS_THAN_OR_EQUALS_OPERATOR,
+            PredicateParser.GREATER_THAN_OPERATOR,
+            PredicateParser.GREATER_THAN_OR_EQUALS_OPERATOR);
+
+    Map<String, BiFunction<Field<Object>, Object, Condition>> COMPARE_FUNCTIONS = ImmutableMap.of(
+            PredicateParser.LESS_THAN_OPERATOR, Field::lt,
+            PredicateParser.LESS_THAN_OR_EQUALS_OPERATOR, Field::le,
+            PredicateParser.GREATER_THAN_OPERATOR, Field::gt,
+            PredicateParser.GREATER_THAN_OR_EQUALS_OPERATOR, Field::ge);
 
     @SuppressWarnings("unchecked")
-    SqlComparison STARTS_WITH = (join, value) -> join.valueField.like((Param) join.value(value + "%"));
+    static SqlComparison find(AbstractSqlDatabase database, SqlJoin join, String operator) {
+        if (!SUPPORTED_OPERATORS.contains(operator)) {
+            throw new UnsupportedOperationException(String.format(
+                    "[%s] comparison isn't supported in SQL!",
+                    operator));
+        }
 
-    SqlComparison LESS_THAN = (join, value) -> join.valueField.lt(join.value(value));
+        AbstractSqlIndex sqlIndex = join.sqlIndex;
 
-    SqlComparison LESS_THAN_OR_EQUALS = (join, value) -> join.valueField.le(join.value(value));
+        if (sqlIndex instanceof LocationSqlIndex) {
+            throw new IllegalArgumentException();
+        }
 
-    SqlComparison GREATER_THAN = (join, value) -> join.valueField.gt(join.value(value));
+        if (PredicateParser.CONTAINS_OPERATOR.equals(operator)) {
+            if (sqlIndex instanceof RegionSqlIndex) {
+                return (value) -> {
+                    String wkt;
 
-    SqlComparison GREATER_THAN_OR_EQUALS = (join, value) -> join.valueField.ge(join.value(value));
+                    if (value instanceof Location) {
+                        wkt = ((Location) value).toWkt();
 
-    static SqlComparison find(String operator) {
-        switch (operator) {
-            case PredicateParser.CONTAINS_OPERATOR :
-                return CONTAINS;
+                    } else if (value instanceof Region) {
+                        wkt = ((Region) value).toMultiPolygonWkt();
 
-            case PredicateParser.STARTS_WITH_OPERATOR :
-                return STARTS_WITH;
+                    } else {
+                        throw new IllegalArgumentException();
+                    }
 
-            case PredicateParser.LESS_THAN_OPERATOR :
-                return LESS_THAN;
+                    return database.stContains(
+                            join.valueField,
+                            database.stGeomFromText(DSL.inline(wkt, String.class)));
+                };
 
-            case PredicateParser.LESS_THAN_OR_EQUALS_OPERATOR :
-                return LESS_THAN_OR_EQUALS;
+            } else if (sqlIndex instanceof StringSqlIndex) {
+                return (value) -> join.valueField.like((Param) join.value("%" + value + "%"));
 
-            case PredicateParser.GREATER_THAN_OPERATOR :
-                return GREATER_THAN;
+            } else {
+                throw new IllegalArgumentException();
+            }
+        }
 
-            case PredicateParser.GREATER_THAN_OR_EQUALS_OPERATOR :
-                return GREATER_THAN_OR_EQUALS;
+        if (PredicateParser.STARTS_WITH_OPERATOR.equals(operator)) {
+            if (sqlIndex instanceof StringSqlIndex) {
+                return (value) -> join.valueField.like((Param) join.value(value + "%"));
 
-            default :
-                throw new UnsupportedOperationException(String.format(
-                        "[%s] comparison isn't supported in SQL!",
-                        operator));
+            } else {
+                throw new IllegalArgumentException();
+            }
+        }
+
+        BiFunction<Field<Object>, Object, Condition> compareFunction = COMPARE_FUNCTIONS.get(operator);
+
+        if (sqlIndex instanceof RegionSqlIndex) {
+            return (value) -> {
+                if (!(value instanceof Region)) {
+                    throw new IllegalArgumentException();
+                }
+
+                return compareFunction.apply(
+                        (Field) database.stArea(join.valueField),
+                        database.stArea(
+                                database.stGeomFromText(
+                                        DSL.inline(((Region) value).toMultiPolygonWkt(), String.class))));
+            };
+
+        } else {
+            return (value) -> compareFunction.apply(
+                    join.valueField,
+                    join.value(value));
         }
     }
 
-    Condition createCondition(SqlJoin join, Object value);
+    Condition createCondition(Object value);
 }
