@@ -256,22 +256,10 @@ public class Region {
 
         mp.append("MULTIPOLYGON(");
 
-        for (Region.Polygon polygon : getPolygons()) {
-            for (Region.LinearRing ring : polygon) {
-                mp.append("((");
-                for (Region.Coordinate coordinate : ring) {
-                    mp.append(coordinate.getLatitude());
-                    mp.append(' ');
-                    mp.append(coordinate.getLongitude());
-                    mp.append(", ");
-                }
-                mp.setLength(mp.length() - 2);
-                mp.append(")), ");
-            }
-        }
+        List<Region.Polygon> polygons = getPolygons();
 
-        for (Region.Circle circles : getCircles()) {
-            for (Region.Polygon polygon : circles.getPolygons()) {
+        if (polygons != null) {
+            for (Region.Polygon polygon : polygons) {
                 for (Region.LinearRing ring : polygon) {
                     mp.append("((");
                     for (Region.Coordinate coordinate : ring) {
@@ -282,6 +270,26 @@ public class Region {
                     }
                     mp.setLength(mp.length() - 2);
                     mp.append(")), ");
+                }
+            }
+        }
+
+        List<Region.Circle> circles = getCircles();
+
+        if (circles != null) {
+            for (Region.Circle circle : circles) {
+                for (Region.Polygon polygon : circle.getPolygons()) {
+                    for (Region.LinearRing ring : polygon) {
+                        mp.append("((");
+                        for (Region.Coordinate coordinate : ring) {
+                            mp.append(coordinate.getLatitude());
+                            mp.append(' ');
+                            mp.append(coordinate.getLongitude());
+                            mp.append(", ");
+                        }
+                        mp.setLength(mp.length() - 2);
+                        mp.append(")), ");
+                    }
                 }
             }
         }
