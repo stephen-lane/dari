@@ -55,14 +55,16 @@ public abstract class AbstractIndexTest<M extends Model<M, T>, T> extends Abstra
     }
 
     protected void createMissingTestModels() {
+        T value0 = value(0);
+
         model().create();
-        model().field(0).create();
-        model().set(0).create();
-        model().list(0).create();
-        model().field(0).set(0).create();
-        model().field(0).list(0).create();
-        model().set(0).list(0).create();
-        model().all(0).create();
+        model().field(value0).create();
+        model().set(value0).create();
+        model().list(value0).create();
+        model().field(value0).set(value0).create();
+        model().field(value0).list(value0).create();
+        model().set(value0).list(value0).create();
+        model().all(value0).create();
     }
 
     protected void missing(String field, long count) {
@@ -105,7 +107,7 @@ public abstract class AbstractIndexTest<M extends Model<M, T>, T> extends Abstra
     }
 
     protected void createCompareTestModels() {
-        IntStream.range(0, 5).forEach(i -> model().all(i).create());
+        IntStream.range(0, 5).forEach(i -> model().all(value(i)).create());
     }
 
     @Test
@@ -234,7 +236,7 @@ public abstract class AbstractIndexTest<M extends Model<M, T>, T> extends Abstra
 
     protected void createSortTestModels() {
         for (int i = 0, size = 26; i < size; ++ i) {
-            model().all(i % 2 == 0 ? i : size - i).create();
+            model().all(value(i % 2 == 0 ? i : size - i)).create();
         }
     }
 
@@ -286,8 +288,7 @@ public abstract class AbstractIndexTest<M extends Model<M, T>, T> extends Abstra
             model = TypeDefinition.getInstance(modelClass()).newInstance();
         }
 
-        public ModelBuilder all(int index) {
-            T value = value(index);
+        public ModelBuilder all(T value) {
             model.field = value;
             model.set.add(value);
             model.list.add(value);
@@ -295,18 +296,17 @@ public abstract class AbstractIndexTest<M extends Model<M, T>, T> extends Abstra
             return this;
         }
 
-        public ModelBuilder field(int index) {
-            model.field = value(index);
+        public ModelBuilder field(T value) {
+            model.field = value;
             return this;
         }
 
-        public ModelBuilder set(int index) {
-            model.set.add(value(index));
+        public ModelBuilder set(T value) {
+            model.set.add(value);
             return this;
         }
 
-        public ModelBuilder list(int index) {
-            T value = value(index);
+        public ModelBuilder list(T value) {
             model.list.add(value);
             model.list.add(value);
             return this;
