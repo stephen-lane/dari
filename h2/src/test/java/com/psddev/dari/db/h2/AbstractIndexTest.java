@@ -112,24 +112,20 @@ public abstract class AbstractIndexTest<T> extends AbstractTest {
         IntStream.range(0, 5).forEach(i -> model().all(i).create());
     }
 
-    protected void compare(String field, String operator, int index, long count) {
-        assertCount(count, field + " " + operator + " ?", value(index));
-    }
-
     @Test
     public void eq() {
         createCompareTestModels();
-        compare("field", "=", 2, 1L);
-        compare("set", "=", 2, 1L);
-        compare("list", "=", 2, 1L);
+        assertCount(1L, "field = ?", value(2));
+        assertCount(1L, "set = ?", value(2));
+        assertCount(1L, "list = ?", value(2));
     }
 
     @Test
     public void ne() {
         createCompareTestModels();
-        compare("field", "!=", 2, 4L);
-        compare("set", "!=", 2, 4L);
-        compare("list", "!=", 2, 4L);
+        assertCount(4L, "field != ?", value(2));
+        assertCount(4L, "set != ?", value(2));
+        assertCount(4L, "list != ?", value(2));
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -171,7 +167,7 @@ public abstract class AbstractIndexTest<T> extends AbstractTest {
     @Test
     public void gt() {
         createCompareTestModels();
-        compare("field", ">", 2, 2L);
+        assertCount(2L, "field > ?", value(2));
     }
 
     @Test
@@ -189,7 +185,7 @@ public abstract class AbstractIndexTest<T> extends AbstractTest {
     @Test
     public void ge() {
         createCompareTestModels();
-        compare("field", ">=", 2, 3L);
+        assertCount(3L, "field >= ?", value(2));
     }
 
     @Test
@@ -207,7 +203,7 @@ public abstract class AbstractIndexTest<T> extends AbstractTest {
     @Test
     public void lt() {
         createCompareTestModels();
-        compare("field", "<", 2, 2L);
+        assertCount(2L, "field < ?", value(2));
     }
 
     @Test
@@ -225,7 +221,7 @@ public abstract class AbstractIndexTest<T> extends AbstractTest {
     @Test
     public void le() {
         createCompareTestModels();
-        compare("field", "<=", 2, 3L);
+        assertCount(3L, "field <= ?", value(2));
     }
 
     @Test
