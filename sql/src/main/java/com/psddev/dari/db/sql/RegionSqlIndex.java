@@ -29,7 +29,7 @@ class RegionSqlIndex extends AbstractSqlIndex {
     public Map<String, Object> valueBindValues(ObjectIndex index, Object value) {
         if (value instanceof Region) {
             Map<String, Object> bindValues = new CompactMap<>();
-            bindValues.put(regionParam.getName(), ((Region) value).toMultiPolygonWkt());
+            bindValues.put(regionParam.getName(), ((Region) value).toWkt());
             return bindValues;
 
         } else {
@@ -40,7 +40,7 @@ class RegionSqlIndex extends AbstractSqlIndex {
     @Override
     public Object valueInline(ObjectIndex index, Object value) {
         return value instanceof Region
-                ? database.stGeomFromText(DSL.inline(((Region) value).toMultiPolygonWkt(), String.class))
+                ? database.stGeomFromText(DSL.inline(((Region) value).toWkt(), String.class))
                 : null;
     }
 }

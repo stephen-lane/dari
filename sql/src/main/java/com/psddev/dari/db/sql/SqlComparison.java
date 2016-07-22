@@ -55,7 +55,7 @@ interface SqlComparison {
                         wkt = ((Location) value).toWkt();
 
                     } else if (value instanceof Region) {
-                        wkt = ((Region) value).toMultiPolygonWkt();
+                        wkt = ((Region) value).toWkt();
 
                     } else {
                         throw new IllegalArgumentException();
@@ -92,7 +92,7 @@ interface SqlComparison {
                             (Field) database.stArea(join.valueField),
                             database.stArea(
                                     database.stGeomFromText(
-                                            DSL.inline(((Region) value).toMultiPolygonWkt(), String.class))));
+                                            DSL.inline(((Region) value).toWkt(), String.class))));
 
                 } else {
                     Double valueDouble = ObjectUtils.to(Double.class, value);

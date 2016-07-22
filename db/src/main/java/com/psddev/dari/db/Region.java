@@ -234,24 +234,7 @@ public class Region {
         return ObjectUtils.toJson(featureCollection);
     }
 
-    public String toPolygonWkt() {
-        StringBuilder p = new StringBuilder();
-
-        p.append("POLYGON((");
-
-        for (Location location : getLocations()) {
-            p.append(location.getX());
-            p.append(' ');
-            p.append(location.getY());
-            p.append(", ");
-        }
-
-        p.append("))");
-
-        return p.toString();
-    }
-
-    public String toMultiPolygonWkt() {
+    public String toWkt() {
         StringBuilder mp = new StringBuilder();
 
         mp.append("MULTIPOLYGON(");

@@ -1,6 +1,7 @@
 package com.psddev.dari.db.h2;
 
 import com.psddev.dari.db.Location;
+import com.psddev.dari.db.Region;
 import org.junit.Test;
 
 public class LocationIndexTest extends AbstractIndexTest<Location> {
@@ -13,6 +14,12 @@ public class LocationIndexTest extends AbstractIndexTest<Location> {
     @Override
     protected Location value(int index) {
         return new Location(index, index);
+    }
+
+    @Test
+    public void eqRegion() {
+        createCompareTestModels();
+        assertCount(5, "field = ?", Region.sphericalCircle(0.0d, 0.0d, 5.5d));
     }
 
     @Override

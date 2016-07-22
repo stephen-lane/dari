@@ -305,40 +305,33 @@ class SqlQuery {
                             comparisonConditions.add(join.valueField.isNull());
                         }
 
-                    } else if (value instanceof Region) {
-                        if (!database.isIndexSpatial()) {
-                            throw new UnsupportedOperationException();
-                        }
-
-                        if (!(join.sqlIndex instanceof LocationSqlIndex)) {
-                            throw new UnsupportedOperationException();
+                    } else if (join.sqlIndex instanceof LocationSqlIndex && !(value instanceof Location)) {
+                        if (!(value instanceof Region)) {
+                            throw new IllegalArgumentException();
                         }
 
                         Condition contains = database.stContains(
-                                database.stGeomFromText(DSL.inline(((Region) value).toPolygonWkt())),
+                                database.stGeomFromText(DSL.inline(((Region) value).toWkt())),
                                 join.valueField);
 
                         comparisonConditions.add(isNotEqualsAll
                                 ? contains.not()
                                 : contains);
 
+                    } else if (join.sqlIndex instanceof RegionSqlIndex && !(value instanceof Region)) {
+                        throw new IllegalArgumentException();
+
+                    } else if (isNotEqualsAll) {
+                        needsDistinct = true;
+                        hasMissing = true;
+
+                        join.useLeftOuter();
+                        comparisonConditions.add(
+                                join.valueField.isNull().or(
+                                        join.valueField.ne(join.value(value))));
+
                     } else {
-                        if (!database.isIndexSpatial() && value instanceof Location) {
-                            throw new UnsupportedOperationException();
-                        }
-
-                        if (isNotEqualsAll) {
-                            needsDistinct = true;
-                            hasMissing = true;
-
-                            join.useLeftOuter();
-                            comparisonConditions.add(
-                                    join.valueField.isNull().or(
-                                            join.valueField.ne(join.value(value))));
-
-                        } else {
-                            inValues.add(join.value(value));
-                        }
+                        inValues.add(join.value(value));
                     }
                 }
 
