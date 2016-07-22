@@ -29,6 +29,18 @@ public class StringIndexTest extends AbstractIndexTest<String> {
                 is(foo));
     }
 
+    @Test
+    public void startsWith() {
+        Foo foo = new Foo();
+
+        foo.field = "abcde";
+        foo.save();
+
+        assertThat(
+                query().where("field startsWith ?", "abc").first(),
+                is(foo));
+    }
+
     @Override
     @Test
     public void invalidValue() {

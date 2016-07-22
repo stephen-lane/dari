@@ -138,6 +138,12 @@ public abstract class AbstractIndexTest<T> extends AbstractTest {
         query().where("field contains ?", value(0)).count();
     }
 
+    @Test(expected = IllegalArgumentException.class)
+    public void startsWith() {
+        createCompareTestModels();
+        query().where("field startsWith ?", value(0)).count();
+    }
+
     @Test
     public void gt() {
         createCompareTestModels();
