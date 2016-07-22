@@ -2,26 +2,22 @@ package com.psddev.dari.db.h2;
 
 import com.psddev.dari.db.Location;
 import com.psddev.dari.db.Query;
-import com.psddev.dari.db.Record;
 import com.psddev.dari.util.TypeDefinition;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.*;
 
-public abstract class AbstractIndexTest<T> extends AbstractTest {
+public abstract class AbstractIndexTest<M extends Model<M, T>, T> extends AbstractTest {
 
     protected int total;
 
-    protected abstract Class<? extends Model<T>> modelClass();
+    protected abstract Class<M> modelClass();
 
     protected abstract T value(int index);
 
@@ -34,7 +30,7 @@ public abstract class AbstractIndexTest<T> extends AbstractTest {
         total = 0;
     }
 
-    protected Query<? extends Model<T>> query() {
+    protected Query<M> query() {
         return Query.from(modelClass());
     }
 
@@ -45,7 +41,7 @@ public abstract class AbstractIndexTest<T> extends AbstractTest {
 
     @Test
     public void invalidValue() {
-        Model<T> model = TypeDefinition.getInstance(modelClass()).newInstance();
+        M model = TypeDefinition.getInstance(modelClass()).newInstance();
         model.getState().put("field", new Object());
         model.save();
 
@@ -242,8 +238,8 @@ public abstract class AbstractIndexTest<T> extends AbstractTest {
         }
     }
 
-    protected void assertOrder(boolean reverse, Query<? extends Model<T>> query) {
-        List<? extends Model<T>> models = query.selectAll();
+    protected void assertOrder(boolean reverse, Query<M> query) {
+        List<M> models = query.selectAll();
 
         assertThat(models, hasSize(total));
 
@@ -282,21 +278,9 @@ public abstract class AbstractIndexTest<T> extends AbstractTest {
         query().sort("unknown", "field").first();
     }
 
-    public static class Model<T> extends Record {
-
-        @Indexed
-        public T field;
-
-        @Indexed
-        public final Set<T> set = new LinkedHashSet<>();
-
-        @Indexed
-        public final List<T> list = new ArrayList<>();
-    }
-
     protected class ModelBuilder {
 
-        private final Model<T> model;
+        private final M model;
 
         public ModelBuilder() {
             model = TypeDefinition.getInstance(modelClass()).newInstance();

@@ -4,10 +4,10 @@ import org.junit.Test;
 
 import java.util.UUID;
 
-public class UuidIndexTest extends AbstractIndexTest<UUID> {
+public class UuidIndexTest extends AbstractIndexTest<UuidModel, UUID> {
 
     @Override
-    protected Class<? extends Model<UUID>> modelClass() {
+    protected Class<UuidModel> modelClass() {
         return UuidModel .class;
     }
 
@@ -28,8 +28,5 @@ public class UuidIndexTest extends AbstractIndexTest<UUID> {
     public void startsWithNull() {
         createCompareTestModels();
         query().and("field startsWith ?", (Object) null).count();
-    }
-
-    public static class UuidModel extends Model<UUID> {
     }
 }

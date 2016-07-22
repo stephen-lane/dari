@@ -4,10 +4,10 @@ import com.psddev.dari.db.Location;
 import com.psddev.dari.db.Region;
 import org.junit.Test;
 
-public class RegionIndexTest extends AbstractIndexTest<Region> {
+public class RegionIndexTest extends AbstractIndexTest<RegionModel, Region> {
 
     @Override
-    protected Class<? extends Model<Region>> modelClass() {
+    protected Class<RegionModel> modelClass() {
         return RegionModel.class;
     }
 
@@ -85,8 +85,5 @@ public class RegionIndexTest extends AbstractIndexTest<Region> {
     public void leIllegal() {
         createCompareTestModels();
         query().where("field <= true").count();
-    }
-
-    public static class RegionModel extends Model<Region> {
     }
 }

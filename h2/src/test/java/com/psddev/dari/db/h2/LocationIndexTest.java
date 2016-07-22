@@ -4,10 +4,10 @@ import com.psddev.dari.db.Location;
 import com.psddev.dari.db.Region;
 import org.junit.Test;
 
-public class LocationIndexTest extends AbstractIndexTest<Location> {
+public class LocationIndexTest extends AbstractIndexTest<LocationModel, Location> {
 
     @Override
-    protected Class<? extends Model<Location>> modelClass() {
+    protected Class<LocationModel> modelClass() {
         return LocationModel.class;
     }
 
@@ -118,8 +118,5 @@ public class LocationIndexTest extends AbstractIndexTest<Location> {
     public void farthest() {
         createSortTestModels();
         assertOrder(true, query().sortFarthest("field", new Location(0, 0)));
-    }
-
-    public static class LocationModel extends Model<Location> {
     }
 }

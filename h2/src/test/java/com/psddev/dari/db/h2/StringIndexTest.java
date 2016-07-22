@@ -5,10 +5,10 @@ import org.junit.Test;
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.*;
 
-public class StringIndexTest extends AbstractIndexTest<String> {
+public class StringIndexTest extends AbstractIndexTest<StringModel, String> {
 
     @Override
-    protected Class<? extends Model<String>> modelClass() {
+    protected Class<StringModel> modelClass() {
         return StringModel.class;
     }
 
@@ -46,8 +46,5 @@ public class StringIndexTest extends AbstractIndexTest<String> {
     @Override
     @Test
     public void invalidValue() {
-    }
-
-    public static class StringModel extends Model<String> {
     }
 }
