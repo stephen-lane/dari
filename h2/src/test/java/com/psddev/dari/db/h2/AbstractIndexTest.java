@@ -51,7 +51,11 @@ public abstract class AbstractIndexTest<M extends Model<M, T>, T> extends Abstra
     }
 
     protected void assertCount(long count, String predicate, Object... parameters) {
-        assertThat(predicate, query().where(predicate, parameters).count(), is(count));
+        Query<M> query = query().where(predicate, parameters);
+        long queryCount = query.count();
+
+        assertThat(predicate + " count", queryCount, is(count));
+        assertThat(predicate + " selectAll", query.selectAll().stream().distinct().count(), is(count));
     }
 
     protected void assertMissing(String field, long count) {
