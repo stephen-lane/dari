@@ -2,6 +2,7 @@ package com.psddev.dari.db.h2;
 
 import com.psddev.dari.db.Location;
 import com.psddev.dari.db.Region;
+import com.psddev.dari.db.Sorter;
 import org.junit.Test;
 
 public class LocationIndexTest extends AbstractIndexTest<LocationModel, Location> {
@@ -110,7 +111,19 @@ public class LocationIndexTest extends AbstractIndexTest<LocationModel, Location
     @Test
     public void closest() {
         createSortTestModels();
-        assertOrder(false, query() .sortClosest("one", new Location(0, 0)));
+        assertOrder(false, query().sortClosest("one", new Location(0, 0)));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void closestIllegalSize() {
+        createSortTestModels();
+        query().sort(Sorter.CLOSEST_OPERATOR, "one").first();
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void closestIllegalType() {
+        createSortTestModels();
+        query().sort(Sorter.CLOSEST_OPERATOR, "one", new Object()).first();
     }
 
     @Override
@@ -118,5 +131,17 @@ public class LocationIndexTest extends AbstractIndexTest<LocationModel, Location
     public void farthest() {
         createSortTestModels();
         assertOrder(true, query().sortFarthest("one", new Location(0, 0)));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void farthestIllegalSize() {
+        createSortTestModels();
+        query().sort(Sorter.FARTHEST_OPERATOR, "one").first();
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void farthestIllegalType() {
+        createSortTestModels();
+        query().sort(Sorter.FARTHEST_OPERATOR, "one", new Object()).first();
     }
 }
