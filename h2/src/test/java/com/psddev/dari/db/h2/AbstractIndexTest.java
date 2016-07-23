@@ -2,16 +2,12 @@ package com.psddev.dari.db.h2;
 
 import com.psddev.dari.db.Location;
 import com.psddev.dari.db.Query;
-import com.psddev.dari.db.State;
 import com.psddev.dari.util.TypeDefinition;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.*;
