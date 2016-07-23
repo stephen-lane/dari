@@ -20,70 +20,70 @@ public class RegionIndexTest extends AbstractIndexTest<RegionModel, Region> {
     @Test
     public void contains() {
         createCompareTestModels();
-        assertCount(total, "field contains ?", new Location(0.0d, 0.0d));
-        assertCount(total - 1, "field contains ?", new Location(1.5d, 0.0d));
-        assertCount(total, "field contains ?", Region.sphericalCircle(0.0d, 0.0d, 0.5d));
-        assertCount(total - 1, "field contains ?", Region.sphericalCircle(0.0d, 0.0d, 1.5d));
+        assertCount(total, "one contains ?", new Location(0.0d, 0.0d));
+        assertCount(total - 1, "one contains ?", new Location(1.5d, 0.0d));
+        assertCount(total, "one contains ?", Region.sphericalCircle(0.0d, 0.0d, 0.5d));
+        assertCount(total - 1, "one contains ?", Region.sphericalCircle(0.0d, 0.0d, 1.5d));
     }
 
     @Override
     @Test(expected = IllegalArgumentException.class)
     public void startsWithNull() {
         createCompareTestModels();
-        query().and("field startsWith ?", (Object) null).count();
+        query().and("one startsWith ?", (Object) null).count();
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void containsIllegal() {
         createCompareTestModels();
-        query().where("field contains true").count();
+        query().where("one contains true").count();
     }
 
     @Test
     public void gtNumber() {
         createCompareTestModels();
-        assertCount(total, "field > 0");
+        assertCount(total, "one > 0");
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void gtIllegal() {
         createCompareTestModels();
-        query().where("field > true").count();
+        query().where("one > true").count();
     }
 
     @Test
     public void geNumber() {
         createCompareTestModels();
-        assertCount(total, "field >= 0");
+        assertCount(total, "one >= 0");
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void geIllegal() {
         createCompareTestModels();
-        query().where("field > true").count();
+        query().where("one > true").count();
     }
 
     @Test
     public void ltNumber() {
         createCompareTestModels();
-        assertCount(1, "field < 10");
+        assertCount(1, "one < 10");
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void ltIllegal() {
         createCompareTestModels();
-        query().where("field < true").count();
+        query().where("one < true").count();
     }
 
     @Test
     public void leNumber() {
         createCompareTestModels();
-        assertCount(1, "field <= 10");
+        assertCount(1, "one <= 10");
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void leIllegal() {
         createCompareTestModels();
-        query().where("field <= true").count();
+        query().where("one <= true").count();
     }
 }

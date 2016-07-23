@@ -10,7 +10,7 @@ import java.util.Set;
 public class Model<M extends Model<M, T>, T> extends Record {
 
     @Indexed
-    public T field;
+    public T one;
 
     @Indexed
     public final Set<T> set = new LinkedHashSet<>();
@@ -19,7 +19,7 @@ public class Model<M extends Model<M, T>, T> extends Record {
     public final List<T> list = new ArrayList<>();
 
     @Indexed
-    public Model<?, ?> referenceField;
+    public Model<?, ?> referenceOne;
 
     @Indexed
     public final Set<Model<?, ?>> referenceSet = new LinkedHashSet<>();

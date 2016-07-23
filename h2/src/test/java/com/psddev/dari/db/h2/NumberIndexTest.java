@@ -18,14 +18,14 @@ public class NumberIndexTest extends AbstractIndexTest<NumberModel, Double> {
     @Test(expected = IllegalArgumentException.class)
     public void containsNull() {
         createCompareTestModels();
-        query().and("field contains ?", (Object) null).count();
+        query().and("one contains ?", (Object) null).count();
     }
 
     @Override
     @Test(expected = IllegalArgumentException.class)
     public void startsWithNull() {
         createCompareTestModels();
-        query().and("field startsWith ?", (Object) null).count();
+        query().and("one startsWith ?", (Object) null).count();
     }
 
     @Override

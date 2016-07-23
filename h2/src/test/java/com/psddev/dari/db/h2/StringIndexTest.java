@@ -22,11 +22,11 @@ public class StringIndexTest extends AbstractIndexTest<StringModel, String> {
     public void contains() {
         StringModel model = new StringModel();
 
-        model.field = "abcde";
+        model.one = "abcde";
         model.save();
 
         assertThat(
-                query().where("field contains ?", "bcd").first(),
+                query().where("one contains ?", "bcd").first(),
                 is(model));
     }
 
@@ -35,11 +35,11 @@ public class StringIndexTest extends AbstractIndexTest<StringModel, String> {
     public void startsWith() {
         StringModel model = new StringModel();
 
-        model.field = "abcde";
+        model.one = "abcde";
         model.save();
 
         assertThat(
-                query().where("field startsWith ?", "abc").first(),
+                query().where("one startsWith ?", "abc").first(),
                 is(model));
     }
 
