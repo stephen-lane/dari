@@ -317,25 +317,25 @@ public abstract class AbstractIndexTest<M extends Model<M, T>, T> extends Abstra
     }
 
     @Test
-    public void ascending() {
+    public void sortAscendingOne() {
         createSortTestModels();
         assertOrder(false, query().sortAscending("one"));
     }
 
     @Test
-    public void descending() {
+    public void sortDescendingOne() {
         createSortTestModels();
         assertOrder(true, query().sortDescending("one"));
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void closest() {
+    public void sortClosestOne() {
         createSortTestModels();
         query().sortClosest("one", new Location(0, 0)).first();
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void farthest() {
+    public void sortFarthestOne() {
         createSortTestModels();
         query().sortFarthest("one", new Location(0, 0)).first();
     }

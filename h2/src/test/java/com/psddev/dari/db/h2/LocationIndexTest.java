@@ -95,21 +95,21 @@ public class LocationIndexTest extends AbstractIndexTest<LocationModel, Location
 
     @Override
     @Test(expected = IllegalArgumentException.class)
-    public void ascending() {
+    public void sortAscendingOne() {
         createSortTestModels();
         query().sortAscending("one").count();
     }
 
     @Override
     @Test(expected = IllegalArgumentException.class)
-    public void descending() {
+    public void sortDescendingOne() {
         createSortTestModels();
         query().sortDescending("one").count();
     }
 
     @Override
     @Test
-    public void closest() {
+    public void sortClosestOne() {
         createSortTestModels();
         assertOrder(false, query().sortClosest("one", new Location(0, 0)));
     }
@@ -128,7 +128,7 @@ public class LocationIndexTest extends AbstractIndexTest<LocationModel, Location
 
     @Override
     @Test
-    public void farthest() {
+    public void sortFarthestOne() {
         createSortTestModels();
         assertOrder(true, query().sortFarthest("one", new Location(0, 0)));
     }
