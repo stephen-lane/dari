@@ -155,7 +155,7 @@ class SqlQuery {
 
             if (subQuery != null) {
                 orderByFields.addAll(
-                        SqlSubJoin.create(this, subQuery, true, join, true)
+                        SqlSubJoin.create(this, subQuery, true, join)
                                 .sqlQuery
                                 .orderByFields);
 
@@ -274,7 +274,7 @@ class SqlQuery {
                             : join.valueField.in(subQueryTable);
 
                 } else {
-                    return SqlSubJoin.create(this, valueQuery, join.isLeftOuter(), join, !isNotEqualsAll)
+                    return SqlSubJoin.create(this, valueQuery, join.isLeftOuter(), join)
                             .sqlQuery
                             .whereCondition;
                 }
@@ -463,7 +463,7 @@ class SqlQuery {
                 groupByFields.add(join.valueField);
 
             } else {
-                SqlSubJoin.create(this, subQuery, true, join, true)
+                SqlSubJoin.create(this, subQuery, true, join)
                         .sqlQuery
                         .joins
                         .forEach(j -> groupByFields.add(j.valueField));

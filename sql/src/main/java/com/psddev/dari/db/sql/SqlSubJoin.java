@@ -18,8 +18,7 @@ final class SqlSubJoin {
             SqlQuery parent,
             Query<?> subQuery,
             boolean forceLeftJoins,
-            SqlJoin join,
-            boolean in) {
+            SqlJoin join) {
 
         List<SqlSubJoin> subJoins = parent.subJoins;
 
@@ -30,14 +29,14 @@ final class SqlSubJoin {
 
         sub.forceLeftJoins = forceLeftJoins;
 
-        SqlSubJoin subJoin = new SqlSubJoin(parent, sub, join, in);
+        SqlSubJoin subJoin = new SqlSubJoin(parent, sub, join);
 
         subJoins.add(subJoin);
 
         return subJoin;
     }
 
-    private SqlSubJoin(SqlQuery parent, SqlQuery sub, SqlJoin join, boolean in) {
+    private SqlSubJoin(SqlQuery parent, SqlQuery sub, SqlJoin join) {
         this.sqlQuery = sub;
 
         AbstractSqlDatabase database = sub.database;
@@ -45,9 +44,7 @@ final class SqlSubJoin {
         Field<?> id = DSL.field(DSL.name(alias, database.recordIdField().getName()), database.uuidType());
 
         this.table = sub.initialize(DSL.table(DSL.name(database.recordTable().getName())).as(alias));
-        this.on = in
-                ? join.valueField.eq(id)
-                : join.valueField.ne(id);
+        this.on = join.valueField.eq(id);
 
         if (sub.needsDistinct) {
             parent.needsDistinct = true;
