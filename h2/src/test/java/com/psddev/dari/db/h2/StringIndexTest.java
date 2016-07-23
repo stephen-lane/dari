@@ -20,11 +20,7 @@ public class StringIndexTest extends AbstractIndexTest<StringModel, String> {
     @Override
     @Test
     public void contains() {
-        StringModel model = new StringModel();
-
-        model.one = "abcde";
-        model.save();
-
+        StringModel model = model().one("abcde").create();
         assertThat(
                 query().where("one contains ?", "bcd").first(),
                 is(model));
@@ -33,11 +29,7 @@ public class StringIndexTest extends AbstractIndexTest<StringModel, String> {
     @Override
     @Test
     public void startsWith() {
-        StringModel model = new StringModel();
-
-        model.one = "abcde";
-        model.save();
-
+        StringModel model = model().one("abcde").create();
         assertThat(
                 query().where("one startsWith ?", "abc").first(),
                 is(model));

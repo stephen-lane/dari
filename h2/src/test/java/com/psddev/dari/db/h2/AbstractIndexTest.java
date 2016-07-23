@@ -2,12 +2,16 @@ package com.psddev.dari.db.h2;
 
 import com.psddev.dari.db.Location;
 import com.psddev.dari.db.Query;
+import com.psddev.dari.db.State;
 import com.psddev.dari.util.TypeDefinition;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.*;
@@ -46,7 +50,7 @@ public abstract class AbstractIndexTest<M extends Model<M, T>, T> extends Abstra
         model.save();
 
         assertThat(
-                Query.from(modelClass()).first().one,
+                Query.from(modelClass()).first().getOne(),
                 nullValue());
     }
 
@@ -54,9 +58,64 @@ public abstract class AbstractIndexTest<M extends Model<M, T>, T> extends Abstra
         assertThat(predicate, query().where(predicate, parameters).count(), is(count));
     }
 
-    protected void createMissingTestModels() {
-        T value0 = value(0);
+    protected void assertMissing(String field, long count) {
+        assertCount(count, field + " = missing");
+        assertCount(total - count, field + " != missing");
+    }
 
+    @Test
+    public void missingOne() {
+        model().create();
+        model().one(value(0)).create();
+        assertMissing("one", 1L);
+    }
+
+    @Test
+    public void missingSet() {
+        model().create();
+        model().set(value(0)).create();
+        assertMissing("set", 1L);
+    }
+
+    @Test
+    public void missingList() {
+        model().create();
+        model().list(value(0)).create();
+        assertMissing("list", 1L);
+    }
+
+    @Test
+    public void missingReferenceOne() {
+        model().referenceOne(model().create()).create();
+        assertMissing("referenceOne", 1L);
+    }
+
+    @Test
+    public void missingReferenceOneOne() {
+        model().referenceOne(model().create()).create();
+        model().referenceOne(model().one(value(0)).create()).create();
+        assertCount(1L, "referenceOne/one = missing");
+        assertCount(1L, "referenceOne/one != missing");
+    }
+
+    @Test
+    public void missingReferenceSetSet() {
+        model().referenceSet(model().create()).create();
+        model().referenceSet(model().set(value(0)).create()).create();
+        assertCount(1L, "referenceSet/set = missing");
+        assertCount(1L, "referenceSet/set != missing");
+    }
+
+    @Test
+    public void missingReferenceListList() {
+        model().referenceList(model().create()).create();
+        model().referenceList(model().list(value(0)).create()).create();
+        assertCount(1L, "referenceList/list = missing");
+        assertCount(1L, "referenceList/list != missing");
+    }
+
+    protected void createMissingCompoundTestModels() {
+        T value0 = value(0);
         model().create();
         model().one(value0).create();
         model().set(value0).create();
@@ -67,43 +126,50 @@ public abstract class AbstractIndexTest<M extends Model<M, T>, T> extends Abstra
         model().all(value0).create();
     }
 
-    protected void missing(String field, long count) {
-        assertCount(count, field + " = missing");
-        assertCount(total - count, field + " != missing");
-    }
-
-    @Test
-    public void missing() {
-        createMissingTestModels();
-        missing("one", 4L);
-        missing("set", 4L);
-        missing("list", 4L);
-    }
-
-    protected void missingBoth(String field1, String field2, long count) {
+    protected void assertMissingBoth(String field1, String field2, long count) {
         assertCount(count, field1 + " = missing and " + field2 + " = missing");
         assertCount(total - count, field1 + " != missing or " + field2 + " != missing");
     }
 
     @Test
-    public void missingBoth() {
-        createMissingTestModels();
-        missingBoth("one", "set", 2L);
-        missingBoth("one", "list", 2L);
-        missingBoth("set", "list", 2L);
+    public void missingOneAndSet() {
+        createMissingCompoundTestModels();
+        assertMissingBoth("one", "set", 2L);
     }
 
-    protected void missingEither(String field1, String field2, long count) {
+    @Test
+    public void missingOneAndList() {
+        createMissingCompoundTestModels();
+        assertMissingBoth("one", "list", 2L);
+    }
+
+    @Test
+    public void missingSetAndList() {
+        createMissingCompoundTestModels();
+        assertMissingBoth("set", "list", 2L);
+    }
+
+    protected void assertMissingEither(String field1, String field2, long count) {
         assertCount(count, field1 + " = missing or " + field2 + " = missing");
         assertCount(total - count, field1 + " != missing and " + field2 + " != missing");
     }
 
     @Test
-    public void missingEither() {
-        createMissingTestModels();
-        missingEither("one", "set", 6L);
-        missingEither("one", "list", 6L);
-        missingEither("set", "list", 6L);
+    public void missingOneOrSet() {
+        createMissingCompoundTestModels();
+        assertMissingEither("one", "set", 6L);
+    }
+
+    @Test
+    public void missingOneOrList() {
+        createMissingCompoundTestModels();
+        assertMissingEither("one", "list", 6L);
+    }
+
+    @Test
+    public void missingSetOrList() {
+        createMissingCompoundTestModels();
+        assertMissingEither("set", "list", 6L);
     }
 
     protected void createCompareTestModels() {
@@ -246,7 +312,7 @@ public abstract class AbstractIndexTest<M extends Model<M, T>, T> extends Abstra
         assertThat(models, hasSize(total));
 
         for (int i = 0; i < total; ++ i) {
-            assertThat(models.get(i).one, is(value(reverse ? total - 1 - i : i)));
+            assertThat(models.get(i).getOne(), is(value(reverse ? total - 1 - i : i)));
         }
     }
 
@@ -289,32 +355,48 @@ public abstract class AbstractIndexTest<M extends Model<M, T>, T> extends Abstra
         }
 
         public ModelBuilder all(T value) {
-            model.one = value;
-            model.set.add(value);
-            model.list.add(value);
-            model.list.add(value);
+            one(value);
+            set(value);
+            list(value);
             return this;
         }
 
         public ModelBuilder one(T value) {
-            model.one = value;
+            model.setOne(value);
             return this;
         }
 
         public ModelBuilder set(T value) {
-            model.set.add(value);
+            model.getSet().add(value);
             return this;
         }
 
         public ModelBuilder list(T value) {
-            model.list.add(value);
-            model.list.add(value);
+            model.getList().add(value);
+            model.getList().add(value);
             return this;
         }
 
-        public void create() {
+        public ModelBuilder referenceOne(M reference) {
+            model.setReferenceOne(reference);
+            return this;
+        }
+
+        public ModelBuilder referenceSet(M reference) {
+            model.getReferenceSet().add(reference);
+            return this;
+        }
+
+        public ModelBuilder referenceList(M reference) {
+            model.getReferenceList().add(reference);
+            model.getReferenceList().add(reference);
+            return this;
+        }
+
+        public M create() {
             model.save();
             ++ total;
+            return model;
         }
     }
 }

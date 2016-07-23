@@ -2,28 +2,32 @@ package com.psddev.dari.db.h2;
 
 import com.psddev.dari.db.Record;
 
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-public class Model<M extends Model<M, T>, T> extends Record {
+public abstract class Model<M extends Model<M, T>, T> extends Record {
 
-    @Indexed
-    public T one;
+    public abstract T getOne();
 
-    @Indexed
-    public final Set<T> set = new LinkedHashSet<>();
+    public abstract void setOne(T one);
 
-    @Indexed
-    public final List<T> list = new ArrayList<>();
+    public abstract Set<T> getSet();
 
-    @Indexed
-    public Model<?, ?> referenceOne;
+    public abstract void setSet(Set<T> set);
 
-    @Indexed
-    public final Set<Model<?, ?>> referenceSet = new LinkedHashSet<>();
+    public abstract List<T> getList();
 
-    @Indexed
-    public final List<Model<?, ?>> referenceList = new ArrayList<>();
+    public abstract void setList(List<T> list);
+
+    public abstract M getReferenceOne();
+
+    public abstract void setReferenceOne(M referenceOne);
+
+    public abstract Set<M> getReferenceSet();
+
+    public abstract void setReferenceSet(Set<M> referenceSet);
+
+    public abstract List<M> getReferenceList();
+
+    public abstract void setReferenceList(List<M> referenceList);
 }
