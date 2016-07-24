@@ -12,7 +12,6 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.sql.SQLIntegrityConstraintViolationException;
 import java.sql.SQLRecoverableException;
 import java.sql.SQLTimeoutException;
 import java.sql.Savepoint;
@@ -2196,27 +2195,28 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
                     // Looks like a new object so try to INSERT.
                     if (isNew) {
-                        try {
-                            if (data == null) {
-                                data = serializeState(state);
-                            }
+                        if (data == null) {
+                            data = serializeState(state);
+                        }
 
-                            execute(connection, context, context
-                                    .insertInto(recordTable())
-                                    .set(recordIdField(), id)
-                                    .set(recordTypeIdField(), typeId)
-                                    .set(recordDataField(), data));
-
-                        } catch (SQLException error) {
+                        if (execute(connection, context, context
+                                .insertInto(recordTable(),
+                                        recordIdField(),
+                                        recordTypeIdField(),
+                                        recordDataField())
+                                .select(context.select(
+                                        DSL.inline(id, uuidType()),
+                                        DSL.inline(typeId, uuidType()),
+                                        DSL.inline(data, byteArrayType()))
+                                        .whereNotExists(context
+                                                .selectOne()
+                                                .from(recordTable())
+                                                .where(recordIdField().eq(id))
+                                                .and(recordTypeIdField().eq(typeId))))) < 1) {
 
                             // INSERT failed so retry with UPDATE.
-                            if (Static.isIntegrityConstraintViolation(error)) {
-                                isNew = false;
-                                continue;
-
-                            } else {
-                                throw error;
-                            }
+                            isNew = false;
+                            continue;
                         }
 
                     } else {
@@ -2297,23 +2297,23 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                 // Save update date.
                 while (true) {
                     if (isNew) {
-                        try {
-                            execute(connection, context, context
-                                    .insertInto(recordUpdateTable())
-                                    .set(recordUpdateIdField(), id)
-                                    .set(recordUpdateTypeIdField(), typeId)
-                                    .set(recordUpdateDateField(), now));
-
-                        } catch (SQLException error) {
+                        if (execute(connection, context, context
+                                .insertInto(recordUpdateTable(),
+                                        recordUpdateIdField(),
+                                        recordUpdateTypeIdField(),
+                                        recordUpdateDateField())
+                                .select(context.select(
+                                        DSL.inline(id, uuidType()),
+                                        DSL.inline(typeId, uuidType()),
+                                        DSL.inline(now, doubleType()))
+                                        .whereNotExists(context
+                                                .selectOne()
+                                                .from(recordUpdateTable())
+                                                .where(recordUpdateIdField().eq(id))))) < 1) {
 
                             // INSERT failed so retry with UPDATE.
-                            if (Static.isIntegrityConstraintViolation(error)) {
-                                isNew = false;
-                                continue;
-
-                            } else {
-                                throw error;
-                            }
+                            isNew = false;
+                            continue;
                         }
 
                     } else {
@@ -2447,19 +2447,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                         LOGGER.warn("Can't deregister [{}]!", driver);
                     }
                 }
-            }
-        }
-
-        /**
-         * Returns {@code true} if the given {@code error} looks like a
-         * {@link SQLIntegrityConstraintViolationException}.
-         */
-        public static boolean isIntegrityConstraintViolation(SQLException error) {
-            if (error instanceof SQLIntegrityConstraintViolationException) {
-                return true;
-            } else {
-                String state = error.getSQLState();
-                return state != null && state.startsWith("23");
             }
         }
 
