@@ -40,7 +40,7 @@ final class SqlIterator<T> implements Closeable, Iterator<T> {
 
         } catch (SQLException error) {
             close();
-            throw database.createQueryException(error, sqlQuery, query);
+            throw database.createSelectError(sqlQuery, query, error);
         }
     }
 
@@ -78,9 +78,9 @@ final class SqlIterator<T> implements Closeable, Iterator<T> {
             moveToNext();
             return object;
 
-        } catch (SQLException ex) {
+        } catch (SQLException error) {
             close();
-            throw database.createQueryException(ex, sqlQuery, query);
+            throw database.createSelectError(sqlQuery, query, error);
         }
     }
 

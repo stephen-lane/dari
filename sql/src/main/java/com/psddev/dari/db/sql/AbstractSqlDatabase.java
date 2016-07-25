@@ -650,23 +650,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         }
     }
 
-    /**
-     * Creates an {@link SqlDatabaseException} that occurred during
-     * an execution of a query.
-     */
-    protected SqlDatabaseException createQueryException(
-            SQLException error,
-            String sqlQuery,
-            Query<?> query) {
-
-        String message = error.getMessage();
-        if (error instanceof SQLTimeoutException || message.contains("timeout")) {
-            return new SqlDatabaseException.ReadTimeout(this, error, sqlQuery, query);
-        } else {
-            return new SqlDatabaseException(this, error, sqlQuery, query);
-        }
-    }
-
     /** Returns the JDBC data source used for general database operations. */
     public DataSource getDataSource() {
         return dataSource;
@@ -1163,6 +1146,51 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         }
     }
 
+    private <R> R select(String sqlQuery, Query<?> query, SqlSelectFunction<R> selectFunction) {
+        Connection connection = openQueryConnection(query);
+
+        try {
+            double timeout = getReadTimeout();
+
+            if (query != null) {
+                Double queryTimeout = query.getTimeout();
+
+                if (queryTimeout != null) {
+                    timeout = queryTimeout;
+                }
+            }
+
+            try (Statement statement = connection.createStatement();
+                    ResultSet result = executeQueryBeforeTimeout(
+                            statement,
+                            sqlQuery,
+                            timeout > 0.0d ? (int) Math.ceil(timeout) : 0)) {
+
+                return selectFunction.apply(result);
+            }
+
+        } catch (SQLException error) {
+            throw createSelectError(sqlQuery, query, error);
+
+        } finally {
+            closeResources(query, connection, null, null);
+        }
+    }
+
+    protected SqlDatabaseException createSelectError(String sqlQuery, Query<?> query, SQLException error) {
+        String message;
+
+        if (error instanceof SQLTimeoutException
+                || ((message = error.getMessage()) != null
+                && message.toLowerCase(Locale.ENGLISH).contains("timeout"))) {
+
+            return new SqlDatabaseException.ReadTimeout(this, error, sqlQuery, query);
+
+        } else {
+            return new SqlDatabaseException(this, error, sqlQuery, query);
+        }
+    }
+
     /**
      * Selects the first object that matches the given {@code sqlQuery},
      * executed with the given {@code query} options.
@@ -1177,25 +1205,9 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                 .limit(1)
                 .getSQL(ParamType.INLINED);
 
-        Connection connection = null;
-        Statement statement = null;
-        ResultSet result = null;
-
-        try {
-            connection = openQueryConnection(query);
-            statement = connection.createStatement();
-            result = executeQueryBeforeTimeout(statement, sqlQuery, getQueryReadTimeout(query));
-
-            return result.next()
-                    ? createSavedObjectWithResultSet(result, query)
-                    : null;
-
-        } catch (SQLException ex) {
-            throw createQueryException(ex, sqlQuery, query);
-
-        } finally {
-            closeResources(query, connection, statement, result);
-        }
+        return select(sqlQuery, query, result -> result.next()
+                ? createSavedObjectWithResultSet(result, query)
+                : null);
     }
 
     /**
@@ -1206,29 +1218,15 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
      * @param query May be {@code null}.
      */
     public <T> List<T> selectList(String sqlQuery, Query<T> query) {
-        Connection connection = null;
-        Statement statement = null;
-        ResultSet result = null;
-        List<T> objects = new ArrayList<>();
-        int timeout = getQueryReadTimeout(query);
-
-        try {
-            connection = openQueryConnection(query);
-            statement = connection.createStatement();
-            result = executeQueryBeforeTimeout(statement, sqlQuery, timeout);
+        return select(sqlQuery, query, result -> {
+            List<T> objects = new ArrayList<>();
 
             while (result.next()) {
                 objects.add(createSavedObjectWithResultSet(result, query));
             }
 
             return objects;
-
-        } catch (SQLException ex) {
-            throw createQueryException(ex, sqlQuery, query);
-
-        } finally {
-            closeResources(query, connection, statement, result);
-        }
+        });
     }
 
     /**
@@ -1596,20 +1594,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         }
     }
 
-    /** Returns the read timeout associated with the given {@code query}. */
-    private int getQueryReadTimeout(Query<?> query) {
-        if (query != null) {
-            Double timeout = query.getTimeout();
-            if (timeout == null) {
-                timeout = getReadTimeout();
-            }
-            if (timeout > 0.0) {
-                return (int) Math.round(timeout);
-            }
-        }
-        return 0;
-    }
-
     @Override
     public <T> List<T> readAll(Query<T> query) {
         return selectList(buildSelectStatement(query), query);
@@ -1618,30 +1602,10 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     @Override
     public long readCount(Query<?> query) {
         String sqlQuery = buildCountStatement(query);
-        Connection connection = null;
-        Statement statement = null;
-        ResultSet result = null;
 
-        try {
-            connection = openQueryConnection(query);
-            statement = connection.createStatement();
-            result = executeQueryBeforeTimeout(statement, sqlQuery, getQueryReadTimeout(query));
-
-            if (result.next()) {
-                Object countObj = result.getObject(1);
-                if (countObj instanceof Number) {
-                    return ((Number) countObj).longValue();
-                }
-            }
-
-            return 0;
-
-        } catch (SQLException ex) {
-            throw createQueryException(ex, sqlQuery, query);
-
-        } finally {
-            closeResources(query, connection, statement, result);
-        }
+        return select(sqlQuery, query, result -> result.next()
+                ? ObjectUtils.to(long.class, result.getObject(1))
+                : 0L);
     }
 
     @Override
@@ -1663,30 +1627,10 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     @Override
     public Date readLastUpdate(Query<?> query) {
         String sqlQuery = buildLastUpdateStatement(query);
-        Connection connection = null;
-        Statement statement = null;
-        ResultSet result = null;
 
-        try {
-            connection = openQueryConnection(query);
-            statement = connection.createStatement();
-            result = executeQueryBeforeTimeout(statement, sqlQuery, getQueryReadTimeout(query));
-
-            if (result.next()) {
-                Double date = ObjectUtils.to(Double.class, result.getObject(1));
-                if (date != null) {
-                    return new Date((long) (date * 1000L));
-                }
-            }
-
-            return null;
-
-        } catch (SQLException ex) {
-            throw createQueryException(ex, sqlQuery, query);
-
-        } finally {
-            closeResources(query, connection, statement, result);
-        }
+        return select(sqlQuery, query, result -> result.next()
+                ? new Date((long) (ObjectUtils.to(double.class, result.getObject(1)) * 1000L))
+                : null);
     }
 
     @Override
@@ -1738,17 +1682,10 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             }
         }
 
-        List<Grouping<T>> groupings = new ArrayList<>();
         String sqlQuery = buildGroupStatement(query, fields);
-        Connection connection = null;
-        Statement statement = null;
-        ResultSet result = null;
 
-        try {
-            connection = openQueryConnection(query);
-            statement = connection.createStatement();
-            result = executeQueryBeforeTimeout(statement, sqlQuery, getQueryReadTimeout(query));
-
+        return select(sqlQuery, query, result -> {
+            List<Grouping<T>> groupings = new ArrayList<>();
             int fieldsLength = fields.length;
             int groupingsCount = 0;
 
@@ -1821,13 +1758,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             }
 
             return new PaginatedResult<>(offset, limit, groupingsCount - removes.size(), groupings);
-
-        } catch (SQLException ex) {
-            throw createQueryException(ex, sqlQuery, query);
-
-        } finally {
-            closeResources(query, connection, statement, result);
-        }
+        });
     }
 
     @Override
