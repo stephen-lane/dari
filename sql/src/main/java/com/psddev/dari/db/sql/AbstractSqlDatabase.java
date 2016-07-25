@@ -17,7 +17,6 @@ import java.sql.SQLTimeoutException;
 import java.sql.Savepoint;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.Enumeration;
@@ -242,30 +241,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         }
 
     }, 5, TimeUnit.MINUTES);
-
-    // Cache that stores all the table and column names.
-    private final transient Lazy<Map<String, Set<String>>> tableColumnNames = new Lazy<Map<String, Set<String>>>() {
-
-        @Override
-        protected Map<String, Set<String>> create() {
-            Connection connection = openAnyConnection();
-
-            try (DSLContext context = openContext(connection)) {
-                return context.meta().getTables().stream()
-                        .collect(Collectors.toMap(
-                                t -> t.getName().toLowerCase(Locale.ENGLISH),
-                                t -> Arrays.stream(t.fields())
-                                        .map(c -> c.getName().toLowerCase(Locale.ENGLISH))
-                                        .collect(Collectors.toSet())));
-
-            } catch (DataAccessException error) {
-                throw convertJooqError(error, null);
-
-            } finally {
-                closeConnection(connection);
-            }
-        }
-    };
 
     // Cache that stores all the symbol IDs.
     private final transient Lazy<Map<String, Integer>> symbolIds = new Lazy<Map<String, Integer>>() {
@@ -845,24 +820,12 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
      * following methods:</p>
      *
      * <ul>
-     *     <li>{@link #hasTable(String)}</li>
      *     <li>{@link #getSymbolId(String)}</li>
      *     <li>{@link #getReadSymbolId(String)}</li>
      * </ul>
      */
     public void invalidateCaches() {
-        tableColumnNames.reset();
         symbolIds.reset();
-    }
-
-    /**
-     * Returns {@code true} if a table exists with the given {@code name}.
-     *
-     * @param name If {@code null}, always returns {@code false}.
-     */
-    public boolean hasTable(String name) {
-        return name != null
-                && tableColumnNames.get().containsKey(name.toLowerCase(Locale.ENGLISH));
     }
 
     /**
@@ -1538,13 +1501,28 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
         setIndexSpatial(ObjectUtils.firstNonNull(ObjectUtils.to(Boolean.class, settings.get(INDEX_SPATIAL_SUB_SETTING)), Boolean.TRUE));
 
-        numberSqlIndexes = sqlIndexes(new NumberSqlIndex(this, "RecordNumber", 3));
-        stringSqlIndexes = sqlIndexes(new StringSqlIndex(this, "RecordString", 4));
-        uuidSqlIndexes = sqlIndexes(new UuidSqlIndex(this, "RecordUuid", 3));
+        Connection connection = openAnyConnection();
+        Set<String> existingTables;
+
+        try (DSLContext context = openContext(connection)) {
+            existingTables = context.meta().getTables().stream()
+                    .map(t -> t.getName().toLowerCase(Locale.ENGLISH))
+                    .collect(Collectors.toSet());
+
+        } catch (DataAccessException error) {
+            throw convertJooqError(error, null);
+
+        } finally {
+            closeConnection(connection);
+        }
+
+        numberSqlIndexes = sqlIndexes(existingTables, new NumberSqlIndex(this, "RecordNumber", 3));
+        stringSqlIndexes = sqlIndexes(existingTables, new StringSqlIndex(this, "RecordString", 4));
+        uuidSqlIndexes = sqlIndexes(existingTables, new UuidSqlIndex(this, "RecordUuid", 3));
 
         if (isIndexSpatial()) {
-            locationSqlIndexes = sqlIndexes(new LocationSqlIndex(this, "RecordLocation", 3));
-            regionSqlIndexes = sqlIndexes(new RegionSqlIndex(this, "RecordRegion", 2));
+            locationSqlIndexes = sqlIndexes(existingTables, new LocationSqlIndex(this, "RecordLocation", 3));
+            regionSqlIndexes = sqlIndexes(existingTables, new RegionSqlIndex(this, "RecordRegion", 2));
 
         } else {
             locationSqlIndexes = Collections.emptyList();
@@ -1560,12 +1538,12 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                 .build();
     }
 
-    private List<AbstractSqlIndex> sqlIndexes(AbstractSqlIndex... sqlIndexes) {
+    private List<AbstractSqlIndex> sqlIndexes(Set<String> existingTables, AbstractSqlIndex... sqlIndexes) {
         ImmutableList.Builder<AbstractSqlIndex> builder = ImmutableList.builder();
         boolean empty = true;
 
         for (AbstractSqlIndex sqlIndex : sqlIndexes) {
-            if (hasTable(sqlIndex.table().getName())) {
+            if (existingTables.contains(sqlIndex.table().getName().toLowerCase(Locale.ENGLISH))) {
                 builder.add(sqlIndex);
                 empty = false;
             }
