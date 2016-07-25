@@ -846,7 +846,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
      *
      * <ul>
      *     <li>{@link #hasTable(String)}</li>
-     *     <li>{@link #hasColumn(String, String)}</li>
      *     <li>{@link #getSymbolId(String)}</li>
      *     <li>{@link #getReadSymbolId(String)}</li>
      * </ul>
@@ -864,25 +863,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     public boolean hasTable(String name) {
         return name != null
                 && tableColumnNames.get().containsKey(name.toLowerCase(Locale.ENGLISH));
-    }
-
-    /**
-     * Returns {@code true} if the table with the given {@code tableName}
-     * contains a column with the given {@code columnName}.
-     *
-     * @param tableName If {@code null}, always returns {@code false}.
-     * @param columnName If {@code null}, always returns {@code false}.
-     */
-    public boolean hasColumn(String tableName, String columnName) {
-        if (tableName == null || columnName == null) {
-            return false;
-
-        } else {
-            Set<String> columnNames = tableColumnNames.get().get(tableName.toLowerCase(Locale.ENGLISH));
-
-            return columnNames != null
-                    && columnNames.contains(columnName.toLowerCase(Locale.ENGLISH));
-        }
     }
 
     /**
