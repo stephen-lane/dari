@@ -19,6 +19,19 @@ public class StringIndexTest extends AbstractIndexTest<StringModel, String> {
 
     @Override
     @Test
+    public void invalidValue() {
+    }
+
+    @Test
+    public void blankValue() {
+        StringModel model = model().one(" ").create();
+        assertThat(
+                query().where("one = missing").first(),
+                is(model));
+    }
+
+    @Override
+    @Test
     public void contains() {
         StringModel model = model().one("abcde").create();
         assertThat(
@@ -33,10 +46,5 @@ public class StringIndexTest extends AbstractIndexTest<StringModel, String> {
         assertThat(
                 query().where("one startsWith ?", "abc").first(),
                 is(model));
-    }
-
-    @Override
-    @Test
-    public void invalidValue() {
     }
 }
