@@ -36,7 +36,7 @@ import com.psddev.dari.db.shyiko.DariUpdateRowsEventDataDeserializer;
 import com.psddev.dari.db.shyiko.DariWriteRowsEventDataDeserializer;
 import com.psddev.dari.util.ObjectUtils;
 
-public class MySQLBinaryLogReader {
+class MySQLBinaryLogReader {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(MySQLBinaryLogReader.class);
     private static final Pattern MYSQL_JDBC_URL_PATTERN = Pattern.compile("(?i)jdbc:mysql://([^:/]+)(?::(\\d+))?/([^?]+).*");
