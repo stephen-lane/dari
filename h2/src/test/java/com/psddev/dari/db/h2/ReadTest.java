@@ -25,6 +25,10 @@ public class ReadTest extends AbstractTest {
     public static void createModels() {
         MODELS = new HashSet<>();
 
+        // b
+        // cb, b
+        // dcb, dc, d
+        // ...
         for (int i = 0; i < 26; ++ i) {
             for (int j = 0; j < i; ++ j) {
                 ReadModel model = new ReadModel();
@@ -51,8 +55,8 @@ public class ReadTest extends AbstractTest {
     }
 
     @Test
-    public void allGrouped() {
-        List<Grouping<ReadModel>> groupings = Query.from(ReadModel.class).groupBy("getFirstLetter");
+    public void allGroupedOne() {
+        List<Grouping<ReadModel>> groupings = Query.from(ReadModel.class).groupBy("firstLetter");
 
         assertThat(
                 groupings,
@@ -65,6 +69,26 @@ public class ReadTest extends AbstractTest {
                     firstLetter,
                     g.getCount(),
                     is((long) (firstLetter.charAt(0) - 'a')));
+        });
+    }
+
+    @Test
+    public void allGroupedSet() {
+        List<Grouping<ReadModel>> groupings = Query.from(ReadModel.class).groupBy("letters");
+
+        assertThat(
+                groupings,
+                hasSize(25));
+
+        groupings.forEach(g -> {
+            String letter = (String) g.getKeys().get(0);
+            long count = 0;
+
+            for (int i = 0, l = letter.charAt(0) - 'a', j = 25; i < l; ++ i, j -= 2) {
+                count += j;
+            }
+
+            assertThat(letter, g.getCount(), is(count));
         });
     }
 
