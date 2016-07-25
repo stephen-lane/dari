@@ -493,7 +493,7 @@ class SqlQuery {
      * matching the query were last updated.
      */
     public String lastUpdateStatement() {
-        Table<?> table = initialize(DSL.table(database.recordUpdateTable().getName()).as(recordTableAlias));
+        Table<?> table = initialize(DSL.table(DSL.name(database.recordUpdateTable().getName())).as(recordTableAlias));
 
         return tableRenderContext.render(dslContext
                 .select(DSL.field(DSL.name(recordTableAlias, database.recordUpdateDateField().getName())).max())
