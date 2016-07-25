@@ -27,6 +27,18 @@ public class LocationIndexModel extends AbstractIndexModel<LocationIndexModel, L
     @Indexed
     private List<LocationIndexModel> referenceList;
 
+    @Embedded
+    @Indexed
+    private LocationIndexModel embeddedOne;
+
+    @Embedded
+    @Indexed
+    private Set<LocationIndexModel> embeddedSet;
+
+    @Embedded
+    @Indexed
+    private List<LocationIndexModel> embeddedList;
+
     @Override
     public Location getOne() {
         return one;
@@ -97,5 +109,41 @@ public class LocationIndexModel extends AbstractIndexModel<LocationIndexModel, L
     @Override
     public void setReferenceList(List<LocationIndexModel> referenceList) {
         this.referenceList = referenceList;
+    }
+
+    @Override
+    public LocationIndexModel getEmbeddedOne() {
+        return embeddedOne;
+    }
+
+    @Override
+    public void setEmbeddedOne(LocationIndexModel embeddedOne) {
+        this.embeddedOne = embeddedOne;
+    }
+
+    @Override
+    public Set<LocationIndexModel> getEmbeddedSet() {
+        if (embeddedSet == null) {
+            embeddedSet = new LinkedHashSet<>();
+        }
+        return embeddedSet;
+    }
+
+    @Override
+    public void setEmbeddedSet(Set<LocationIndexModel> embeddedSet) {
+        this.embeddedSet = embeddedSet;
+    }
+
+    @Override
+    public List<LocationIndexModel> getEmbeddedList() {
+        if (embeddedList == null) {
+            embeddedList = new ArrayList<>();
+        }
+        return embeddedList;
+    }
+
+    @Override
+    public void setEmbeddedList(List<LocationIndexModel> embeddedList) {
+        this.embeddedList = embeddedList;
     }
 }

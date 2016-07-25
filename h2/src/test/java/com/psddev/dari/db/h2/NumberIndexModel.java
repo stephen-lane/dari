@@ -25,6 +25,18 @@ public class NumberIndexModel extends AbstractIndexModel<NumberIndexModel, Doubl
     @Indexed
     private List<NumberIndexModel> referenceList;
 
+    @Embedded
+    @Indexed
+    private NumberIndexModel embeddedOne;
+
+    @Embedded
+    @Indexed
+    private Set<NumberIndexModel> embeddedSet;
+
+    @Embedded
+    @Indexed
+    private List<NumberIndexModel> embeddedList;
+
     @Override
     public Double getOne() {
         return one;
@@ -95,5 +107,41 @@ public class NumberIndexModel extends AbstractIndexModel<NumberIndexModel, Doubl
     @Override
     public void setReferenceList(List<NumberIndexModel> referenceList) {
         this.referenceList = referenceList;
+    }
+
+    @Override
+    public NumberIndexModel getEmbeddedOne() {
+        return embeddedOne;
+    }
+
+    @Override
+    public void setEmbeddedOne(NumberIndexModel embeddedOne) {
+        this.embeddedOne = embeddedOne;
+    }
+
+    @Override
+    public Set<NumberIndexModel> getEmbeddedSet() {
+        if (embeddedSet == null) {
+            embeddedSet = new LinkedHashSet<>();
+        }
+        return embeddedSet;
+    }
+
+    @Override
+    public void setEmbeddedSet(Set<NumberIndexModel> embeddedSet) {
+        this.embeddedSet = embeddedSet;
+    }
+
+    @Override
+    public List<NumberIndexModel> getEmbeddedList() {
+        if (embeddedList == null) {
+            embeddedList = new ArrayList<>();
+        }
+        return embeddedList;
+    }
+
+    @Override
+    public void setEmbeddedList(List<NumberIndexModel> embeddedList) {
+        this.embeddedList = embeddedList;
     }
 }

@@ -26,6 +26,18 @@ public class UuidIndexModel extends AbstractIndexModel<UuidIndexModel, UUID> {
     @Indexed
     private List<UuidIndexModel> referenceList;
 
+    @Embedded
+    @Indexed
+    private UuidIndexModel embeddedOne;
+
+    @Embedded
+    @Indexed
+    private Set<UuidIndexModel> embeddedSet;
+
+    @Embedded
+    @Indexed
+    private List<UuidIndexModel> embeddedList;
+
     @Override
     public UUID getOne() {
         return one;
@@ -96,5 +108,41 @@ public class UuidIndexModel extends AbstractIndexModel<UuidIndexModel, UUID> {
     @Override
     public void setReferenceList(List<UuidIndexModel> referenceList) {
         this.referenceList = referenceList;
+    }
+
+    @Override
+    public UuidIndexModel getEmbeddedOne() {
+        return embeddedOne;
+    }
+
+    @Override
+    public void setEmbeddedOne(UuidIndexModel embeddedOne) {
+        this.embeddedOne = embeddedOne;
+    }
+
+    @Override
+    public Set<UuidIndexModel> getEmbeddedSet() {
+        if (embeddedSet == null) {
+            embeddedSet = new LinkedHashSet<>();
+        }
+        return embeddedSet;
+    }
+
+    @Override
+    public void setEmbeddedSet(Set<UuidIndexModel> embeddedSet) {
+        this.embeddedSet = embeddedSet;
+    }
+
+    @Override
+    public List<UuidIndexModel> getEmbeddedList() {
+        if (embeddedList == null) {
+            embeddedList = new ArrayList<>();
+        }
+        return embeddedList;
+    }
+
+    @Override
+    public void setEmbeddedList(List<UuidIndexModel> embeddedList) {
+        this.embeddedList = embeddedList;
     }
 }

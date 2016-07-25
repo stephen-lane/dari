@@ -30,4 +30,16 @@ public abstract class AbstractIndexModel<M extends AbstractIndexModel<M, T>, T> 
     public abstract List<M> getReferenceList();
 
     public abstract void setReferenceList(List<M> referenceList);
+
+    public abstract M getEmbeddedOne();
+
+    public abstract void setEmbeddedOne(M embeddedOne);
+
+    public abstract Set<M> getEmbeddedSet();
+
+    public abstract void setEmbeddedSet(Set<M> embeddedSet);
+
+    public abstract List<M> getEmbeddedList();
+
+    public abstract void setEmbeddedList(List<M> embeddedList);
 }

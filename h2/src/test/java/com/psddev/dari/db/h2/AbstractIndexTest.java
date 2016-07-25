@@ -114,6 +114,36 @@ public abstract class AbstractIndexTest<M extends AbstractIndexModel<M, T>, T> e
         assertCount(1L, "referenceList/list != missing");
     }
 
+    @Test
+    public void missingEmbeddedOne() {
+        model().embeddedOne(model()).create();
+        assertMissing("embeddedOne", 1L);
+    }
+
+    @Test
+    public void missingEmbeddedOneOne() {
+        model().embeddedOne(model()).create();
+        model().embeddedOne(model().one(value(0))).create();
+        assertCount(1L, "embeddedOne/one = missing");
+        assertCount(1L, "embeddedOne/one != missing");
+    }
+
+    @Test
+    public void missingEmbeddedSetSet() {
+        model().embeddedSet(model()).create();
+        model().embeddedSet(model().set(value(0))).create();
+        assertCount(1L, "embeddedSet/set = missing");
+        assertCount(1L, "embeddedSet/set != missing");
+    }
+
+    @Test
+    public void missingEmbeddedListList() {
+        model().embeddedList(model()).create();
+        model().embeddedList(model().list(value(0))).create();
+        assertCount(1L, "embeddedList/list = missing");
+        assertCount(1L, "embeddedList/list != missing");
+    }
+
     protected void createMissingCompoundTestModels() {
         T value0 = value(0);
         model().create();
@@ -390,6 +420,22 @@ public abstract class AbstractIndexTest<M extends AbstractIndexModel<M, T>, T> e
         public ModelBuilder referenceList(M reference) {
             model.getReferenceList().add(reference);
             model.getReferenceList().add(reference);
+            return this;
+        }
+
+        public ModelBuilder embeddedOne(ModelBuilder embeddedBuilder) {
+            model.setEmbeddedOne(embeddedBuilder.model);
+            return this;
+        }
+
+        public ModelBuilder embeddedSet(ModelBuilder embeddedBuilder) {
+            model.getEmbeddedSet().add(embeddedBuilder.model);
+            return this;
+        }
+
+        public ModelBuilder embeddedList(ModelBuilder embeddedBuilder) {
+            model.getEmbeddedList().add(embeddedBuilder.model);
+            model.getEmbeddedList().add(embeddedBuilder.model);
             return this;
         }
 

@@ -27,6 +27,18 @@ public class RegionIndexModel extends AbstractIndexModel<RegionIndexModel, Regio
     @Indexed
     private List<RegionIndexModel> referenceList = new ArrayList<>();
 
+    @Embedded
+    @Indexed
+    private RegionIndexModel embeddedOne;
+
+    @Embedded
+    @Indexed
+    private Set<RegionIndexModel> embeddedSet;
+
+    @Embedded
+    @Indexed
+    private List<RegionIndexModel> embeddedList = new ArrayList<>();
+
     @Override
     public Region getOne() {
         return one;
@@ -97,5 +109,41 @@ public class RegionIndexModel extends AbstractIndexModel<RegionIndexModel, Regio
     @Override
     public void setReferenceList(List<RegionIndexModel> referenceList) {
         this.referenceList = referenceList;
+    }
+
+    @Override
+    public RegionIndexModel getEmbeddedOne() {
+        return embeddedOne;
+    }
+
+    @Override
+    public void setEmbeddedOne(RegionIndexModel embeddedOne) {
+        this.embeddedOne = embeddedOne;
+    }
+
+    @Override
+    public Set<RegionIndexModel> getEmbeddedSet() {
+        if (embeddedSet == null) {
+            embeddedSet = new LinkedHashSet<>();
+        }
+        return embeddedSet;
+    }
+
+    @Override
+    public void setEmbeddedSet(Set<RegionIndexModel> embeddedSet) {
+        this.embeddedSet = embeddedSet;
+    }
+
+    @Override
+    public List<RegionIndexModel> getEmbeddedList() {
+        if (embeddedList == null) {
+            embeddedList = new ArrayList<>();
+        }
+        return embeddedList;
+    }
+
+    @Override
+    public void setEmbeddedList(List<RegionIndexModel> embeddedList) {
+        this.embeddedList = embeddedList;
     }
 }
