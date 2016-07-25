@@ -1,9 +1,13 @@
 package com.psddev.dari.db.h2;
 
+import com.psddev.dari.db.AtomicOperation;
 import com.psddev.dari.db.Database;
+import com.psddev.dari.db.DatabaseException;
 import com.psddev.dari.db.Query;
 import org.junit.After;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -12,6 +16,9 @@ import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.*;
 
 public class WriteTest extends AbstractTest {
+
+    @Rule
+    public ExpectedException thrown = ExpectedException.none();
 
     @After
     public void deleteModels() {
@@ -43,6 +50,111 @@ public class WriteTest extends AbstractTest {
         model2.getState().setId(model1.getId());
         model2.save();
         assertThat(Query.from(WriteModel.class).first(), is(model1));
+    }
+
+    @Test
+    public void saveAtomicallyIncrement() {
+        new WriteModel().save();
+        WriteModel model1 = Query.from(WriteModel.class).first();
+        WriteModel model2 = Query.from(WriteModel.class).first();
+
+        model1.getState().incrementAtomically("number", 1);
+        model1.save();
+        assertThat(model1.number, is(1));
+
+        assertThat(model2.number, is(0));
+        model2.getState().incrementAtomically("number", 1);
+        model2.save();
+        assertThat(model2.number, is(2));
+
+        assertThat(Query.from(WriteModel.class).first().number, is(2));
+    }
+
+    @Test
+    public void saveAtomicallyDecrement() {
+        WriteModel model = new WriteModel();
+        model.number = 2;
+        model.save();
+
+        WriteModel model1 = Query.from(WriteModel.class).first();
+        WriteModel model2 = Query.from(WriteModel.class).first();
+
+        model1.getState().decrementAtomically("number", 1);
+        model1.save();
+        assertThat(model1.number, is(1));
+
+        assertThat(model2.number, is(2));
+        model2.getState().decrementAtomically("number", 1);
+        model2.save();
+        assertThat(model2.number, is(0));
+
+        assertThat(Query.from(WriteModel.class).first().number, is(0));
+    }
+
+    @Test
+    public void saveAtomicallyAdd() {
+        new WriteModel().save();
+        WriteModel model1 = Query.from(WriteModel.class).first();
+        WriteModel model2 = Query.from(WriteModel.class).first();
+
+        model1.getState().addAtomically("list", "foo");
+        model1.save();
+        assertThat(model1.list, hasSize(1));
+        assertThat(model1.list, contains("foo"));
+
+        assertThat(model2.list, empty());
+        model2.getState().addAtomically("list", "bar");
+        model2.save();
+        assertThat(model2.list, hasSize(2));
+        assertThat(model2.list, contains("foo", "bar"));
+
+        List<String> list = Query.from(WriteModel.class).first().list;
+        assertThat(list, hasSize(2));
+        assertThat(list, contains("foo", "bar"));
+    }
+
+    @Test
+    public void saveAtomicallyRemove() {
+        WriteModel model = new WriteModel();
+        model.list.add("foo");
+        model.list.add("bar");
+        model.save();
+
+        WriteModel model1 = Query.from(WriteModel.class).first();
+        WriteModel model2 = Query.from(WriteModel.class).first();
+
+        model1.getState().removeAtomically("list", "foo");
+        model1.save();
+        assertThat(model1.list, hasSize(1));
+        assertThat(model1.list, contains("bar"));
+
+        assertThat(model2.list, hasSize(2));
+        model2.getState().removeAtomically("list", "bar");
+        model2.save();
+        assertThat(model2.list, empty());
+
+        assertThat(Query.from(WriteModel.class).first().list, empty());
+    }
+
+    @Test
+    public void saveAtomicallyReplace() {
+        WriteModel model = new WriteModel();
+        model.string = "foo";
+        model.save();
+
+        WriteModel model1 = Query.from(WriteModel.class).first();
+        WriteModel model2 = Query.from(WriteModel.class).first();
+
+        model1.getState().replaceAtomically("string", "bar");
+        model1.save();
+        assertThat(model1.string, is("bar"));
+        assertThat(Query.from(WriteModel.class).first().string, is("bar"));
+
+        assertThat(model2.string, is("foo"));
+        model2.getState().replaceAtomically("string", "bar");
+        thrown.expect(DatabaseException.class);
+        thrown.expectCause(instanceOf(AtomicOperation.ReplacementException.class));
+        model2.save();
     }
 
     private List<WriteModel> createDeleteTestModels() {
