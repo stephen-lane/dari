@@ -3,6 +3,7 @@ package com.psddev.dari.db.h2;
 import com.psddev.dari.db.Database;
 import com.psddev.dari.db.Grouping;
 import com.psddev.dari.db.Query;
+import com.psddev.dari.db.sql.AbstractSqlDatabase;
 import com.psddev.dari.util.PaginatedResult;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -81,26 +82,43 @@ public class ReadTest extends AbstractTest {
                 isIn(MODELS));
     }
 
-    private void iterable(int fetchSize) {
+    private void iterable(boolean disableByIdIterator, int fetchSize) {
         Set<ReadModel> result = new HashSet<>();
-        Query.from(ReadModel.class).iterable(0).forEach(result::add);
+
+        Query.from(ReadModel.class)
+                .option(AbstractSqlDatabase.DISABLE_BY_ID_ITERATOR_OPTION, disableByIdIterator)
+                .iterable(0)
+                .forEach(result::add);
 
         assertThat(result, is(MODELS));
     }
 
     @Test
-    public void iterable0() {
-        iterable(0);
+    public void iterableById0() {
+        iterable(false, 0);
     }
 
     @Test
-    public void iterable1() {
-        iterable(1);
+    public void iterableById1() {
+        iterable(false, 1);
     }
 
-    @Test(expected = NoSuchElementException.class)
-    public void iterableNext() {
-        Iterator<ReadModel> i = Query.from(ReadModel.class).iterable(0).iterator();
+    @Test
+    public void iterableNotById0() {
+        iterable(true, 0);
+    }
+
+    @Test
+    public void iterableNotById1() {
+        iterable(true, 1);
+    }
+
+    private void iterableNext(boolean disableByIdIterator) {
+        Iterator<ReadModel> i = Query
+                .from(ReadModel.class)
+                .option(AbstractSqlDatabase.DISABLE_BY_ID_ITERATOR_OPTION, disableByIdIterator)
+                .iterable(0)
+                .iterator();
 
         while (i.hasNext()) {
             i.next();
@@ -109,9 +127,32 @@ public class ReadTest extends AbstractTest {
         i.next();
     }
 
+    @Test(expected = NoSuchElementException.class)
+    public void iterableNextById() {
+        iterableNext(false);
+    }
+
+    @Test(expected = NoSuchElementException.class)
+    public void iterableNextNotById() {
+        iterableNext(true);
+    }
+
+    private void iterableRemove(boolean disableByIdIterator) {
+        Query.from(ReadModel.class)
+                .option(AbstractSqlDatabase.DISABLE_BY_ID_ITERATOR_OPTION, disableByIdIterator)
+                .iterable(0)
+                .iterator()
+                .remove();
+    }
+
     @Test(expected = UnsupportedOperationException.class)
-    public void iterableRemove() {
-        Query.from(ReadModel.class).iterable(0).iterator().remove();
+    public void iterableRemoveById() {
+        iterableRemove(false);
+    }
+
+    @Test(expected = UnsupportedOperationException.class)
+    public void iterableRemoveNotById() {
+        iterableRemove(true);
     }
 
     @Test
