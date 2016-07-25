@@ -22,6 +22,7 @@ import java.util.Date;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -140,7 +141,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     public static final String JDBC_URL_SETTING = "jdbcUrl";
     public static final String JDBC_USER_SETTING = "jdbcUser";
     public static final String JDBC_PASSWORD_SETTING = "jdbcPassword";
-    public static final String JDBC_POOL_SIZE_SETTING = "jdbcPoolSize";
 
     public static final String READ_DATA_SOURCE_SETTING = "readDataSource";
     public static final String READ_DATA_SOURCE_JNDI_NAME_SETTING = "readDataSourceJndiName";
@@ -148,7 +148,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     public static final String READ_JDBC_URL_SETTING = "readJdbcUrl";
     public static final String READ_JDBC_USER_SETTING = "readJdbcUser";
     public static final String READ_JDBC_PASSWORD_SETTING = "readJdbcPassword";
-    public static final String READ_JDBC_POOL_SIZE_SETTING = "readJdbcPoolSize";
 
     public static final String CATALOG_SUB_SETTING = "catalog";
     public static final String METRIC_CATALOG_SUB_SETTING = "metricCatalog";
@@ -205,6 +204,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     private volatile List<AbstractSqlIndex> uuidSqlIndexes;
     private volatile List<AbstractSqlIndex> deleteSqlIndexes;
 
+    private final Set<WeakReference<Driver>> registeredDrivers = new HashSet<>();
     private volatile DataSource dataSource;
     private volatile DataSource readDataSource;
     private volatile String catalog;
@@ -903,19 +903,39 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     /** Closes any resources used by this database. */
     public void close() {
         DataSource dataSource = getDataSource();
+
         if (dataSource instanceof HikariDataSource) {
-            LOGGER.info("Closing connection pool in {}", getName());
+            LOGGER.info("Closing data source: " + dataSource);
             ((HikariDataSource) dataSource).close();
         }
 
+        setDataSource(null);
+
         DataSource readDataSource = getReadDataSource();
+
         if (readDataSource instanceof HikariDataSource) {
-            LOGGER.info("Closing read connection pool in {}", getName());
+            LOGGER.info("Closing read data source: " + dataSource);
             ((HikariDataSource) readDataSource).close();
         }
 
-        setDataSource(null);
         setReadDataSource(null);
+
+        for (Iterator<WeakReference<Driver>> i = registeredDrivers.iterator(); i.hasNext();) {
+            Driver driver = i.next().get();
+
+            i.remove();
+
+            if (driver != null) {
+                LOGGER.info("Deregistering JDBC driver [{}]", driver);
+
+                try {
+                    DriverManager.deregisterDriver(driver);
+
+                } catch (SQLException error) {
+                    LOGGER.warn("Can't deregister JDBC driver [{}]!", driver);
+                }
+            }
+        }
     }
 
     private String addComment(String sql, Query<?> query) {
@@ -1377,24 +1397,24 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     @Override
     protected void doInitialize(String settingsKey, Map<String, Object> settings) {
         close();
-        setReadDataSource(createDataSource(
-                settings,
-                READ_DATA_SOURCE_SETTING,
-                READ_DATA_SOURCE_JNDI_NAME_SETTING,
-                READ_JDBC_DRIVER_CLASS_SETTING,
-                READ_JDBC_URL_SETTING,
-                READ_JDBC_USER_SETTING,
-                READ_JDBC_PASSWORD_SETTING,
-                READ_JDBC_POOL_SIZE_SETTING));
+
         setDataSource(createDataSource(
                 settings,
-                DATA_SOURCE_SETTING,
                 DATA_SOURCE_JNDI_NAME_SETTING,
+                DATA_SOURCE_SETTING,
                 JDBC_DRIVER_CLASS_SETTING,
                 JDBC_URL_SETTING,
                 JDBC_USER_SETTING,
-                JDBC_PASSWORD_SETTING,
-                JDBC_POOL_SIZE_SETTING));
+                JDBC_PASSWORD_SETTING));
+
+        setReadDataSource(createDataSource(
+                settings,
+                READ_DATA_SOURCE_JNDI_NAME_SETTING,
+                READ_DATA_SOURCE_SETTING,
+                READ_JDBC_DRIVER_CLASS_SETTING,
+                READ_JDBC_URL_SETTING,
+                READ_JDBC_USER_SETTING,
+                READ_JDBC_PASSWORD_SETTING));
 
         setCatalog(ObjectUtils.to(String.class, settings.get(CATALOG_SUB_SETTING)));
 
@@ -1468,130 +1488,106 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         return builder.build();
     }
 
-    private static final Map<String, String> DRIVER_CLASS_NAMES; static {
-        Map<String, String> m = new HashMap<>();
-        m.put("h2", "org.h2.Driver");
-        m.put("jtds", "net.sourceforge.jtds.jdbc.Driver");
-        m.put("mysql", "com.mysql.jdbc.Driver");
-        m.put("postgresql", "org.postgresql.Driver");
-        DRIVER_CLASS_NAMES = m;
-    }
-
-    private static final Set<WeakReference<Driver>> REGISTERED_DRIVERS = new HashSet<>();
-
     private DataSource createDataSource(
             Map<String, Object> settings,
-            String dataSourceSetting,
             String dataSourceJndiNameSetting,
+            String dataSourceSetting,
             String jdbcDriverClassSetting,
             String jdbcUrlSetting,
             String jdbcUserSetting,
-            String jdbcPasswordSetting,
-            String jdbcPoolSizeSetting) {
+            String jdbcPasswordSetting) {
 
-        Object dataSourceJndiName = settings.get(dataSourceJndiNameSetting);
-        if (dataSourceJndiName instanceof String) {
+        // Data source at a non-standard location?
+        String dataSourceJndiName = ObjectUtils.to(String.class, settings.get(dataSourceJndiNameSetting));
+        Object dataSourceObject = null;
+
+        if (dataSourceJndiName != null) {
             try {
-                Object dataSourceObject = new InitialContext().lookup((String) dataSourceJndiName);
-                if (dataSourceObject instanceof DataSource) {
-                    return (DataSource) dataSourceObject;
-                }
-            } catch (NamingException e) {
-                throw new SettingsException(dataSourceJndiNameSetting,
-                        String.format("Can't find [%s]!",
-                        dataSourceJndiName), e);
+                dataSourceObject = new InitialContext().lookup(dataSourceJndiName);
+
+            } catch (NamingException error) {
+                throw new SettingsException(
+                        dataSourceJndiNameSetting,
+                        String.format("Can't find [%s] via JNDI!", dataSourceJndiName),
+                        error);
             }
         }
 
-        Object dataSourceObject = settings.get(dataSourceSetting);
-        if (dataSourceObject instanceof DataSource) {
-            return (DataSource) dataSourceObject;
+        // Data source at a standard location?
+        if (dataSourceObject == null) {
+            dataSourceObject = settings.get(dataSourceSetting);
+        }
 
-        } else {
-            String url = ObjectUtils.to(String.class, settings.get(jdbcUrlSetting));
-            if (ObjectUtils.isBlank(url)) {
-                return null;
+        // Really a data source?
+        if (dataSourceObject != null) {
+            if (dataSourceObject instanceof DataSource) {
+                return (DataSource) dataSourceObject;
 
             } else {
-                String driverClassName = ObjectUtils.to(String.class, settings.get(jdbcDriverClassSetting));
-                Class<?> driverClass = null;
-
-                if (driverClassName != null) {
-                    driverClass = ObjectUtils.getClassByName(driverClassName);
-                    if (driverClass == null) {
-                        throw new SettingsException(
-                                jdbcDriverClassSetting,
-                                String.format("Can't find [%s]!",
-                                driverClassName));
-                    } else if (!Driver.class.isAssignableFrom(driverClass)) {
-                        throw new SettingsException(
-                                jdbcDriverClassSetting,
-                                String.format("[%s] doesn't implement [%s]!",
-                                driverClass, Driver.class));
-                    }
-
-                } else {
-                    int firstColonAt = url.indexOf(':');
-                    if (firstColonAt > -1) {
-                        ++ firstColonAt;
-                        int secondColonAt = url.indexOf(':', firstColonAt);
-                        if (secondColonAt > -1) {
-                            driverClass = ObjectUtils.getClassByName(DRIVER_CLASS_NAMES.get(url.substring(firstColonAt, secondColonAt)));
-                        }
-                    }
-                }
-
-                if (driverClass != null) {
-                    Driver driver = null;
-                    for (Enumeration<Driver> e = DriverManager.getDrivers(); e.hasMoreElements();) {
-                        Driver d = e.nextElement();
-                        if (driverClass.isInstance(d)) {
-                            driver = d;
-                            break;
-                        }
-                    }
-
-                    if (driver == null) {
-                        driver = (Driver) TypeDefinition.getInstance(driverClass).newInstance();
-                        try {
-                            LOGGER.info("Registering [{}]", driver);
-                            DriverManager.registerDriver(driver);
-                        } catch (SQLException ex) {
-                            LOGGER.warn("Can't register [{}]!", driver);
-                        }
-                    }
-
-                    REGISTERED_DRIVERS.add(new WeakReference<>(driver));
-                }
-
-                String user = ObjectUtils.to(String.class, settings.get(jdbcUserSetting));
-                String password = ObjectUtils.to(String.class, settings.get(jdbcPasswordSetting));
-
-                Integer poolSize = ObjectUtils.to(Integer.class, settings.get(jdbcPoolSizeSetting));
-                if (poolSize == null || poolSize <= 0) {
-                    poolSize = 24;
-                }
-
-                LOGGER.info(
-                        "Automatically creating connection pool:"
-                                + "\n\turl={}"
-                                + "\n\tusername={}"
-                                + "\n\tpoolSize={}",
-                        new Object[] {
-                                url,
-                                user,
-                                poolSize });
-
-                HikariDataSource ds = new HikariDataSource();
-
-                ds.setJdbcUrl(url);
-                ds.setUsername(user);
-                ds.setPassword(password);
-                ds.setMaximumPoolSize(poolSize);
-
-                return ds;
+                throw new SettingsException(
+                        dataSourceSetting,
+                        String.format("[%s] isn't a data source!", dataSourceObject));
             }
         }
+
+        // No data source so try to create one via JDBC settings.
+        String url = ObjectUtils.to(String.class, settings.get(jdbcUrlSetting));
+
+        if (ObjectUtils.isBlank(url)) {
+            return null;
+        }
+
+        // If JDBC driver is specified, try to register it.
+        String driverClassName = ObjectUtils.to(String.class, settings.get(jdbcDriverClassSetting));
+
+        if (driverClassName != null) {
+            Class<?> driverClass = ObjectUtils.getClassByName(driverClassName);
+
+            if (driverClass == null) {
+                throw new SettingsException(
+                        jdbcDriverClassSetting,
+                        String.format("Can't find [%s] class!", driverClassName));
+
+            } else if (!Driver.class.isAssignableFrom(driverClass)) {
+                throw new SettingsException(
+                        jdbcDriverClassSetting,
+                        String.format("[%s] doesn't implement [%s]!", driverClass, Driver.class));
+            }
+
+            Driver driver = null;
+
+            for (Enumeration<Driver> e = DriverManager.getDrivers(); e.hasMoreElements();) {
+                Driver d = e.nextElement();
+
+                if (driverClass.isInstance(d)) {
+                    driver = d;
+                    break;
+                }
+            }
+
+            if (driver == null) {
+                driver = (Driver) TypeDefinition.getInstance(driverClass).newInstance();
+
+                try {
+                    LOGGER.info("Registering JDBC driver [{}]", driver);
+                    DriverManager.registerDriver(driver);
+                    registeredDrivers.add(new WeakReference<>(driver));
+
+                } catch (SQLException error) {
+                    LOGGER.warn(String.format("Can't register JDBC driver [%s]!", driver), error);
+                }
+            }
+        }
+
+        // Create the data source.
+        HikariDataSource hikari = new HikariDataSource();
+
+        hikari.setJdbcUrl(url);
+        hikari.setUsername(ObjectUtils.to(String.class, settings.get(jdbcUserSetting)));
+        hikari.setPassword(ObjectUtils.to(String.class, settings.get(jdbcPasswordSetting)));
+        LOGGER.info("Created data source: {}", hikari);
+
+        return hikari;
     }
 
     @Override
@@ -2115,20 +2111,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
         public static List<AbstractSqlDatabase> getAll() {
             return INSTANCES;
-        }
-
-        public static void deregisterAllDrivers() {
-            for (WeakReference<Driver> driverRef : REGISTERED_DRIVERS) {
-                Driver driver = driverRef.get();
-                if (driver != null) {
-                    LOGGER.info("Deregistering [{}]", driver);
-                    try {
-                        DriverManager.deregisterDriver(driver);
-                    } catch (SQLException ex) {
-                        LOGGER.warn("Can't deregister [{}]!", driver);
-                    }
-                }
-            }
         }
 
         public static byte[] getOriginalData(Object object) {
