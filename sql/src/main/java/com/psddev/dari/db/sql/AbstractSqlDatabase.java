@@ -163,7 +163,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
     public static final String CONNECTION_QUERY_OPTION = "sql.connection";
     public static final String RETURN_ORIGINAL_DATA_QUERY_OPTION = "sql.returnOriginalData";
-    public static final String USE_JDBC_FETCH_SIZE_QUERY_OPTION = "sql.useJdbcFetchSize";
+    public static final String DISABLE_BY_ID_ITERATOR_OPTION = "sql.disableByIdIterator";
     public static final String USE_READ_DATA_SOURCE_QUERY_OPTION = "sql.useReadDataSource";
     public static final String SKIP_INDEX_STATE_EXTRA = "sql.skipIndex";
 
@@ -1741,106 +1741,13 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
     @Override
     public <T> Iterable<T> readIterable(Query<T> query, int fetchSize) {
-        Boolean useJdbc = ObjectUtils.to(Boolean.class, query.getOptions().get(USE_JDBC_FETCH_SIZE_QUERY_OPTION));
-        if (useJdbc == null) {
-            useJdbc = Boolean.TRUE;
-        }
-        if (useJdbc) {
-            return selectIterableWithOptions(buildSelectStatement(query), fetchSize, query);
-        } else {
-            return new ByIdIterable<>(query, fetchSize);
-        }
-    }
-
-    private static class ByIdIterable<T> implements Iterable<T> {
-
-        private final Query<T> query;
-        private final int fetchSize;
-
-        public ByIdIterable(Query<T> query, int fetchSize) {
-            this.query = query;
-            this.fetchSize = fetchSize;
-        }
-
-        @Override
-        public Iterator<T> iterator() {
-            return new ByIdIterator<>(query, fetchSize);
-        }
-    }
-
-    private static class ByIdIterator<T> implements Iterator<T> {
-
-        private final Query<T> query;
-        private final int fetchSize;
-        private UUID lastTypeId;
-        private UUID lastId;
-        private List<T> items;
-        private int index;
-
-        public ByIdIterator(Query<T> query, int fetchSize) {
-            if (!query.getSorters().isEmpty()) {
-                throw new IllegalArgumentException("Can't iterate over a query that has sorters!");
-            }
-
-            this.query = query.clone().timeout(0.0).sortAscending("_type").sortAscending("_id");
-            this.fetchSize = fetchSize > 0 ? fetchSize : 200;
-        }
-
-        @Override
-        public boolean hasNext() {
-            if (items != null && items.isEmpty()) {
-                return false;
-            }
-
-            if (items == null || index >= items.size()) {
-                Query<T> nextQuery = query.clone();
-                if (lastTypeId != null) {
-                    nextQuery.and("_type = ? and _id > ?", lastTypeId, lastId);
-                }
-
-                items = nextQuery.select(0, fetchSize).getItems();
-
-                int size = items.size();
-                if (size < 1) {
-                    if (lastTypeId == null) {
-                        return false;
-
-                    } else {
-                        nextQuery = query.clone().and("_type > ?", lastTypeId);
-                        items = nextQuery.select(0, fetchSize).getItems();
-                        size = items.size();
-
-                        if (size < 1) {
-                            return false;
-                        }
-                    }
-                }
-
-                State lastState = State.getInstance(items.get(size - 1));
-                lastTypeId = lastState.getVisibilityAwareTypeId();
-                lastId = lastState.getId();
-                index = 0;
-            }
-
-            return true;
-        }
-
-        @Override
-        public T next() {
-            if (hasNext()) {
-                T object = items.get(index);
-                ++ index;
-                return object;
-
-            } else {
-                throw new NoSuchElementException();
+        if (query.getSorters().isEmpty()) {
+            if (!ObjectUtils.to(boolean.class, query.getOptions().get(DISABLE_BY_ID_ITERATOR_OPTION))) {
+                return ByIdIterator.iterable(query, fetchSize);
             }
         }
 
-        @Override
-        public void remove() {
-            throw new UnsupportedOperationException();
-        }
+        return selectIterableWithOptions(buildSelectStatement(query), fetchSize, query);
     }
 
     @Override

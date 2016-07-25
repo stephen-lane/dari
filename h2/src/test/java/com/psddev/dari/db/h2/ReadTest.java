@@ -8,7 +8,9 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.*;
@@ -79,8 +81,37 @@ public class ReadTest extends AbstractTest {
                 isIn(MODELS));
     }
 
+    private void iterable(int fetchSize) {
+        Set<ReadModel> result = new HashSet<>();
+        Query.from(ReadModel.class).iterable(0).forEach(result::add);
+
+        assertThat(result, is(MODELS));
+    }
+
     @Test
-    public void iterable() {
+    public void iterable0() {
+        iterable(0);
+    }
+
+    @Test
+    public void iterable1() {
+        iterable(1);
+    }
+
+    @Test(expected = NoSuchElementException.class)
+    public void iterableNext() {
+        Iterator<ReadModel> i = Query.from(ReadModel.class).iterable(0).iterator();
+
+        while (i.hasNext()) {
+            i.next();
+        }
+
+        i.next();
+    }
+
+    @Test(expected = UnsupportedOperationException.class)
+    public void iterableRemove() {
+        Query.from(ReadModel.class).iterable(0).iterator().remove();
     }
 
     @Test
