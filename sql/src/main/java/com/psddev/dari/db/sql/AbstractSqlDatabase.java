@@ -22,11 +22,9 @@ import java.util.Date;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -1113,7 +1111,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     }
 
     // Creates a previously saved object using the given resultSet.
-    private <T> T createSavedObjectWithResultSet(ResultSet resultSet, Query<T> query) throws SQLException {
+    <T> T createSavedObjectWithResultSet(ResultSet resultSet, Query<T> query) throws SQLException {
         T object = createSavedObject(resultSet.getObject(2), resultSet.getObject(1), query);
         State objectState = State.getInstance(object);
 
@@ -1175,10 +1173,13 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     }
 
     /**
-     * Selects the first object that matches the given {@code sqlQuery}
-     * with options from the given {@code query}.
+     * Selects the first object that matches the given {@code sqlQuery},
+     * executed with the given {@code query} options.
+     *
+     * @param sqlQuery Can't be {@code null}.
+     * @param query May be {@code null}.
      */
-    public <T> T selectFirstWithOptions(String sqlQuery, Query<T> query) {
+    public <T> T selectFirst(String sqlQuery, Query<T> query) {
         sqlQuery = DSL.using(dialect())
                 .selectFrom(DSL.table("(" + sqlQuery + ")").as("q"))
                 .offset(0)
@@ -1193,7 +1194,10 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             connection = openQueryConnection(query);
             statement = connection.createStatement();
             result = executeQueryBeforeTimeout(statement, sqlQuery, getQueryReadTimeout(query));
-            return result.next() ? createSavedObjectWithResultSet(result, query) : null;
+
+            return result.next()
+                    ? createSavedObjectWithResultSet(result, query)
+                    : null;
 
         } catch (SQLException ex) {
             throw createQueryException(ex, sqlQuery, query);
@@ -1204,18 +1208,13 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     }
 
     /**
-     * Selects the first object that matches the given {@code sqlQuery}
-     * without a timeout.
+     * Selects a list of objects that match the given {@code sqlQuery},
+     * executed with the given {@code query} options.
+     *
+     * @param sqlQuery Can't be {@code null}.
+     * @param query May be {@code null}.
      */
-    public Object selectFirst(String sqlQuery) {
-        return selectFirstWithOptions(sqlQuery, null);
-    }
-
-    /**
-     * Selects a list of objects that match the given {@code sqlQuery}
-     * with options from the given {@code query}.
-     */
-    public <T> List<T> selectListWithOptions(String sqlQuery, Query<T> query) {
+    public <T> List<T> selectList(String sqlQuery, Query<T> query) {
         Connection connection = null;
         Statement statement = null;
         ResultSet result = null;
@@ -1226,6 +1225,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             connection = openQueryConnection(query);
             statement = connection.createStatement();
             result = executeQueryBeforeTimeout(statement, sqlQuery, timeout);
+
             while (result.next()) {
                 objects.add(createSavedObjectWithResultSet(result, query));
             }
@@ -1241,96 +1241,15 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     }
 
     /**
-     * Selects a list of objects that match the given {@code sqlQuery}
-     * without a timeout.
+     * Selects an iterable of objects that match the given {@code sqlQuery},
+     * executed with the given {@code query} options.
+     *
+     * @param sqlQuery Can't be {@code null}.
+     * @param fetchSize Number of objects to fetch at a time.
+     * @param query May be {@code null}.
      */
-    public List<Object> selectList(String sqlQuery) {
-        return selectListWithOptions(sqlQuery, null);
-    }
-
-    /**
-     * Returns an iterable that selects all objects matching the given
-     * {@code sqlQuery} with options from the given {@code query}.
-     */
-    public <T> Iterable<T> selectIterableWithOptions(String sqlQuery, int fetchSize, Query<T> query) {
-        return () -> new SqlIterator<>(sqlQuery, fetchSize, query);
-    }
-
-    private class SqlIterator<T> implements java.io.Closeable, Iterator<T> {
-
-        private final String sqlQuery;
-        private final Query<T> query;
-
-        private final Connection connection;
-        private final Statement statement;
-        private final ResultSet result;
-
-        private boolean hasNext = true;
-
-        public SqlIterator(String initialSqlQuery, int fetchSize, Query<T> initialQuery) {
-            sqlQuery = initialSqlQuery;
-            query = initialQuery;
-
-            try {
-                connection = openQueryConnection(query);
-                statement = connection.createStatement();
-                statement.setFetchSize(fetchSize <= 0 ? 200 : fetchSize);
-                result = statement.executeQuery(sqlQuery);
-                moveToNext();
-
-            } catch (SQLException ex) {
-                close();
-                throw createQueryException(ex, sqlQuery, query);
-            }
-        }
-
-        private void moveToNext() throws SQLException {
-            if (hasNext) {
-                hasNext = result.next();
-                if (!hasNext) {
-                    close();
-                }
-            }
-        }
-
-        @Override
-        public void close() {
-            hasNext = false;
-            closeResources(query, connection, statement, result);
-        }
-
-        @Override
-        public boolean hasNext() {
-            return hasNext;
-        }
-
-        @Override
-        public T next() {
-            if (!hasNext) {
-                throw new NoSuchElementException();
-            }
-
-            try {
-                T object = createSavedObjectWithResultSet(result, query);
-                moveToNext();
-                return object;
-
-            } catch (SQLException ex) {
-                close();
-                throw createQueryException(ex, sqlQuery, query);
-            }
-        }
-
-        @Override
-        public void remove() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        protected void finalize() throws Throwable {
-            super.finalize();
-            close();
-        }
+    public <T> Iterable<T> selectIterable(String sqlQuery, int fetchSize, Query<T> query) {
+        return SqlIterator.iterable(this, sqlQuery, fetchSize, query);
     }
 
     // --- AbstractDatabase support ---
@@ -1702,7 +1621,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
     @Override
     public <T> List<T> readAll(Query<T> query) {
-        return selectListWithOptions(buildSelectStatement(query), query);
+        return selectList(buildSelectStatement(query), query);
     }
 
     @Override
@@ -1736,7 +1655,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
     @Override
     public <T> T readFirst(Query<T> query) {
-        return selectFirstWithOptions(buildSelectStatement(query), query);
+        return selectFirst(buildSelectStatement(query), query);
     }
 
     @Override
@@ -1747,7 +1666,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             }
         }
 
-        return selectIterableWithOptions(buildSelectStatement(query), fetchSize, query);
+        return selectIterable(buildSelectStatement(query), fetchSize, query);
     }
 
     @Override
@@ -1785,7 +1704,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         if (limit == Integer.MAX_VALUE) {
             limit --;
         }
-        List<T> objects = selectListWithOptions(
+        List<T> objects = selectList(
                 DSL.using(dialect())
                         .selectFrom(DSL.table("(" + buildSelectStatement(query) + ")").as("q"))
                         .offset((int) offset)
