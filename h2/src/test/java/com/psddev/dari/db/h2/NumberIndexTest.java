@@ -2,11 +2,11 @@ package com.psddev.dari.db.h2;
 
 import org.junit.Test;
 
-public class NumberIndexTest extends AbstractIndexTest<NumberModel, Double> {
+public class NumberIndexTest extends AbstractIndexTest<NumberIndexModel, Double> {
 
     @Override
-    protected Class<NumberModel> modelClass() {
-        return NumberModel.class;
+    protected Class<NumberIndexModel> modelClass() {
+        return NumberIndexModel.class;
     }
 
     @Override

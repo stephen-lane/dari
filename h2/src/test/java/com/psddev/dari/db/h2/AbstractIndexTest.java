@@ -13,7 +13,7 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.*;
 
-public abstract class AbstractIndexTest<M extends Model<M, T>, T> extends AbstractTest {
+public abstract class AbstractIndexTest<M extends AbstractIndexModel<M, T>, T> extends AbstractTest {
 
     protected int total;
 

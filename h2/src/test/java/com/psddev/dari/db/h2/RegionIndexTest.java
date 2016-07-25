@@ -4,11 +4,11 @@ import com.psddev.dari.db.Location;
 import com.psddev.dari.db.Region;
 import org.junit.Test;
 
-public class RegionIndexTest extends AbstractIndexTest<RegionModel, Region> {
+public class RegionIndexTest extends AbstractIndexTest<RegionIndexModel, Region> {
 
     @Override
-    protected Class<RegionModel> modelClass() {
-        return RegionModel.class;
+    protected Class<RegionIndexModel> modelClass() {
+        return RegionIndexModel.class;
     }
 
     @Override

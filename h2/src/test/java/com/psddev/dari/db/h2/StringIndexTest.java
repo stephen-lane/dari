@@ -5,11 +5,11 @@ import org.junit.Test;
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.*;
 
-public class StringIndexTest extends AbstractIndexTest<StringModel, String> {
+public class StringIndexTest extends AbstractIndexTest<StringIndexModel, String> {
 
     @Override
-    protected Class<StringModel> modelClass() {
-        return StringModel.class;
+    protected Class<StringIndexModel> modelClass() {
+        return StringIndexModel.class;
     }
 
     @Override
@@ -24,7 +24,7 @@ public class StringIndexTest extends AbstractIndexTest<StringModel, String> {
 
     @Test
     public void blankValue() {
-        StringModel model = model().one(" ").create();
+        StringIndexModel model = model().one(" ").create();
         assertThat(
                 query().where("one = missing").first(),
                 is(model));
@@ -33,7 +33,7 @@ public class StringIndexTest extends AbstractIndexTest<StringModel, String> {
     @Override
     @Test
     public void contains() {
-        StringModel model = model().one("abcde").create();
+        StringIndexModel model = model().one("abcde").create();
         assertThat(
                 query().where("one contains ?", "bcd").first(),
                 is(model));
@@ -42,7 +42,7 @@ public class StringIndexTest extends AbstractIndexTest<StringModel, String> {
     @Override
     @Test
     public void startsWith() {
-        StringModel model = model().one("abcde").create();
+        StringIndexModel model = model().one("abcde").create();
         assertThat(
                 query().where("one startsWith ?", "abc").first(),
                 is(model));

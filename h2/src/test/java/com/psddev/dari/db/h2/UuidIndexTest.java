@@ -4,11 +4,11 @@ import org.junit.Test;
 
 import java.util.UUID;
 
-public class UuidIndexTest extends AbstractIndexTest<UuidModel, UUID> {
+public class UuidIndexTest extends AbstractIndexTest<UuidIndexModel, UUID> {
 
     @Override
-    protected Class<UuidModel> modelClass() {
-        return UuidModel .class;
+    protected Class<UuidIndexModel> modelClass() {
+        return UuidIndexModel.class;
     }
 
     @Override

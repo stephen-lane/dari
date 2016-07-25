@@ -1,43 +1,44 @@
 package com.psddev.dari.db.h2;
 
+import com.psddev.dari.db.Region;
+
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.UUID;
 
-public class UuidModel extends Model<UuidModel, UUID> {
-
-    @Indexed
-    private UUID one;
+public class RegionIndexModel extends AbstractIndexModel<RegionIndexModel, Region> {
 
     @Indexed
-    private Set<UUID> set;
+    private Region one;
 
     @Indexed
-    private List<UUID> list;
+    private Set<Region> set;
 
     @Indexed
-    private UuidModel referenceOne;
+    private List<Region> list;
 
     @Indexed
-    private Set<UuidModel> referenceSet;
+    private RegionIndexModel referenceOne;
 
     @Indexed
-    private List<UuidModel> referenceList;
+    private Set<RegionIndexModel> referenceSet;
+
+    @Indexed
+    private List<RegionIndexModel> referenceList = new ArrayList<>();
 
     @Override
-    public UUID getOne() {
+    public Region getOne() {
         return one;
     }
 
     @Override
-    public void setOne(UUID one) {
+    public void setOne(Region one) {
         this.one = one;
     }
 
     @Override
-    public Set<UUID> getSet() {
+    public Set<Region> getSet() {
         if (set == null) {
             set = new LinkedHashSet<>();
         }
@@ -45,12 +46,12 @@ public class UuidModel extends Model<UuidModel, UUID> {
     }
 
     @Override
-    public void setSet(Set<UUID> set) {
+    public void setSet(Set<Region> set) {
         this.set = set;
     }
 
     @Override
-    public List<UUID> getList() {
+    public List<Region> getList() {
         if (list == null) {
             list = new ArrayList<>();
         }
@@ -58,22 +59,22 @@ public class UuidModel extends Model<UuidModel, UUID> {
     }
 
     @Override
-    public void setList(List<UUID> list) {
+    public void setList(List<Region> list) {
         this.list = list;
     }
 
     @Override
-    public UuidModel getReferenceOne() {
+    public RegionIndexModel getReferenceOne() {
         return referenceOne;
     }
 
     @Override
-    public void setReferenceOne(UuidModel referenceOne) {
+    public void setReferenceOne(RegionIndexModel referenceOne) {
         this.referenceOne = referenceOne;
     }
 
     @Override
-    public Set<UuidModel> getReferenceSet() {
+    public Set<RegionIndexModel> getReferenceSet() {
         if (referenceSet == null) {
             referenceSet = new LinkedHashSet<>();
         }
@@ -81,12 +82,12 @@ public class UuidModel extends Model<UuidModel, UUID> {
     }
 
     @Override
-    public void setReferenceSet(Set<UuidModel> referenceSet) {
+    public void setReferenceSet(Set<RegionIndexModel> referenceSet) {
         this.referenceSet = referenceSet;
     }
 
     @Override
-    public List<UuidModel> getReferenceList() {
+    public List<RegionIndexModel> getReferenceList() {
         if (referenceList == null) {
             referenceList = new ArrayList<>();
         }
@@ -94,7 +95,7 @@ public class UuidModel extends Model<UuidModel, UUID> {
     }
 
     @Override
-    public void setReferenceList(List<UuidModel> referenceList) {
+    public void setReferenceList(List<RegionIndexModel> referenceList) {
         this.referenceList = referenceList;
     }
 }

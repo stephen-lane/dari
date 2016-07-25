@@ -5,7 +5,7 @@ import com.psddev.dari.db.Record;
 import java.util.List;
 import java.util.Set;
 
-public abstract class Model<M extends Model<M, T>, T> extends Record {
+public abstract class AbstractIndexModel<M extends AbstractIndexModel<M, T>, T> extends Record {
 
     public abstract T getOne();
 

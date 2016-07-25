@@ -1,42 +1,44 @@
 package com.psddev.dari.db.h2;
 
+import com.psddev.dari.db.Location;
+
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-public class StringModel extends Model<StringModel, String> {
+public class LocationIndexModel extends AbstractIndexModel<LocationIndexModel, Location> {
 
     @Indexed
-    private String one;
+    private Location one;
 
     @Indexed
-    private Set<String> set;
+    private Set<Location> set;
 
     @Indexed
-    private List<String> list;
+    private List<Location> list;
 
     @Indexed
-    private StringModel referenceOne;
+    private LocationIndexModel referenceOne;
 
     @Indexed
-    private Set<StringModel> referenceSet;
+    private Set<LocationIndexModel> referenceSet;
 
     @Indexed
-    private List<StringModel> referenceList;
+    private List<LocationIndexModel> referenceList;
 
     @Override
-    public String getOne() {
+    public Location getOne() {
         return one;
     }
 
     @Override
-    public void setOne(String one) {
+    public void setOne(Location one) {
         this.one = one;
     }
 
     @Override
-    public Set<String> getSet() {
+    public Set<Location> getSet() {
         if (set == null) {
             set = new LinkedHashSet<>();
         }
@@ -44,12 +46,12 @@ public class StringModel extends Model<StringModel, String> {
     }
 
     @Override
-    public void setSet(Set<String> set) {
+    public void setSet(Set<Location> set) {
         this.set = set;
     }
 
     @Override
-    public List<String> getList() {
+    public List<Location> getList() {
         if (list == null) {
             list = new ArrayList<>();
         }
@@ -57,22 +59,22 @@ public class StringModel extends Model<StringModel, String> {
     }
 
     @Override
-    public void setList(List<String> list) {
+    public void setList(List<Location> list) {
         this.list = list;
     }
 
     @Override
-    public StringModel getReferenceOne() {
+    public LocationIndexModel getReferenceOne() {
         return referenceOne;
     }
 
     @Override
-    public void setReferenceOne(StringModel referenceOne) {
+    public void setReferenceOne(LocationIndexModel referenceOne) {
         this.referenceOne = referenceOne;
     }
 
     @Override
-    public Set<StringModel> getReferenceSet() {
+    public Set<LocationIndexModel> getReferenceSet() {
         if (referenceSet == null) {
             referenceSet = new LinkedHashSet<>();
         }
@@ -80,12 +82,12 @@ public class StringModel extends Model<StringModel, String> {
     }
 
     @Override
-    public void setReferenceSet(Set<StringModel> referenceSet) {
+    public void setReferenceSet(Set<LocationIndexModel> referenceSet) {
         this.referenceSet = referenceSet;
     }
 
     @Override
-    public List<StringModel> getReferenceList() {
+    public List<LocationIndexModel> getReferenceList() {
         if (referenceList == null) {
             referenceList = new ArrayList<>();
         }
@@ -93,7 +95,7 @@ public class StringModel extends Model<StringModel, String> {
     }
 
     @Override
-    public void setReferenceList(List<StringModel> referenceList) {
+    public void setReferenceList(List<LocationIndexModel> referenceList) {
         this.referenceList = referenceList;
     }
 }

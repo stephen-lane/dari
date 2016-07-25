@@ -5,38 +5,38 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-public class NumberModel extends Model<NumberModel, Double> {
+public class StringIndexModel extends AbstractIndexModel<StringIndexModel, String> {
 
     @Indexed
-    private Double one;
+    private String one;
 
     @Indexed
-    private Set<Double> set;
+    private Set<String> set;
 
     @Indexed
-    private List<Double> list;
+    private List<String> list;
 
     @Indexed
-    private NumberModel referenceOne;
+    private StringIndexModel referenceOne;
 
     @Indexed
-    private Set<NumberModel> referenceSet;
+    private Set<StringIndexModel> referenceSet;
 
     @Indexed
-    private List<NumberModel> referenceList;
+    private List<StringIndexModel> referenceList;
 
     @Override
-    public Double getOne() {
+    public String getOne() {
         return one;
     }
 
     @Override
-    public void setOne(Double one) {
+    public void setOne(String one) {
         this.one = one;
     }
 
     @Override
-    public Set<Double> getSet() {
+    public Set<String> getSet() {
         if (set == null) {
             set = new LinkedHashSet<>();
         }
@@ -44,12 +44,12 @@ public class NumberModel extends Model<NumberModel, Double> {
     }
 
     @Override
-    public void setSet(Set<Double> set) {
+    public void setSet(Set<String> set) {
         this.set = set;
     }
 
     @Override
-    public List<Double> getList() {
+    public List<String> getList() {
         if (list == null) {
             list = new ArrayList<>();
         }
@@ -57,22 +57,22 @@ public class NumberModel extends Model<NumberModel, Double> {
     }
 
     @Override
-    public void setList(List<Double> list) {
+    public void setList(List<String> list) {
         this.list = list;
     }
 
     @Override
-    public NumberModel getReferenceOne() {
+    public StringIndexModel getReferenceOne() {
         return referenceOne;
     }
 
     @Override
-    public void setReferenceOne(NumberModel referenceOne) {
+    public void setReferenceOne(StringIndexModel referenceOne) {
         this.referenceOne = referenceOne;
     }
 
     @Override
-    public Set<NumberModel> getReferenceSet() {
+    public Set<StringIndexModel> getReferenceSet() {
         if (referenceSet == null) {
             referenceSet = new LinkedHashSet<>();
         }
@@ -80,12 +80,12 @@ public class NumberModel extends Model<NumberModel, Double> {
     }
 
     @Override
-    public void setReferenceSet(Set<NumberModel> referenceSet) {
+    public void setReferenceSet(Set<StringIndexModel> referenceSet) {
         this.referenceSet = referenceSet;
     }
 
     @Override
-    public List<NumberModel> getReferenceList() {
+    public List<StringIndexModel> getReferenceList() {
         if (referenceList == null) {
             referenceList = new ArrayList<>();
         }
@@ -93,7 +93,7 @@ public class NumberModel extends Model<NumberModel, Double> {
     }
 
     @Override
-    public void setReferenceList(List<NumberModel> referenceList) {
+    public void setReferenceList(List<StringIndexModel> referenceList) {
         this.referenceList = referenceList;
     }
 }

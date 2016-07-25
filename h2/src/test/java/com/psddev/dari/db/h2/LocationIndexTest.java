@@ -5,11 +5,11 @@ import com.psddev.dari.db.Region;
 import com.psddev.dari.db.Sorter;
 import org.junit.Test;
 
-public class LocationIndexTest extends AbstractIndexTest<LocationModel, Location> {
+public class LocationIndexTest extends AbstractIndexTest<LocationIndexModel, Location> {
 
     @Override
-    protected Class<LocationModel> modelClass() {
-        return LocationModel.class;
+    protected Class<LocationIndexModel> modelClass() {
+        return LocationIndexModel.class;
     }
 
     @Override
