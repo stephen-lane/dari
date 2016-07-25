@@ -365,7 +365,7 @@ public class MySQLDatabase extends AbstractSqlDatabase {
                     }
 
                 } catch (SQLException error) {
-                    throw createQueryException(error, sqlQuery, query);
+                    throw createSelectError(sqlQuery, query, error);
 
                 } finally {
                     closeResources(query, connection, statement, result);
