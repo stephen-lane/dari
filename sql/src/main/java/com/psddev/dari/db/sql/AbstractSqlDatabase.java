@@ -42,7 +42,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.psddev.dari.db.AbstractDatabase;
-import com.psddev.dari.db.AbstractGrouping;
 import com.psddev.dari.db.AtomicOperation;
 import com.psddev.dari.db.DatabaseException;
 import com.psddev.dari.db.Grouping;
@@ -1768,7 +1767,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                     for (int j = 0; j < fieldsLength; ++ j) {
                         keys.add(result.getObject(j + 2));
                     }
-                    grouping = new SqlGrouping<>(keys, query, fields, count, groupings);
+                    grouping = new SqlGrouping<>(keys, query, fields, count);
                 } else {
                     throw new UnsupportedOperationException();
                 }
@@ -1828,31 +1827,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
         } finally {
             closeResources(query, connection, statement, result);
-        }
-    }
-
-    /** SQL-specific implementation of {@link Grouping}. */
-    private class SqlGrouping<T> extends AbstractGrouping<T> {
-
-        private final long count;
-        private final List<Grouping<T>> groupings;
-
-        public SqlGrouping(List<Object> keys, Query<T> query, String[] fields, long count, List<Grouping<T>> groupings) {
-            super(keys, query, fields);
-            this.count = count;
-            this.groupings = groupings;
-        }
-
-        // --- AbstractGrouping support ---
-
-        @Override
-        protected Aggregate createAggregate(String field) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public long getCount() {
-            return count;
         }
     }
 
