@@ -425,18 +425,6 @@ class SqlQuery {
     }
 
     /**
-     * Returns an SQL statement that can be used to delete all rows
-     * matching the query.
-     */
-    public String deleteStatement() {
-        Table<?> table = initialize(recordTable);
-
-        return tableRenderContext.render(dslContext
-                .deleteFrom(table)
-                .where(whereCondition));
-    }
-
-    /**
      * Returns an SQL statement that can be used to group rows by the values
      * of the given {@code groupKeys}.
      *

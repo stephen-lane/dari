@@ -957,14 +957,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     }
 
     /**
-     * Builds an SQL statement that can be used to delete all rows
-     * matching the given {@code query}.
-     */
-    public String buildDeleteStatement(Query<?> query) {
-        return addComment(new SqlQuery(this, query).deleteStatement(), query);
-    }
-
-    /**
      * Builds an SQL statement that can be used to get all objects
      * grouped by the values of the given {@code groupFields}.
      */
