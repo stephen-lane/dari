@@ -203,6 +203,13 @@ public abstract class AbstractIndexTest<M extends AbstractIndexModel<M, T>, T> e
         assertMissingEither("set", "list", 6L);
     }
 
+    @Test
+    public void missingReferenceOneOrReferenceOneOne() {
+        model().referenceOne(model().create()).create();
+        model().referenceOne(model().one(value(0)).create()).create();
+        assertCount(3L, "referenceOne = missing or referenceOne/one = missing");
+    }
+
     protected void createCompareTestModels() {
         IntStream.range(0, 5).forEach(i -> model().all(value(i)).create());
     }

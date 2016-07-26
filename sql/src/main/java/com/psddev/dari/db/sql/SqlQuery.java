@@ -271,12 +271,12 @@ class SqlQuery {
                     needsDistinct = true;
                 }
 
-                if (findSimilarComparison(mappedKey.getField(), query.getPredicate())) {
-                    Table<?> subQueryTable = DSL.table(new SqlQuery(database, valueQuery).subQueryStatement());
+                Select<?> subSelect = findSubSelect(mappedKey.getField(), query.getPredicate(), valueQuery);
 
+                if (subSelect != null) {
                     return isNotEqualsAll
-                            ? join.valueField.notIn(subQueryTable)
-                            : join.valueField.in(subQueryTable);
+                            ? join.valueField.notIn(subSelect)
+                            : join.valueField.in(subSelect);
 
                 } else {
                     return SqlSubJoin.create(this, valueQuery, join.isLeftOuter(), join)
@@ -393,12 +393,14 @@ class SqlQuery {
         throw new UnsupportedPredicateException(this, predicate);
     }
 
-    private boolean findSimilarComparison(ObjectField field, Predicate predicate) {
+    private Select<?> findSubSelect(ObjectField field, Predicate predicate, Query<?> subQuery) {
         if (field != null) {
             if (predicate instanceof CompoundPredicate) {
                 for (Predicate child : ((CompoundPredicate) predicate).getChildren()) {
-                    if (findSimilarComparison(field, child)) {
-                        return true;
+                    Select<?> subSelect = findSubSelect(field, child, subQuery);
+
+                    if (subSelect != null) {
+                        return subSelect;
                     }
                 }
 
@@ -408,12 +410,20 @@ class SqlQuery {
 
                 if (field.equals(mappedKey.getField())
                         && mappedKey.getSubQueryWithComparison(comparison) == null) {
-                    return true;
+
+                    SqlQuery subSqlQuery = new SqlQuery(database, subQuery);
+                    Table<?> subTable = subSqlQuery.initialize(recordTable);
+
+                    return (subSqlQuery.needsDistinct
+                            ? subSqlQuery.dslContext.selectDistinct(subSqlQuery.recordIdField)
+                            : subSqlQuery.dslContext.select(subSqlQuery.recordIdField))
+                            .from(subTable)
+                            .where(subSqlQuery.whereCondition);
                 }
             }
         }
 
-        return false;
+        return null;
     }
 
     /**
@@ -546,19 +556,5 @@ class SqlQuery {
         }
 
         return tableRenderContext.render(select);
-    }
-
-    /**
-     * Returns an SQL statement that can be used as a sub-query.
-     */
-    public String subQueryStatement() {
-        Table<?> table = initialize(recordTable);
-
-        return tableRenderContext.render((needsDistinct
-                ? dslContext.selectDistinct(recordIdField)
-                : dslContext.select(recordIdField))
-                .from(table)
-                .where(whereCondition)
-                .orderBy(orderByFields));
     }
 }
