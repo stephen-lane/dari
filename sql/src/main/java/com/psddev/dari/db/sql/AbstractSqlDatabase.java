@@ -525,11 +525,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         return findUpdateIndexTables(indexType(index));
     }
 
-    /**
-     * Inserts indexes associated with the given {@code states}.
-     */
-    public void insertIndexes(
-            AbstractSqlDatabase database,
+    private void insertIndexes(
             Connection connection,
             DSLContext context,
             ObjectIndex onlyIndex,
@@ -550,7 +546,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                     continue;
                 }
 
-                Object symbolId = database.getSymbolId(sqlIndexValue.getUniqueName());
+                Object symbolId = getSymbolId(sqlIndexValue.getUniqueName());
 
                 for (AbstractSqlIndex sqlIndex : findUpdateIndexTables(index)) {
                     Table<Record> table = sqlIndex.table();
@@ -610,11 +606,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         }
     }
 
-    /**
-     * Deletes indexes associated with the given {@code states}.
-     */
-    public void deleteIndexes(
-            AbstractSqlDatabase database,
+    private void deleteIndexes(
             Connection connection,
             DSLContext context,
             ObjectIndex onlyIndex,
@@ -636,7 +628,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                         .where(sqlIndex.idField().in(stateIds));
 
                 if (onlyIndex != null) {
-                    delete = delete.and(sqlIndex.symbolIdField().eq(database.getReadSymbolId(onlyIndex.getUniqueName())));
+                    delete = delete.and(sqlIndex.symbolIdField().eq(getReadSymbolId(onlyIndex.getUniqueName())));
                 }
 
                 context.execute(delete);
@@ -1869,8 +1861,8 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         try (DSLContext context = openContext(connection)) {
 
             // Save all indexes.
-            deleteIndexes(this, connection, context, null, indexStates);
-            insertIndexes(this, connection, context, null, indexStates);
+            deleteIndexes(connection, context, null, indexStates);
+            insertIndexes(connection, context, null, indexStates);
 
             double now = System.currentTimeMillis() / 1000.0;
 
@@ -2028,16 +2020,16 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     @Override
     protected void doIndexes(Connection connection, boolean isImmediate, List<State> states) throws SQLException {
         try (DSLContext context = openContext(connection)) {
-            deleteIndexes(this, connection, context, null, states);
-            insertIndexes(this, connection, context, null, states);
+            deleteIndexes(connection, context, null, states);
+            insertIndexes(connection, context, null, states);
         }
     }
 
     @Override
     public void doRecalculations(Connection connection, boolean isImmediate, ObjectIndex index, List<State> states) throws SQLException {
         try (DSLContext context = openContext(connection)) {
-            deleteIndexes(this, connection, context, index, states);
-            insertIndexes(this, connection, context, index, states);
+            deleteIndexes(connection, context, index, states);
+            insertIndexes(connection, context, index, states);
         }
     }
 
@@ -2046,7 +2038,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         try (DSLContext context = openContext(connection)) {
 
             // Delete all indexes.
-            deleteIndexes(this, connection, context, null, states);
+            deleteIndexes(connection, context, null, states);
 
             Set<UUID> stateIds = states.stream()
                     .map(State::getId)
