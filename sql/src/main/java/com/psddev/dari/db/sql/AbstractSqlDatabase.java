@@ -1630,43 +1630,58 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     }
 
     @Override
-    public <T> PaginatedResult<T> readPartial(final Query<T> query, long offset, int limit) {
-        // Guard against integer overflow
+    public <T> PaginatedResult<T> readPartial(Query<T> query, long offset, int limit) {
+
+        // Efficiently determine whether there are more items by:
+        // 1. Guard against integer overflow in step 2.
         if (limit == Integer.MAX_VALUE) {
-            limit --;
+            -- limit;
         }
-        List<T> objects = selectList(
-                DSL.using(dialect())
-                        .selectFrom(DSL.table("(" + buildSelectStatement(query) + ")").as("q"))
-                        .offset((int) offset)
-                        .limit(limit + 1)
-                        .getSQL(ParamType.INLINED),
-                query);
 
-        int size = objects.size();
+        // 2. Select one more item than requested.
+        String sqlQuery = DSL.using(dialect())
+                .selectFrom(DSL.table("(" + buildSelectStatement(query) + ")").as("q"))
+                .offset((int) offset)
+                .limit(limit + 1)
+                .getSQL(ParamType.INLINED);
+
+        List<T> items = selectList(sqlQuery, query);
+        int size = items.size();
+
+        // 3. If there are less items than the requested limit, there aren't
+        // any more items after this result. For example, if there are 10 items
+        // total matching the query, step 2 tries to fetch 11 items and would
+        // trigger this.
         if (size <= limit) {
-            return new PaginatedResult<>(offset, limit, offset + size, objects);
+            return new PaginatedResult<>(offset, limit, offset + size, items);
+        }
 
-        } else {
-            objects.remove(size - 1);
-            return new PaginatedResult<T>(offset, limit, 0, objects) {
+        // 4. Otherwise, there are more items, so remove the extra.
+        items.remove(size - 1);
 
-                private Long count;
+        // 5. And return a customized paginated result that calculates
+        // the count on demand, as well as bypass the potentially expensive
+        // #hasNext that uses #getCount.
+        return new PaginatedResult<T>(offset, limit, 0, items) {
 
-                @Override
-                public long getCount() {
-                    if (count == null) {
-                        count = readCount(query);
-                    }
-                    return count;
-                }
+            private final Lazy<Long> count = new Lazy<Long>() {
 
                 @Override
-                public boolean hasNext() {
-                    return true;
+                protected Long create() {
+                    return readCount(query);
                 }
             };
-        }
+
+            @Override
+            public long getCount() {
+                return count.get();
+            }
+
+            @Override
+            public boolean hasNext() {
+                return true;
+            }
+        };
     }
 
     @Override
