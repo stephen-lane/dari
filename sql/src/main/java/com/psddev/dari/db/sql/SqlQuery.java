@@ -53,6 +53,7 @@ class SqlQuery {
     protected final Map<String, ObjectIndex> selectedIndexes;
 
     private Condition whereCondition;
+    private final List<SqlOrder> orders = new ArrayList<>();
     private final List<SortField<?>> orderByFields = new ArrayList<>();
     protected final List<SqlJoin> joins = new ArrayList<>();
     protected final List<SqlSubJoin> subJoins = new ArrayList<>();
@@ -156,19 +157,21 @@ class SqlQuery {
             Query<?> subQuery = mappedKeys.get(queryKey).getSubQueryWithSorter(sorter, 0);
 
             if (subQuery != null) {
-                orderByFields.addAll(
+                orders.addAll(
                         SqlSubJoin.create(this, subQuery, true, join)
                                 .sqlQuery
-                                .orderByFields);
+                                .orders);
 
             } else {
-                orderByFields.add(
-                        sqlSorter.createSortField(
+                orders.add(
+                        sqlSorter.createOrder(
                                 database,
                                 join,
                                 sorter.getOptions()));
             }
         }
+
+        orders.forEach(o -> orderByFields.add(o.sortField));
 
         // Join all index tables used so far.
         for (SqlJoin join : joins) {
@@ -515,7 +518,7 @@ class SqlQuery {
 
             distinctFields.add(recordIdField);
             distinctFields.add(recordTypeIdField);
-            orderByFields.forEach(f -> distinctFields.add(DSL.field(tableRenderContext.render(f))));
+            orders.forEach(o -> distinctFields.add(o.field));
 
             select = dslContext
                     .selectDistinct(distinctFields)

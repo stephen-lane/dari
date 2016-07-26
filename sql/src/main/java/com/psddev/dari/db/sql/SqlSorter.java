@@ -4,7 +4,6 @@ import com.google.common.collect.ImmutableMap;
 import com.psddev.dari.db.Location;
 import com.psddev.dari.db.Sorter;
 import org.jooq.Field;
-import org.jooq.SortField;
 import org.jooq.SortOrder;
 import org.jooq.impl.DSL;
 
@@ -15,10 +14,10 @@ import java.util.Map;
 interface SqlSorter {
 
     Map<String, SqlSorter> INSTANCES = ImmutableMap.<String, SqlSorter>builder()
-            .put(Sorter.ASCENDING_OPERATOR, (database, join, options) -> area(database, join).sort(SortOrder.ASC))
-            .put(Sorter.DESCENDING_OPERATOR, (database, join, options) -> area(database, join).sort(SortOrder.DESC))
-            .put(Sorter.CLOSEST_OPERATOR, (database, join, options) -> distance(database, join, options).sort(SortOrder.ASC))
-            .put(Sorter.FARTHEST_OPERATOR, (database, join, options) -> distance(database, join, options).sort(SortOrder.DESC))
+            .put(Sorter.ASCENDING_OPERATOR, (database, join, options) -> new SqlOrder(area(database, join), SortOrder.ASC))
+            .put(Sorter.DESCENDING_OPERATOR, (database, join, options) -> new SqlOrder(area(database, join), SortOrder.DESC))
+            .put(Sorter.CLOSEST_OPERATOR, (database, join, options) -> new SqlOrder(distance(database, join, options), SortOrder.ASC))
+            .put(Sorter.FARTHEST_OPERATOR, (database, join, options) -> new SqlOrder(distance(database, join, options), SortOrder.DESC))
             .build();
 
     static SqlSorter find(String operator) {
@@ -68,5 +67,5 @@ interface SqlSorter {
                         join.valueField));
     }
 
-    SortField<?> createSortField(AbstractSqlDatabase database, SqlJoin join, List<Object> options);
+    SqlOrder createOrder(AbstractSqlDatabase database, SqlJoin join, List<Object> options);
 }
