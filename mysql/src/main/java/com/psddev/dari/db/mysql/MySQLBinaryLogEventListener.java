@@ -36,6 +36,7 @@ class MySQLBinaryLogEventListener implements EventListener {
     private static final Pattern UPDATE_PATTERN = Pattern.compile("UPDATE\\s+`?(?<table>\\p{Alnum}+)`?\\s+SET\\s+`?typeId`?\\s*=\\s*(?<typeId>(?:[^\']+'){2})\\s*,\\s*`?data`?\\s*=\\s*(?<data>.+)\\s*WHERE\\s+`?id`?\\s*(?:(?:IN\\s*\\()|(?:=))\\s*(?<id>(?:[^\']+'){2}).*", Pattern.CASE_INSENSITIVE);
 
     private final MySQLDatabase database;
+    private final String recordTableName;
     private final Cache<UUID, Object[]> cache;
     private final String catalog;
 
@@ -46,6 +47,7 @@ class MySQLBinaryLogEventListener implements EventListener {
 
     public MySQLBinaryLogEventListener(MySQLDatabase database, Cache<UUID, Object[]> cache, String catalog) {
         this.database = database;
+        this.recordTableName = database.recordTable().getName();
         this.cache = cache;
         this.catalog = catalog;
     }
@@ -240,7 +242,7 @@ class MySQLBinaryLogEventListener implements EventListener {
                     && statementParts[1].equalsIgnoreCase("TABLE")) {
                 table = statementParts[2];
             }
-            if (AbstractSqlDatabase.RECORD_TABLE.equalsIgnoreCase(table)) {
+            if (recordTableName.equalsIgnoreCase(table)) {
                 byte[] byteStatement = queryEventData.getStatement();
                 if (statementParts[0].equalsIgnoreCase("UPDATE")) {
                     queryEventData.setActionl(DariQueryEventData.Action.UPDATE);
@@ -322,7 +324,7 @@ class MySQLBinaryLogEventListener implements EventListener {
                         tableMapEventData = null;
                     }
                 } else if (eventType == EventType.TABLE_MAP) {
-                    if (((TableMapEventData) eventData).getDatabase().equals(catalog) && ((TableMapEventData) eventData).getTable().equalsIgnoreCase(AbstractSqlDatabase.RECORD_TABLE)) {
+                    if (((TableMapEventData) eventData).getDatabase().equals(catalog) && ((TableMapEventData) eventData).getTable().equalsIgnoreCase(recordTableName)) {
                         tableMapEventData = (TableMapEventData) eventData;
                     }
                 } else if (eventType == EventType.QUERY) {

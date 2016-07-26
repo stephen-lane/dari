@@ -153,12 +153,9 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
     public static final String INDEX_SPATIAL_SUB_SETTING = "indexSpatial";
 
-    public static final String RECORD_TABLE = "Record";
-
     public static final String CONNECTION_QUERY_OPTION = "sql.connection";
     public static final String RETURN_ORIGINAL_DATA_QUERY_OPTION = "sql.returnOriginalData";
     public static final String DISABLE_BY_ID_ITERATOR_OPTION = "sql.disableByIdIterator";
-    public static final String USE_READ_DATA_SOURCE_QUERY_OPTION = "sql.useReadDataSource";
     public static final String SKIP_INDEX_STATE_EXTRA = "sql.skipIndex";
 
     public static final String ORIGINAL_DATA_EXTRA = "sql.originalData";
@@ -172,8 +169,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     private static final String UPDATE_STATS_OPERATION = "Update";
     private static final String QUERY_PROFILER_EVENT = SHORT_NAME + " " + QUERY_STATS_OPERATION;
     private static final String UPDATE_PROFILER_EVENT = SHORT_NAME + " " + UPDATE_STATS_OPERATION;
-    private static final long NOW_EXPIRATION_SECONDS = 300;
-    public static final long DEFAULT_DATA_CACHE_SIZE = 10000L;
 
     private static final List<AbstractSqlDatabase> INSTANCES = new ArrayList<>();
 
@@ -1345,16 +1340,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             if (connection != null) {
                 return connection;
             }
-
-            Boolean useRead = ObjectUtils.to(Boolean.class, query.getOptions().get(USE_READ_DATA_SOURCE_QUERY_OPTION));
-
-            if (useRead == null) {
-                useRead = Boolean.TRUE;
-            }
-
-            if (!useRead) {
-                return openConnection();
-            }
         }
 
         return super.openQueryConnection(query);
@@ -1930,7 +1915,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                                     .using(this)
                                     .option(CONNECTION_QUERY_OPTION, connection)
                                     .option(RETURN_ORIGINAL_DATA_QUERY_OPTION, Boolean.TRUE)
-                                    .option(USE_READ_DATA_SOURCE_QUERY_OPTION, Boolean.FALSE)
+                                    .master()
                                     .first();
 
                             if (oldObject == null) {
