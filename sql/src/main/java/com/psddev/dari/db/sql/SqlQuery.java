@@ -22,10 +22,12 @@ import com.psddev.dari.db.UnsupportedPredicateException;
 
 import org.jooq.Condition;
 import org.jooq.DSLContext;
+import org.jooq.DataType;
 import org.jooq.Field;
 import org.jooq.JoinType;
 import org.jooq.RenderContext;
 import org.jooq.Select;
+import org.jooq.SelectField;
 import org.jooq.SortField;
 import org.jooq.Table;
 import org.jooq.conf.ParamType;
@@ -495,35 +497,49 @@ class SqlQuery {
      */
     public String selectStatement() {
         Table<?> table = initialize(recordTable);
-        List<Field<?>> selectFields = new ArrayList<>();
+        List<SelectField<?>> selectFields = new ArrayList<>();
 
         selectFields.add(recordIdField);
         selectFields.add(recordTypeIdField);
 
-        List<String> queryFields = query.getFields();
+        boolean referenceOnly = query.isReferenceOnly();
 
-        if (queryFields == null) {
+        if (!referenceOnly) {
             selectFields.add(DSL.field(DSL.name(recordTableAlias, SqlDatabase.DATA_COLUMN)));
-
-        } else if (!queryFields.isEmpty()) {
-            queryFields.forEach(queryField -> selectFields.add(DSL.field(DSL.name(queryField))));
         }
 
-        Select<?> select = (needsDistinct
-                ? dslContext.selectDistinct(recordIdField, recordTypeIdField)
-                : dslContext.select(selectFields))
-                .from(table)
-                .where(whereCondition)
-                .orderBy(orderByFields);
+        Select<?> select;
 
-        if (needsDistinct && selectFields.size() > 2) {
-            String distinctAlias = aliasPrefix + "d";
+        if (needsDistinct) {
+            List<SelectField<?>> distinctFields = new ArrayList<>();
+
+            distinctFields.add(recordIdField);
+            distinctFields.add(recordTypeIdField);
+            orderByFields.forEach(f -> distinctFields.add(DSL.field(tableRenderContext.render(f))));
+
+            select = dslContext
+                    .selectDistinct(distinctFields)
+                    .from(table)
+                    .where(whereCondition)
+                    .orderBy(orderByFields);
+
+            if (!referenceOnly) {
+                String distinctAlias = aliasPrefix + "d";
+                DataType<UUID> uuidType = database.uuidType();
+                select = dslContext
+                        .select(selectFields)
+                        .from(recordTable)
+                        .join(select.asTable().as(distinctAlias))
+                        .on(recordTypeIdField.eq(DSL.field(DSL.name(distinctAlias, recordTypeIdField.getName()), uuidType)))
+                        .and(recordIdField.eq(DSL.field(DSL.name(distinctAlias, recordIdField.getName()), uuidType)));
+            }
+
+        } else {
             select = dslContext
                     .select(selectFields)
-                    .from(recordTable)
-                    .join(select.asTable().as(distinctAlias))
-                    .on(recordTypeIdField.eq(DSL.field(DSL.name(distinctAlias, SqlDatabase.TYPE_ID_COLUMN), database.uuidType())))
-                    .and(recordIdField.eq(DSL.field(DSL.name(distinctAlias, SqlDatabase.ID_COLUMN), database.uuidType())));
+                    .from(table)
+                    .where(whereCondition)
+                    .orderBy(orderByFields);
         }
 
         return tableRenderContext.render(select);
