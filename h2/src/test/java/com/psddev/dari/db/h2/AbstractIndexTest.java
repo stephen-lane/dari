@@ -7,6 +7,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.IntStream;
 
@@ -212,6 +213,24 @@ public abstract class AbstractIndexTest<M extends AbstractIndexModel<M, T>, T> e
         assertCount(1L, "one = ?", value(2));
         assertCount(1L, "set = ?", value(2));
         assertCount(1L, "list = ?", value(2));
+    }
+
+    @Test
+    public void eqOneEmpty() {
+        createCompareTestModels();
+        assertCount(0L, "one = ?", Collections.emptyList());
+    }
+
+    @Test
+    public void eqSetEmpty() {
+        createCompareTestModels();
+        assertCount(0L, "set = ?", Collections.emptyList());
+    }
+
+    @Test
+    public void eqListEmpty() {
+        createCompareTestModels();
+        assertCount(0L, "list = ?", Collections.emptyList());
     }
 
     @Test

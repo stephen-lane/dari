@@ -23,6 +23,12 @@ public class LocationIndexTest extends AbstractIndexTest<LocationIndexModel, Loc
         assertCount(5, "one = ?", Region.sphericalCircle(0.0d, 0.0d, 5.5d));
     }
 
+    @Test(expected = IllegalArgumentException.class)
+    public void eqIllegal() {
+        createCompareTestModels();
+        query().and("one = true").count();
+    }
+
     @Override
     @Test(expected = IllegalArgumentException.class)
     public void containsNull() {

@@ -39,6 +39,12 @@ public class RegionIndexTest extends AbstractIndexTest<RegionIndexModel, Region>
         query().where("one contains true").count();
     }
 
+    @Test(expected = IllegalArgumentException.class)
+    public void eqIllegal() {
+        createCompareTestModels();
+        query().and("one = true").count();
+    }
+
     @Test
     public void gtNumber() {
         createCompareTestModels();
