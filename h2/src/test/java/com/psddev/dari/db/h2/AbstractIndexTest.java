@@ -388,6 +388,21 @@ public abstract class AbstractIndexTest<M extends AbstractIndexModel<M, T>, T> e
     }
 
     @Test
+    public void sortAscendingEmbeddedOneOne() {
+        for (int i = 0, size = 26; i < size; ++ i) {
+            model().embeddedAll(model().all(value(i % 2 == 0 ? i : size - i))).create();
+        }
+
+        List<M> models = query().where("embeddedOne/one != missing").sortAscending("embeddedOne/one").selectAll();
+
+        assertThat(models, hasSize(total));
+
+        for (int i = 0, size = models.size(); i < size; ++ i) {
+            assertThat(models.get(i).getEmbeddedOne().getOne(), is(value(i)));
+        }
+    }
+
+    @Test
     public void sortDescendingOne() {
         createSortTestModels();
         assertOrder(true, query().sortDescending("one"));
@@ -462,6 +477,13 @@ public abstract class AbstractIndexTest<M extends AbstractIndexModel<M, T>, T> e
         public ModelBuilder referenceList(M reference) {
             model.getReferenceList().add(reference);
             model.getReferenceList().add(reference);
+            return this;
+        }
+
+        public ModelBuilder embeddedAll(ModelBuilder embeddedBuilder) {
+            embeddedOne(embeddedBuilder);
+            embeddedSet(embeddedBuilder);
+            embeddedList(embeddedBuilder);
             return this;
         }
 
