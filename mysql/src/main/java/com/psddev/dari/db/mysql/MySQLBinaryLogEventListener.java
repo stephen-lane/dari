@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
 
 import com.github.shyiko.mysql.binlog.event.WriteRowsEventData;
 import com.google.common.base.Charsets;
-import com.psddev.dari.db.StateValueUtils;
+import com.psddev.dari.db.State;
 import com.psddev.dari.db.sql.AbstractSqlDatabase;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,53 +52,31 @@ class MySQLBinaryLogEventListener implements EventListener {
         this.catalog = catalog;
     }
 
-    /**
-     * Makes sure length of the given {@code in} is 16.
-     */
-    private byte[] confirm16Bytes(byte[] in) {
-        if (in == null) {
-            return null;
-        }
-        byte[] bytes16 = new byte[16];
-        if (in.length == 16) {
-            return in;
-        }
-        for (int i = 0; i < bytes16.length && i < in.length; i++) {
-            bytes16[i] |= in[i];
-        }
-        return bytes16;
-    }
-
     private void updateCache(byte[] id, byte[] typeId, byte[] data) {
-        id = confirm16Bytes(id);
-        if (id != null) {
-            UUID bid = ObjectUtils.to(UUID.class, id);
-            Object[] value = new Object[3];
-            value[1] = data;
-            Map<String, Object> jsonData = AbstractSqlDatabase.unserializeData(data);
-            value[2] = jsonData;
-            value[0] = UuidUtils.toBytes(ObjectUtils.to(UUID.class, jsonData.get(StateValueUtils.TYPE_KEY)));
+        UUID idUuid = ObjectUtils.to(UUID.class, id);
 
-            database.notifyUpdate(database.createSavedObjectFromReplicationCache((byte[]) value[0], bid, (byte[]) value[1], jsonData, null));
+        if (idUuid != null) {
+            Map<String, Object> dataJson = AbstractSqlDatabase.unserializeData(data);
+            Object object = database.createSavedObjectFromReplicationCache(idUuid, data, dataJson, null);
 
-            // populate cache
-            if (cache.getIfPresent(bid) != null) {
-                cache.put(bid, value);
-                if (LOGGER.isInfoEnabled()) {
-                    LOGGER.debug("[BINLOG] UPDATING CACHE: ID [{}]", StringUtils.hex(id));
-                }
+            database.notifyUpdate(object);
+
+            if (cache.getIfPresent(idUuid) != null) {
+                LOGGER.debug("Update cache: [{}]", idUuid);
+                cache.put(idUuid, new Object[] {
+                        UuidUtils.toBytes(State.getInstance(object).getTypeId()),
+                        data,
+                        dataJson });
             }
         }
     }
 
     private void invalidateCache(byte[] id) {
-        id = confirm16Bytes(id);
-        if (id != null) {
-            UUID bid = ObjectUtils.to(UUID.class, id);
-            if (LOGGER.isInfoEnabled() && cache.getIfPresent(bid) != null) {
-                LOGGER.debug("[BINLOG] DELETING CACHE: ID [{}]", StringUtils.hex(id));
-            }
-            cache.invalidate(bid);
+        UUID idUuid = ObjectUtils.to(UUID.class, id);
+
+        if (idUuid != null) {
+            LOGGER.debug("Invalidate cache: [{}]", idUuid);
+            cache.invalidate(idUuid);
         }
     }
 

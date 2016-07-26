@@ -32,7 +32,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -201,20 +200,15 @@ public class MySQLDatabase extends AbstractSqlDatabase {
 
     // Creates a previously saved object from the replication cache.
     @SuppressWarnings("unchecked")
-    public <T> T createSavedObjectFromReplicationCache(byte[] typeId, UUID id, byte[] data, Map<String, Object> dataJson, Query<T> query) {
+    public <T> T createSavedObjectFromReplicationCache(UUID id, byte[] data, Map<String, Object> dataJson, Query<T> query) {
+        UUID typeId = ObjectUtils.to(UUID.class, dataJson.get(StateValueUtils.TYPE_KEY));
         T object = createSavedObject(typeId, id, query);
-        State objectState = State.getInstance(object);
+        State state = State.getInstance(object);
 
-        objectState.setValues((Map<String, Object>) cloneJson(dataJson));
+        state.setValues((Map<String, Object>) cloneJson(dataJson));
 
-        Boolean returnOriginal = query != null ? ObjectUtils.to(Boolean.class, query.getOptions().get(RETURN_ORIGINAL_DATA_QUERY_OPTION)) : null;
-
-        if (returnOriginal == null) {
-            returnOriginal = Boolean.FALSE;
-        }
-
-        if (returnOriginal) {
-            objectState.getExtras().put(ORIGINAL_DATA_EXTRA, data);
+        if (query != null && ObjectUtils.to(boolean.class, query.getOptions().get(RETURN_ORIGINAL_DATA_QUERY_OPTION))) {
+            state.getExtras().put(ORIGINAL_DATA_EXTRA, data);
         }
 
         return swapObjectType(query, object);
@@ -245,17 +239,10 @@ public class MySQLDatabase extends AbstractSqlDatabase {
     // Tries to find objects by the given ids from the replication cache.
     // If not found, execute the given query to populate it.
     private <T> List<T> findObjectsFromReplicationCache(List<Object> ids, Query<T> query) {
-        if (ids == null || ids.isEmpty()) {
-            return null;
-        }
-
         List<T> objects = null;
         List<UUID> missingIds = null;
 
         Profiler.Static.startThreadEvent(REPLICATION_CACHE_GET_PROFILER_EVENT);
-
-        String queryGroup = query != null ? query.getGroup() : null;
-        Class queryObjectClass = query != null ? query.getObjectClass() : null;
 
         try {
             for (Object idObject : ids) {
@@ -277,29 +264,17 @@ public class MySQLDatabase extends AbstractSqlDatabase {
                 }
 
                 UUID typeId = ObjectUtils.to(UUID.class, value[0]);
-
-                ObjectType type = typeId != null ? ObjectType.getInstance(typeId) : null;
-
-                // Restrict objects based on the class provided to the Query
-                if (type != null && queryObjectClass != null && !query.getObjectClass().isAssignableFrom(type.getObjectClass())) {
-                    continue;
-                }
-
-                // Restrict objects based on the group provided to the Query
-                if (type != null && queryGroup != null && !type.getGroups().contains(queryGroup)) {
-                    continue;
-                }
-
+                byte[] data = (byte[]) value[1];
                 @SuppressWarnings("unchecked")
-                T object = createSavedObjectFromReplicationCache((byte[]) value[0], id, (byte[]) value[1], (Map<String, Object>) value[2], query);
+                Map<String, Object> dataJson = (Map<String, Object>) value[2];
 
-                if (object != null) {
-                    if (objects == null) {
-                        objects = new ArrayList<>();
-                    }
-
-                    objects.add(object);
-                }
+                objects = addObjects(
+                        objects,
+                        typeId,
+                        id,
+                        data,
+                        dataJson,
+                        query);
             }
 
         } finally {
@@ -310,8 +285,8 @@ public class MySQLDatabase extends AbstractSqlDatabase {
             Profiler.Static.startThreadEvent(REPLICATION_CACHE_PUT_PROFILER_EVENT);
 
             try {
-                String sqlQuery = DSL
-                        .select(recordTypeIdField(), recordDataField(), recordIdField())
+                String sqlQuery = DSL.using(dialect())
+                        .select(recordIdField(), recordDataField())
                         .from(recordTable())
                         .where(recordIdField().in(missingIds))
                         .getSQL(ParamType.INLINED);
@@ -322,38 +297,27 @@ public class MySQLDatabase extends AbstractSqlDatabase {
                     List<T> resultObjects = selectObjects;
 
                     while (result.next()) {
-                        UUID id = ObjectUtils.to(UUID.class, result.getBytes(3));
+                        UUID id = ObjectUtils.to(UUID.class, result.getBytes(1));
+
+                        if (id == null) {
+                            continue;
+                        }
+
                         byte[] data = result.getBytes(2);
                         Map<String, Object> dataJson = unserializeData(data);
-                        byte[] typeIdBytes = UuidUtils.toBytes(ObjectUtils.to(UUID.class, dataJson.get(StateValueUtils.TYPE_KEY)));
+                        UUID typeId = ObjectUtils.to(UUID.class, dataJson.get(StateValueUtils.TYPE_KEY));
 
-                        if (!Arrays.equals(typeIdBytes, UuidUtils.ZERO_BYTES) && id != null) {
-                            replicationCache.put(id, new Object[] { typeIdBytes, data, dataJson });
+                        if (!UuidUtils.ZERO_UUID.equals(typeId)) {
+                            replicationCache.put(id, new Object[] { UuidUtils.toBytes(typeId), data, dataJson });
                         }
 
-                        UUID typeId = ObjectUtils.to(UUID.class, typeIdBytes);
-
-                        ObjectType type = typeId != null ? ObjectType.getInstance(typeId) : null;
-
-                        // Restrict objects based on the class provided to the Query
-                        if (type != null && queryObjectClass != null && !query.getObjectClass().isAssignableFrom(type.getObjectClass())) {
-                            continue;
-                        }
-
-                        // Restrict objects based on the group provided to the Query
-                        if (type != null && queryGroup != null && !type.getGroups().contains(queryGroup)) {
-                            continue;
-                        }
-
-                        T object = createSavedObjectFromReplicationCache(typeIdBytes, id, data, dataJson, query);
-
-                        if (object != null) {
-                            if (resultObjects == null) {
-                                resultObjects = new ArrayList<>();
-                            }
-
-                            resultObjects.add(object);
-                        }
+                        resultObjects = addObjects(
+                                resultObjects,
+                                typeId,
+                                id,
+                                data,
+                                dataJson,
+                                query);
                     }
 
                     return resultObjects;
@@ -362,6 +326,45 @@ public class MySQLDatabase extends AbstractSqlDatabase {
             } finally {
                 Profiler.Static.stopThreadEvent(missingIds.size() + " Objects");
             }
+        }
+
+        return objects;
+    }
+
+    private <T> List<T> addObjects(
+            List<T> objects,
+            UUID typeId,
+            UUID id,
+            byte[] data,
+            Map<String, Object> dataJson,
+            Query<T> query) {
+
+        if (typeId != null && query != null) {
+            ObjectType type = ObjectType.getInstance(typeId);
+
+            if (type != null) {
+                Class<?> queryObjectClass = query.getObjectClass();
+
+                if (queryObjectClass != null && !query.getObjectClass().isAssignableFrom(type.getObjectClass())) {
+                    return objects;
+                }
+
+                String queryGroup = query.getGroup();
+
+                if (queryGroup != null && !type.getGroups().contains(queryGroup)) {
+                    return objects;
+                }
+            }
+        }
+
+        T object = createSavedObjectFromReplicationCache(id, data, dataJson, query);
+
+        if (object != null) {
+            if (objects == null) {
+                objects = new ArrayList<>();
+            }
+
+            objects.add(object);
         }
 
         return objects;
