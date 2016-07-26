@@ -18,7 +18,6 @@ import com.psddev.dari.util.Profiler;
 import com.psddev.dari.util.UuidUtils;
 import org.jooq.Condition;
 import org.jooq.Converter;
-import org.jooq.DSLContext;
 import org.jooq.DataType;
 import org.jooq.Field;
 import org.jooq.SQLDialect;
@@ -311,23 +310,16 @@ public class MySQLDatabase extends AbstractSqlDatabase {
             Profiler.Static.startThreadEvent(REPLICATION_CACHE_PUT_PROFILER_EVENT);
 
             try {
-                Connection connection = null;
-                String sqlQuery = null;
-                Statement statement = null;
-                ResultSet result = null;
+                String sqlQuery = DSL
+                        .select(recordTypeIdField(), recordDataField(), recordIdField())
+                        .from(recordTable())
+                        .where(recordIdField().in(missingIds))
+                        .getSQL(ParamType.INLINED);
 
-                try {
-                    connection = openQueryConnection(query);
+                List<T> selectObjects = objects;
 
-                    try (DSLContext context = openContext(connection)) {
-                        sqlQuery = context.select(recordTypeIdField(), recordDataField(), recordIdField())
-                                .from(recordTable())
-                                .where(recordIdField().in(missingIds))
-                                .getSQL(ParamType.INLINED);
-                    }
-
-                    statement = connection.createStatement();
-                    result = executeQueryBeforeTimeout(statement, sqlQuery, 0);
+                objects = select(sqlQuery, query, result -> {
+                    List<T> resultObjects = selectObjects;
 
                     while (result.next()) {
                         UUID id = ObjectUtils.to(UUID.class, result.getBytes(3));
@@ -356,20 +348,16 @@ public class MySQLDatabase extends AbstractSqlDatabase {
                         T object = createSavedObjectFromReplicationCache(typeIdBytes, id, data, dataJson, query);
 
                         if (object != null) {
-                            if (objects == null) {
-                                objects = new ArrayList<>();
+                            if (resultObjects == null) {
+                                resultObjects = new ArrayList<>();
                             }
 
-                            objects.add(object);
+                            resultObjects.add(object);
                         }
                     }
 
-                } catch (SQLException error) {
-                    throw createSelectError(sqlQuery, query, error);
-
-                } finally {
-                    closeResources(query, connection, statement, result);
-                }
+                    return resultObjects;
+                });
 
             } finally {
                 Profiler.Static.stopThreadEvent(missingIds.size() + " Objects");

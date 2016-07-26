@@ -1151,7 +1151,16 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         }
     }
 
-    private <R> R select(String sqlQuery, Query<?> query, SqlSelectFunction<R> selectFunction) {
+    /**
+     * Selects using the {@code sqlQuery}, which is executed with the given
+     * {@code query} options, and passes the result into the given
+     * {@code selectFunction}.
+     *
+     * @param sqlQuery Can't be {@code null}.
+     * @param query May be {@code null}.
+     * @param selectFunction Can't be {@code null}.
+     */
+    protected <R> R select(String sqlQuery, Query<?> query, SqlSelectFunction<R> selectFunction) {
         Connection connection = openQueryConnection(query);
 
         try {
@@ -1189,16 +1198,16 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                 || ((message = error.getMessage()) != null
                 && message.toLowerCase(Locale.ENGLISH).contains("timeout"))) {
 
-            return new SqlDatabaseException.ReadTimeout(this, error, sqlQuery, query);
+            throw new SqlDatabaseException.ReadTimeout(this, error, sqlQuery, query);
 
         } else {
-            return new SqlDatabaseException(this, error, sqlQuery, query);
+            throw new SqlDatabaseException(this, error, sqlQuery, query);
         }
     }
 
     /**
      * Selects the first object that matches the given {@code sqlQuery},
-     * executed with the given {@code query} options.
+     * which is executed with the given {@code query} options.
      *
      * @param sqlQuery Can't be {@code null}.
      * @param query May be {@code null}.
@@ -1217,7 +1226,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
     /**
      * Selects a list of objects that match the given {@code sqlQuery},
-     * executed with the given {@code query} options.
+     * which is executed with the given {@code query} options.
      *
      * @param sqlQuery Can't be {@code null}.
      * @param query May be {@code null}.
@@ -1236,7 +1245,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
     /**
      * Selects an iterable of objects that match the given {@code sqlQuery},
-     * executed with the given {@code query} options.
+     * which is executed with the given {@code query} options.
      *
      * @param sqlQuery Can't be {@code null}.
      * @param fetchSize Number of objects to fetch at a time.
