@@ -108,6 +108,18 @@ public class LocationIndexTest extends AbstractIndexTest<LocationIndexModel, Loc
 
     @Override
     @Test(expected = IllegalArgumentException.class)
+    public void sortAscendingReferenceOneOne() {
+        super.sortAscendingReferenceOneOne();
+    }
+
+    @Override
+    @Test(expected = IllegalArgumentException.class)
+    public void sortAscendingEmbeddedOneOne() {
+        super.sortAscendingEmbeddedOneOne();
+    }
+
+    @Override
+    @Test(expected = IllegalArgumentException.class)
     public void sortDescendingOne() {
         createSortTestModels();
         query().sortDescending("one").count();
