@@ -286,7 +286,7 @@ public class StatsDebugServlet extends HttpServlet {
                     if (Double.isNaN(duration)) {
                         writeStart("span", "class", "label").writeHtml("N/A").writeEnd();
                     } else {
-                        writeObject(duration * 5e3).writeHtml("ms");
+                        writeObject(duration * 1e3).writeHtml("ms");
                     }
                     if (link) {
                         writeEnd();
