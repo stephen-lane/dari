@@ -64,7 +64,7 @@ public class ProfilerFilter extends AbstractFilter {
 
         try {
             profiler.setResponse(newResponse);
-            Profiler.Static.startThreadEvent("JSP Include", new JspInclude(path));
+            Profiler.Static.startThreadEvent("JSP Include", new JspInclude(request, path));
 
             writer.writeLazily("<span class=\"_profile-jspStart\" data-jsp=\"");
             writer.writeLazily(StringUtils.escapeHtml(path));
@@ -388,9 +388,11 @@ public class ProfilerFilter extends AbstractFilter {
 
     private static class JspInclude implements HtmlObject {
 
+        private final HttpServletRequest request;
         private final String path;
 
-        public JspInclude(String path) {
+        public JspInclude(HttpServletRequest request, String path) {
+            this.request = request;
             this.path = path;
         }
 
@@ -398,8 +400,8 @@ public class ProfilerFilter extends AbstractFilter {
         public void format(HtmlWriter writer) throws IOException {
             writer.writeStart("a",
                     "target", "_blank",
-                    "href", StringUtils.addQueryParameters(
-                            "/_debug/code",
+                    "href", JspUtils.getAbsolutePath(
+                            request, "/_debug/code",
                             "action", "edit",
                             "type", "JSP",
                             "servletPath", path));

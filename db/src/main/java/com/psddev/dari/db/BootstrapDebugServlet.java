@@ -155,7 +155,7 @@ public class BootstrapDebugServlet extends HttpServlet {
                                     BootstrapPackage.Static.checkConsistency(selectedDatabase, pkg, new HashSet<BootstrapPackage>(packages), additionalTypes);
                                 }
                             }
-                            writeStart("form", "action", "/_debug/db-bootstrap", "class", "form-horizontal", "method", "post");
+                            writeStart("form", "action", wp.url(null), "class", "form-horizontal", "method", "post");
                             boolean first;
                             String showWarningsId = wp.createId();
                             String showTypesId = wp.createId();
@@ -379,7 +379,7 @@ public class BootstrapDebugServlet extends HttpServlet {
                     writeStart("div", "class", "span6"); // lhs/rhs
                         writeStart("h2").writeHtml("Import Bootstrap Package").writeEnd();
 
-                        writeStart("form", "action", "/_debug/db-bootstrap", "class", "form-horizontal", "method", "post", "enctype", "multipart/form-data");
+                        writeStart("form", "action", wp.url(null), "class", "form-horizontal", "method", "post", "enctype", "multipart/form-data");
                         writeStart("p").writeHtml("Upload a bootstrap export and import it into the database. Objects with the same ").writeStart("code").writeHtml("id").writeEnd().writeHtml(" will be overwritten. If \"Delete Before Import\" is checked, all objects of the included types will be deleted before the new objects are saved. ").writeEnd();
                         writeStart("p").writeHtml("This is a potentially ").writeStart("strong").writeHtml("DANGEROUS").writeEnd().writeHtml(" operation, and may result in data loss. ").writeEnd();
 

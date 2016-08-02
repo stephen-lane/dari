@@ -478,6 +478,7 @@ public class SourceFilter extends AbstractFilter {
                     JavaFileObject source = diagnostic.getSource();
 
                     writeDiagnostic(
+                            request,
                             noteWriter,
                             diagnostic.getKind(),
                             source != null ? source.getName() : "Unknown Source",
@@ -496,6 +497,7 @@ public class SourceFilter extends AbstractFilter {
 
                     for (AnalysisResult ar : entry.getValue()) {
                         writeDiagnostic(
+                                request,
                                 noteWriter,
                                 ar.getKind(),
                                 sourceFileName,
@@ -510,6 +512,7 @@ public class SourceFilter extends AbstractFilter {
     }
 
     private void writeDiagnostic(
+            HttpServletRequest request,
             HtmlWriter writer,
             Diagnostic.Kind kind,
             String fileName,
@@ -549,8 +552,8 @@ public class SourceFilter extends AbstractFilter {
                     "style", writer.cssString(
                             "color", color,
                             "text-decoration", "underline"),
-                    "href", StringUtils.addQueryParameters(
-                            "/_debug/code",
+                    "href", JspUtils.getAbsolutePath(
+                            request, "/_debug/code",
                             "action", "edit",
                             "file", fileName,
                             "line", lineNumber));

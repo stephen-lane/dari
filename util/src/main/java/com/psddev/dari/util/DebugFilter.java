@@ -572,13 +572,15 @@ public class DebugFilter extends AbstractFilter {
             includeStylesheet("/_resource/codemirror/lib/codemirror.css");
             includeStylesheet("/_resource/codemirror/addon/dialog/dialog.css");
 
+            HttpServletRequest request = page.getRequest();
+
             writeStart("style", "type", "text/css");
-                write("@font-face { font-family: 'AauxNextMedium'; src: url('/_resource/aauxnext-md-webfont.eot'); src: local('☺'), url('/_resource/aauxnext-md-webfont.woff') format('woff'), url('/_resource/aauxnext-md-webfont.ttf') format('truetype'), url('/_resource/aauxnext-md-webfont.svg#webfontfLsPAukW') }");
+                write("@font-face { font-family: 'AauxNextMedium'; src: url('"); write(JspUtils.getAbsolutePath(request, "/_resource/aauxnext-md-webfont.eot")); write("'); src: local('☺'), url('"); write(JspUtils.getAbsolutePath(request, "/_resource/aauxnext-md-webfont.woff")); write("') format('woff'), url('"); write(JspUtils.getAbsolutePath(request, "/_resource/aauxnext-md-webfont.ttf")); write("') format('truetype'), url('"); write(JspUtils.getAbsolutePath(request, "/_resource/aauxnext-md-webfont.svg#webfontfLsPAukW")); write("') }");
                 write("body { word-wrap: break-word; }");
                 write("select { word-wrap: normal; }");
                 write("h1, h2, h3, h4, h5, h6 { font-family: AauxNextMedium, sans-serif; }");
                 write(".navbar-inner { background: #0a5992; }");
-                write(".navbar .brand { background: url(/_resource/bridge.png) no-repeat 55px 0; font-family: AauxNextMedium, sans-serif; height: 40px; line-height: 40px; margin: 0; min-width: 200px; padding: 0; }");
+                write(".navbar .brand { background: url("); write(JspUtils.getAbsolutePath(request, "/_resource/bridge.png")); write(") no-repeat 55px 0; font-family: AauxNextMedium, sans-serif; height: 40px; line-height: 40px; margin: 0; min-width: 200px; padding: 0; }");
                 write(".navbar .brand a { color: #fff; float: left; font-size: 30px; padding-right: 60px; text-transform: uppercase; }");
                 write(".popup { width: 60%; }");
                 write(".popup .content { background-color: white; -moz-border-radius: 5px; -webkit-border-radius: 5px; border-radius: 5px; -moz-box-shadow: 0 0 10px #777; -webkit-box-shadow: 0 0 10px #777; box-shadow: 0 0 10px #777; position: relative; top: 10px; }");
