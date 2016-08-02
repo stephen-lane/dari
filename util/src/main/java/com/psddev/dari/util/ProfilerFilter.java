@@ -129,7 +129,7 @@ public class ProfilerFilter extends AbstractFilter {
                 Profiler.Static.setThreadProfiler(null);
                 profiler.setResponse(oldResponse);
                 newResponse.getLazyWriter().writePending();
-                writeResult(Static.getResultWriter(request, newResponse), profiler);
+                writeResult(request, Static.getResultWriter(request, newResponse), profiler);
             }
 
         } finally {
@@ -137,7 +137,7 @@ public class ProfilerFilter extends AbstractFilter {
         }
     }
 
-    private void writeResult(HtmlWriter writer, MarkingProfiler profiler) throws IOException {
+    private void writeResult(HttpServletRequest request, HtmlWriter writer, MarkingProfiler profiler) throws IOException {
         Map<String, String> nameColors = new HashMap<String, String>();
         Map<String, String> nameClasses = new HashMap<String, String>();
         double goldenRatio = 0.618033988749895;
@@ -248,7 +248,12 @@ public class ProfilerFilter extends AbstractFilter {
         writer.writeStart("script", "type", "text/javascript");
             writer.write("(function() {");
                 writer.write("var profileScript = document.createElement('script');");
-                writer.write("profileScript.src = '/_resource/dari/profiler.js';");
+                writer.write("profileScript.setAttribute('data-java-context-path', '");
+                writer.write(request.getContextPath());
+                writer.write("');");
+                writer.write("profileScript.src = '");
+                writer.write(JspUtils.getAbsolutePath(request, "/_resource/dari/profiler.js"));
+                writer.write("';");
                 writer.write("document.body.appendChild(profileScript);");
             writer.write("})();");
         writer.writeEnd();

@@ -1,4 +1,6 @@
 (function() {
+    var scripts = document.getElementsByTagName('script');
+    var javaContextPath = scripts[scripts.length - 1].getAttribute('data-java-context-path');
 
     // Constants.
     var fontFamily = '"Helvetica Neue", "Arial", sans-serif';
@@ -104,7 +106,7 @@
 
         // Create an IFRAME for the profile result so that it can
         // be shown with its own CSS.
-        var $profile = $('<iframe src="/_resource/cms/profile.html" />');
+        var $profile = $('<iframe src="' + javaContextPath + '/_resource/cms/profile.html" />');
         $profile.css({
             'border': 'none',
             'height': 1,
@@ -363,7 +365,7 @@
     };
 
     var jqScript = document.createElement('script');
-    jqScript.src = '/_resource/jquery/jquery-1.7.1.min.js';
+    jqScript.src = javaContextPath + '/_resource/jquery/jquery-1.7.1.min.js';
     jqScript.onload = function() { main(jQuery.noConflict(true)); };
     document.body.appendChild(jqScript);
 })();
