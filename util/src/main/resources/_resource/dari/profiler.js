@@ -202,15 +202,10 @@
                         var boundary = calculateBoundary($start, $stop);
                         padding += 4;
 
-                        $('body').append($('<a/>', {
+                        $('body').append($('<span/>', {
                             'class': '_profile-openEditor',
                             'data-padding': padding,
                             'target': '_blank',
-                            'href': '/_debug/code' +
-                                    '?action=edit' +
-                                    '&type=JSP' +
-                                    '&servletPath=' + encodeURIComponent(jsp) +
-                                    '&jspPreviewUrl=' + encodeURIComponent(location.href),
                             'css': {
                                 'border': '1px solid rgba(204, 0, 0, 0.8)',
                                 '-moz-border-radius': '4px',
