@@ -5,6 +5,8 @@ import com.psddev.dari.util.HtmlWriter;
 import com.psddev.dari.util.JspUtils;
 import com.psddev.dari.util.Profiler;
 import com.psddev.dari.util.ProfilerFilter;
+import com.psddev.dari.util.Settings;
+import com.psddev.dari.util.StringUtils;
 
 import javax.servlet.FilterChain;
 import javax.servlet.http.HttpServletRequest;
@@ -71,6 +73,59 @@ public class ProfilingDatabaseFilter extends AbstractFilter {
                         "where", "id = " + state.getId(),
                         "event", "Run"), "target", "query");
                 writer.writeHtml(state.getLabel());
+                writer.writeEnd();
+            });
+
+            resultWriter.putOverride(SolrPaginatedResult.class, (writer, result) -> {
+                writer.writeStart("p");
+                writer.writeStart("code").writeHtml(result.getClass().getName()).writeEnd();
+                writer.writeHtml(' ');
+                writer.writeStart("strong").writeHtml(result.getFirstItemIndex()).writeEnd();
+                writer.writeHtml(" to ");
+                writer.writeStart("strong").writeHtml(result.getLastItemIndex()).writeEnd();
+                writer.writeHtml(" of ");
+                writer.writeStart("strong").writeHtml(result.getCount()).writeEnd();
+                writer.writeEnd();
+
+                if (Settings.isDebug() && result.getSolrQuery() != null) {
+                    String solrFullQuery = result.getSolrQuery().toString();
+                    String solrQuery = result.getSolrQuery().getQuery();
+                    String solrSort = StringUtils.join(result.getSolrQuery().getSortFields(), ",");
+
+                    // Use a form instead of a link if the URL will be too long.
+                    if (solrFullQuery.length() > 2000) {
+                        writer.writeStart("span", "class", "solr-query");
+                        writer.writeHtml("Solr Query: ");
+                        writer.writeHtml(StringUtils.decodeUri(solrFullQuery));
+
+                        writer.writeStart("form",
+                                "class", "solrQueryDebugForm",
+                                "method", "post",
+                                "action", "/_debug/db-solr",
+                                "target", "query");
+                        writer.writeElement("input", "type", "hidden", "name", "query", "value", StringUtils.decodeUri(solrQuery));
+                        writer.writeElement("input", "type", "hidden", "name", "sort", "value", StringUtils.decodeUri(solrSort));
+                        writer.writeElement("input", "class", "btn", "type", "submit", "value", "Execute");
+                        writer.writeEnd();
+                        writer.writeEnd();
+
+                    } else {
+                        writer.writeHtml("Solr Query: ");
+                        writer.writeHtml(StringUtils.decodeUri(solrFullQuery));
+                        writer.writeHtml(" (");
+                        writer.writeStart("a",
+                                "href", StringUtils.addQueryParameters("/_debug/db-solr", "query", solrQuery, "sort", solrSort),
+                                "target", "query");
+                        writer.writeHtml("Execute");
+                        writer.writeEnd();
+                        writer.writeHtml(")");
+                    }
+                }
+
+                writer.writeStart("ol");
+                for (Object item : result.getItems()) {
+                    writer.writeStart("li").writeObject(item).writeHtml(" Solr Score: " + SolrDatabase.Static.getScore(item)).writeEnd();
+                }
                 writer.writeEnd();
             });
 
