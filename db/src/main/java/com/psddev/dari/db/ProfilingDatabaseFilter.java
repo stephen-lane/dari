@@ -103,7 +103,7 @@ public class ProfilingDatabaseFilter extends AbstractFilter {
                         writer.writeStart("form",
                                 "class", "solrQueryDebugForm",
                                 "method", "post",
-                                "action", "/_debug/db-solr",
+                                "action", JspUtils.getAbsolutePath(request, "/_debug/db-solr"),
                                 "target", "query");
                         writer.writeElement("input", "type", "hidden", "name", "query", "value", StringUtils.decodeUri(solrQuery));
                         writer.writeElement("input", "type", "hidden", "name", "sort", "value", StringUtils.decodeUri(solrSort));
@@ -116,7 +116,7 @@ public class ProfilingDatabaseFilter extends AbstractFilter {
                         writer.writeHtml(StringUtils.decodeUri(solrFullQuery));
                         writer.writeHtml(" (");
                         writer.writeStart("a",
-                                "href", StringUtils.addQueryParameters("/_debug/db-solr", "query", solrQuery, "sort", solrSort),
+                                "href", JspUtils.getAbsolutePath(request, "/_debug/db-solr", "query", solrQuery, "sort", solrSort),
                                 "target", "query");
                         writer.writeHtml("Execute");
                         writer.writeEnd();
@@ -146,8 +146,8 @@ public class ProfilingDatabaseFilter extends AbstractFilter {
                     writer.writeStart("a",
                             "class", cssClass,
                             "target", "_blank",
-                            "href", StringUtils.addQueryParameters(
-                                    "/_debug/code",
+                            "href", JspUtils.getAbsolutePath(
+                                    request, "/_debug/code",
                                     "action", "edit",
                                     "type", "JSP",
                                     "servletPath", jspServletPath,
@@ -168,8 +168,8 @@ public class ProfilingDatabaseFilter extends AbstractFilter {
                         writer.writeStart("a",
                                 "class", cssClass,
                                 "target", "_blank",
-                                "href", StringUtils.addQueryParameters(
-                                        "/_debug/code",
+                                "href", JspUtils.getAbsolutePath(
+                                        request, "/_debug/code",
                                         "action", "edit",
                                         "file", source,
                                         "line", lineNumber));
@@ -265,7 +265,7 @@ public class ProfilingDatabaseFilter extends AbstractFilter {
             if (code.length() > 2000) {
                 writer.writeStart("form",
                         "method", "post",
-                        "action", "/_debug/code",
+                        "action", JspUtils.getAbsolutePath(request, "/_debug/code"),
                         "target", "query");
                     writer.writeElement("input", "type", "hidden", "name", "query", "value", code);
                     writer.writeElement("input", "type", "hidden", "name", "objectClass", "value", objectClass);
