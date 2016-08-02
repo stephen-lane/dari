@@ -1,6 +1,7 @@
 package com.psddev.dari.db;
 
 import com.psddev.dari.util.AbstractFilter;
+import com.psddev.dari.util.CodeUtils;
 import com.psddev.dari.util.HtmlWriter;
 import com.psddev.dari.util.JspUtils;
 import com.psddev.dari.util.Profiler;
@@ -11,6 +12,7 @@ import com.psddev.dari.util.StringUtils;
 import javax.servlet.FilterChain;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.io.File;
 import java.io.IOException;
 import java.util.List;
 
@@ -127,6 +129,62 @@ public class ProfilingDatabaseFilter extends AbstractFilter {
                     writer.writeStart("li").writeObject(item).writeHtml(" Solr Score: " + SolrDatabase.Static.getScore(item)).writeEnd();
                 }
                 writer.writeEnd();
+            });
+
+            resultWriter.putOverride(StackTraceElement.class, (writer, element) -> {
+                String className = element.getClassName();
+                int lineNumber = element.getLineNumber();
+                String cssClass = className != null
+                        && (className.startsWith("com.psddev.dari.util.AbstractFilter")
+                        || className.startsWith("org.apache.catalina.core.ApplicationFilterChain"))
+                        ? "muted" : null;
+
+                String jspServletPath = CodeUtils.getJspServletPath(className);
+                if (jspServletPath != null) {
+                    jspServletPath = StringUtils.ensureStart(jspServletPath, "/");
+                    lineNumber = CodeUtils.getJspLineNumber(className, lineNumber);
+                    writer.writeStart("a",
+                            "class", cssClass,
+                            "target", "_blank",
+                            "href", StringUtils.addQueryParameters(
+                                    "/_debug/code",
+                                    "action", "edit",
+                                    "type", "JSP",
+                                    "servletPath", jspServletPath,
+                                    "line", lineNumber));
+                    writer.writeHtml(jspServletPath);
+                    writer.writeHtml(':');
+                    writer.writeHtml(lineNumber);
+                    writer.writeEnd();
+
+                } else {
+                    File source = CodeUtils.getSource(className);
+                    if (source == null) {
+                        writer.writeStart("span", "class", cssClass);
+                        writer.writeHtml(element);
+                        writer.writeEnd();
+
+                    } else {
+                        writer.writeStart("a",
+                                "class", cssClass,
+                                "target", "_blank",
+                                "href", StringUtils.addQueryParameters(
+                                        "/_debug/code",
+                                        "action", "edit",
+                                        "file", source,
+                                        "line", lineNumber));
+                        int dotAt = className.lastIndexOf('.');
+                        if (dotAt > -1) {
+                            className = className.substring(dotAt + 1);
+                        }
+                        writer.writeHtml(className);
+                        writer.writeHtml('.');
+                        writer.writeHtml(element.getMethodName());
+                        writer.writeHtml(':');
+                        writer.writeHtml(lineNumber);
+                        writer.writeEnd();
+                    }
+                }
             });
 
             try {
