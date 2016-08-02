@@ -1412,33 +1412,6 @@ public class Query<E> extends Record {
             }
             codeBuilder.append(')');
         }
-
-        writer.writeStart("span", "class", "dari-query");
-            String code = codeBuilder.toString();
-            writer.writeHtml(code);
-
-            // Use a form instead of a link if the URL will be too long.
-            if (code.length() > 2000) {
-                writer.writeStart("form",
-                        "method", "post",
-                        "action", "/_debug/code",
-                        "target", "query");
-                    writer.writeElement("input", "type", "hidden", "name", "query", "value", code);
-                    writer.writeElement("input", "type", "hidden", "name", "objectClass", "value", objectClass);
-                    writer.writeElement("input", "class", "btn", "type", "submit", "value", "Execute");
-                writer.writeEnd();
-
-            } else {
-                writer.writeHtml(" (");
-                    writer.writeStart("a",
-                            "href", StringUtils.addQueryParameters("/_debug/code", "query", code, "objectClass", objectClass),
-                            "target", "query");
-                        writer.writeHtml("Execute");
-                    writer.writeEnd();
-                writer.writeHtml(")");
-            }
-
-        writer.writeEnd();
     }
 
     // --- Object support ---
