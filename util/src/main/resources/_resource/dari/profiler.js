@@ -1,4 +1,6 @@
 (function() {
+    var scripts = document.getElementsByTagName('script');
+    var javaContextPath = scripts[scripts.length - 1].getAttribute('data-java-context-path');
 
     // Constants.
     var fontFamily = '"Helvetica Neue", "Arial", sans-serif';
@@ -104,7 +106,7 @@
 
         // Create an IFRAME for the profile result so that it can
         // be shown with its own CSS.
-        var $profile = $('<iframe src="/_resource/cms/profile.html" />');
+        var $profile = $('<iframe src="' + javaContextPath + '/_resource/cms/profile.html" />');
         $profile.css({
             'border': 'none',
             'height': 1,
@@ -202,15 +204,10 @@
                         var boundary = calculateBoundary($start, $stop);
                         padding += 4;
 
-                        $('body').append($('<a/>', {
+                        $('body').append($('<span/>', {
                             'class': '_profile-openEditor',
                             'data-padding': padding,
                             'target': '_blank',
-                            'href': '/_debug/code' +
-                                    '?action=edit' +
-                                    '&type=JSP' +
-                                    '&servletPath=' + encodeURIComponent(jsp) +
-                                    '&jspPreviewUrl=' + encodeURIComponent(location.href),
                             'css': {
                                 'border': '1px solid rgba(204, 0, 0, 0.8)',
                                 '-moz-border-radius': '4px',
@@ -368,7 +365,7 @@
     };
 
     var jqScript = document.createElement('script');
-    jqScript.src = '/_resource/jquery/jquery-1.7.1.min.js';
+    jqScript.src = javaContextPath + '/_resource/jquery/jquery-1.7.1.min.js';
     jqScript.onload = function() { main(jQuery.noConflict(true)); };
     document.body.appendChild(jqScript);
 })();

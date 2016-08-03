@@ -21,6 +21,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import com.psddev.dari.util.DebugFilter;
+import com.psddev.dari.util.JspUtils;
 import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.PaginatedResult;
 import com.psddev.dari.util.StringUtils;
@@ -615,7 +616,7 @@ public class QueryDebugServlet extends HttpServlet {
                             newJson.append(json.substring(end));
 
                             Matcher idMatcher = ID_PATTERN.matcher(page.h(newJson.toString()));
-                            write(idMatcher.replaceAll("<a href=\"/_debug/query?where=id+%3D+$1\" target=\"_blank\">$1</a>"));
+                            write(idMatcher.replaceAll("<a href=\"" + JspUtils.getAbsolutePath(page.getRequest(), "/_debug/query") + "?where=id+%3D+$1\" target=\"_blank\">$1</a>"));
                         writeEnd();
                     writeEnd();
                 }
