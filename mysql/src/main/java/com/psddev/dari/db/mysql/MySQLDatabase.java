@@ -38,7 +38,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-public class MySQLDatabase extends AbstractSqlDatabase {
+public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable {
 
     private static final DataType<UUID> UUID_TYPE = MySQLDataType.BINARY.asConvertedDataType(new Converter<byte[], UUID>() {
 
@@ -179,15 +179,10 @@ public class MySQLDatabase extends AbstractSqlDatabase {
 
     @Override
     public void close() {
-        try {
-            super.close();
-
-        } finally {
-            if (mysqlBinaryLogReader != null) {
-                LOGGER.info("Stopping MySQL binary log reader");
-                mysqlBinaryLogReader.stop();
-                mysqlBinaryLogReader = null;
-            }
+        if (mysqlBinaryLogReader != null) {
+            LOGGER.info("Stopping MySQL binary log reader");
+            mysqlBinaryLogReader.stop();
+            mysqlBinaryLogReader = null;
         }
     }
 

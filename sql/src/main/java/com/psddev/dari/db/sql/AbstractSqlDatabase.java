@@ -29,8 +29,6 @@ import com.psddev.dari.util.Profiler;
 import com.psddev.dari.util.Settings;
 import com.psddev.dari.util.SettingsException;
 import com.psddev.dari.util.Stats;
-import com.psddev.dari.util.TypeDefinition;
-import com.zaxxer.hikari.HikariDataSource;
 import org.iq80.snappy.Snappy;
 import org.jooq.BatchBindStep;
 import org.jooq.Condition;
@@ -59,13 +57,10 @@ import javax.naming.NamingException;
 import javax.sql.DataSource;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.ref.WeakReference;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
-import java.sql.Driver;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -76,10 +71,8 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
-import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -92,7 +85,7 @@ import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 
 /** Database backed by a SQL engine. */
-public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> implements AutoCloseable, MetricSqlDatabase {
+public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> implements MetricSqlDatabase {
 
     public static final int MAX_STRING_INDEX_TYPE_LENGTH = 500;
 
@@ -135,17 +128,9 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
     public static final String DATA_SOURCE_SETTING = "dataSource";
     public static final String DATA_SOURCE_JNDI_NAME_SETTING = "dataSourceJndiName";
-    public static final String JDBC_DRIVER_CLASS_SETTING = "jdbcDriverClass";
-    public static final String JDBC_URL_SETTING = "jdbcUrl";
-    public static final String JDBC_USER_SETTING = "jdbcUser";
-    public static final String JDBC_PASSWORD_SETTING = "jdbcPassword";
 
     public static final String READ_DATA_SOURCE_SETTING = "readDataSource";
     public static final String READ_DATA_SOURCE_JNDI_NAME_SETTING = "readDataSourceJndiName";
-    public static final String READ_JDBC_DRIVER_CLASS_SETTING = "readJdbcDriverClass";
-    public static final String READ_JDBC_URL_SETTING = "readJdbcUrl";
-    public static final String READ_JDBC_USER_SETTING = "readJdbcUser";
-    public static final String READ_JDBC_PASSWORD_SETTING = "readJdbcPassword";
 
     public static final String CATALOG_SUB_SETTING = "catalog";
     public static final String METRIC_CATALOG_SUB_SETTING = "metricCatalog";
@@ -170,12 +155,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     private static final String QUERY_PROFILER_EVENT = SHORT_NAME + " " + QUERY_STATS_OPERATION;
     private static final String UPDATE_PROFILER_EVENT = SHORT_NAME + " " + UPDATE_STATS_OPERATION;
 
-    private static final List<AbstractSqlDatabase> INSTANCES = new ArrayList<>();
-
-    {
-        INSTANCES.add(this);
-    }
-
     private final Table<Record> recordTable;
     private final Field<UUID> recordIdField;
     private final Field<UUID> recordTypeIdField;
@@ -197,7 +176,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     private volatile List<AbstractSqlIndex> uuidSqlIndexes;
     private volatile List<AbstractSqlIndex> deleteSqlIndexes;
 
-    private final Set<WeakReference<Driver>> registeredDrivers = new HashSet<>();
     private volatile DataSource dataSource;
     private volatile DataSource readDataSource;
     private volatile String catalog;
@@ -258,12 +236,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             }
         }
     };
-
-    /** Closes all resources used by all instances. */
-    public static void closeAll() {
-        INSTANCES.forEach(AbstractSqlDatabase::close);
-        INSTANCES.clear();
-    }
 
     protected AbstractSqlDatabase() {
         DataType<byte[]> byteArrayType = byteArrayType();
@@ -885,44 +857,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     protected void onSymbolIdUpdate(String symbol, int id) {
     }
 
-    @Override
-    public void close() {
-        DataSource dataSource = getDataSource();
-
-        if (dataSource instanceof HikariDataSource) {
-            LOGGER.info("Closing data source: " + dataSource);
-            ((HikariDataSource) dataSource).close();
-        }
-
-        setDataSource(null);
-
-        DataSource readDataSource = getReadDataSource();
-
-        if (readDataSource instanceof HikariDataSource) {
-            LOGGER.info("Closing read data source: " + dataSource);
-            ((HikariDataSource) readDataSource).close();
-        }
-
-        setReadDataSource(null);
-
-        for (Iterator<WeakReference<Driver>> i = registeredDrivers.iterator(); i.hasNext();) {
-            Driver driver = i.next().get();
-
-            i.remove();
-
-            if (driver != null) {
-                LOGGER.info("Deregistering JDBC driver [{}]", driver);
-
-                try {
-                    DriverManager.deregisterDriver(driver);
-
-                } catch (SQLException error) {
-                    LOGGER.warn("Can't deregister JDBC driver [{}]!", driver);
-                }
-            }
-        }
-    }
-
     private String addComment(String sql, Query<?> query) {
         if (query != null) {
             String comment = query.getComment();
@@ -1380,25 +1314,15 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
     @Override
     protected void doInitialize(String settingsKey, Map<String, Object> settings) {
-        close();
-
         setDataSource(createDataSource(
                 settings,
                 DATA_SOURCE_JNDI_NAME_SETTING,
-                DATA_SOURCE_SETTING,
-                JDBC_DRIVER_CLASS_SETTING,
-                JDBC_URL_SETTING,
-                JDBC_USER_SETTING,
-                JDBC_PASSWORD_SETTING));
+                DATA_SOURCE_SETTING));
 
         setReadDataSource(createDataSource(
                 settings,
                 READ_DATA_SOURCE_JNDI_NAME_SETTING,
-                READ_DATA_SOURCE_SETTING,
-                READ_JDBC_DRIVER_CLASS_SETTING,
-                READ_JDBC_URL_SETTING,
-                READ_JDBC_USER_SETTING,
-                READ_JDBC_PASSWORD_SETTING));
+                READ_DATA_SOURCE_SETTING));
 
         setCatalog(ObjectUtils.to(String.class, settings.get(CATALOG_SUB_SETTING)));
 
@@ -1475,11 +1399,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     private DataSource createDataSource(
             Map<String, Object> settings,
             String dataSourceJndiNameSetting,
-            String dataSourceSetting,
-            String jdbcDriverClassSetting,
-            String jdbcUrlSetting,
-            String jdbcUserSetting,
-            String jdbcPasswordSetting) {
+            String dataSourceSetting) {
 
         // Data source at a non-standard location?
         String dataSourceJndiName = ObjectUtils.to(String.class, settings.get(dataSourceJndiNameSetting));
@@ -1514,64 +1434,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             }
         }
 
-        // No data source so try to create one via JDBC settings.
-        String url = ObjectUtils.to(String.class, settings.get(jdbcUrlSetting));
-
-        if (ObjectUtils.isBlank(url)) {
-            return null;
-        }
-
-        // If JDBC driver is specified, try to register it.
-        String driverClassName = ObjectUtils.to(String.class, settings.get(jdbcDriverClassSetting));
-
-        if (driverClassName != null) {
-            Class<?> driverClass = ObjectUtils.getClassByName(driverClassName);
-
-            if (driverClass == null) {
-                throw new SettingsException(
-                        jdbcDriverClassSetting,
-                        String.format("Can't find [%s] class!", driverClassName));
-
-            } else if (!Driver.class.isAssignableFrom(driverClass)) {
-                throw new SettingsException(
-                        jdbcDriverClassSetting,
-                        String.format("[%s] doesn't implement [%s]!", driverClass, Driver.class));
-            }
-
-            Driver driver = null;
-
-            for (Enumeration<Driver> e = DriverManager.getDrivers(); e.hasMoreElements();) {
-                Driver d = e.nextElement();
-
-                if (driverClass.isInstance(d)) {
-                    driver = d;
-                    break;
-                }
-            }
-
-            if (driver == null) {
-                driver = (Driver) TypeDefinition.getInstance(driverClass).newInstance();
-
-                try {
-                    LOGGER.info("Registering JDBC driver [{}]", driver);
-                    DriverManager.registerDriver(driver);
-                    registeredDrivers.add(new WeakReference<>(driver));
-
-                } catch (SQLException error) {
-                    LOGGER.warn(String.format("Can't register JDBC driver [%s]!", driver), error);
-                }
-            }
-        }
-
-        // Create the data source.
-        HikariDataSource hikari = new HikariDataSource();
-
-        hikari.setJdbcUrl(url);
-        hikari.setUsername(ObjectUtils.to(String.class, settings.get(jdbcUserSetting)));
-        hikari.setPassword(ObjectUtils.to(String.class, settings.get(jdbcPasswordSetting)));
-        LOGGER.info("Created data source: {}", hikari);
-
-        return hikari;
+        return null;
     }
 
     @Override
@@ -2108,10 +1971,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
     /** {@link AbstractSqlDatabase} utility methods. */
     public static final class Static {
-
-        public static List<AbstractSqlDatabase> getAll() {
-            return INSTANCES;
-        }
 
         public static byte[] getOriginalData(Object object) {
             return (byte[]) State.getInstance(object).getExtra(ORIGINAL_DATA_EXTRA);
