@@ -25,7 +25,6 @@ import com.github.shyiko.mysql.binlog.event.TableMapEventData;
 import com.github.shyiko.mysql.binlog.event.UpdateRowsEventData;
 import com.google.common.cache.Cache;
 import com.psddev.dari.db.shyiko.DariQueryEventData;
-import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.StringUtils;
 import com.psddev.dari.util.UuidUtils;
 
@@ -52,8 +51,21 @@ class MySQLBinaryLogEventListener implements EventListener {
         this.catalog = catalog;
     }
 
+    private UUID uuid(byte[] bytes) {
+        int bytesLength = bytes.length;
+
+        if (bytesLength != 16) {
+            byte[] fixed = new byte[16];
+            System.arraycopy(bytes, 0, fixed, 0, bytesLength);
+            return UuidUtils.fromBytes(fixed);
+
+        } else {
+            return UuidUtils.fromBytes(bytes);
+        }
+    }
+
     private void updateCache(byte[] id, byte[] typeId, byte[] data) {
-        UUID idUuid = ObjectUtils.to(UUID.class, id);
+        UUID idUuid = uuid(id);
 
         if (idUuid != null) {
             Map<String, Object> dataJson = AbstractSqlDatabase.unserializeData(data);
@@ -72,7 +84,7 @@ class MySQLBinaryLogEventListener implements EventListener {
     }
 
     private void invalidateCache(byte[] id) {
-        UUID idUuid = ObjectUtils.to(UUID.class, id);
+        UUID idUuid = uuid(id);
 
         if (idUuid != null) {
             LOGGER.debug("Invalidate cache: [{}]", idUuid);
