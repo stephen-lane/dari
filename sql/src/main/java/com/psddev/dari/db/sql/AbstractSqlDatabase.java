@@ -1925,6 +1925,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                                     .option(CONNECTION_QUERY_OPTION, connection)
                                     .option(RETURN_ORIGINAL_DATA_QUERY_OPTION, Boolean.TRUE)
                                     .master()
+                                    .noCache()
                                     .first();
 
                             if (oldObject == null) {
