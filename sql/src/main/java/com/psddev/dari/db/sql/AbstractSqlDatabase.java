@@ -92,7 +92,7 @@ import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 
 /** Database backed by a SQL engine. */
-public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> implements MetricSqlDatabase {
+public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> implements AutoCloseable, MetricSqlDatabase {
 
     public static final int MAX_STRING_INDEX_TYPE_LENGTH = 500;
 
@@ -885,7 +885,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     protected void onSymbolIdUpdate(String symbol, int id) {
     }
 
-    /** Closes any resources used by this database. */
+    @Override
     public void close() {
         DataSource dataSource = getDataSource();
 
