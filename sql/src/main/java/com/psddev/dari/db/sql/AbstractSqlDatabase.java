@@ -17,7 +17,6 @@ import com.psddev.dari.db.MetricSqlDatabase;
 import com.psddev.dari.db.ObjectField;
 import com.psddev.dari.db.ObjectIndex;
 import com.psddev.dari.db.Query;
-import com.psddev.dari.db.Singleton;
 import com.psddev.dari.db.State;
 import com.psddev.dari.db.StateValueUtils;
 import com.psddev.dari.db.UpdateNotifier;
@@ -79,7 +78,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.stream.Collectors;
@@ -183,7 +181,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     private volatile boolean compressData;
     private volatile boolean indexSpatial;
 
-    protected final transient ConcurrentMap<Class<?>, UUID> singletonIds = new ConcurrentHashMap<>();
     private final List<UpdateNotifier<?>> updateNotifiers = new ArrayList<>();
 
     // Cache that stores the difference between the local and the database
@@ -1024,13 +1021,9 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     }
 
     // Creates a previously saved object using the given resultSet.
-    <T> T createSavedObjectWithResultSet(ResultSet resultSet, Query<T> query) throws SQLException {
+    protected <T> T createSavedObjectWithResultSet(ResultSet resultSet, Query<T> query) throws SQLException {
         T object = createSavedObject(resultSet.getObject(2), resultSet.getObject(1), query);
         State objectState = State.getInstance(object);
-
-        if (object instanceof Singleton) {
-            singletonIds.put(object.getClass(), objectState.getId());
-        }
 
         if (!objectState.isReferenceOnly()) {
             byte[] data = resultSet.getBytes(3);

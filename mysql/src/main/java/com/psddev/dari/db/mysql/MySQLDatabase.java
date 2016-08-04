@@ -36,6 +36,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 
 public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable {
@@ -83,6 +85,7 @@ public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable 
 
     private transient volatile Cache<UUID, Object[]> replicationCache;
     private transient volatile MySQLBinaryLogReader mysqlBinaryLogReader;
+    private final transient ConcurrentMap<Class<?>, UUID> singletonIds = new ConcurrentHashMap<>();
 
     @Override
     public DataType<UUID> uuidType() {
@@ -191,6 +194,17 @@ public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable 
      */
     public void invalidateReplicationCache() {
         replicationCache.invalidateAll();
+    }
+
+    @Override
+    protected <T> T createSavedObjectWithResultSet(ResultSet resultSet, Query<T> query) throws SQLException {
+        T object = super.createSavedObjectWithResultSet(resultSet, query);
+
+        if (object instanceof Singleton) {
+            singletonIds.put(object.getClass(), State.getInstance(object).getId());
+        }
+
+        return object;
     }
 
     // Creates a previously saved object from the replication cache.
