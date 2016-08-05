@@ -18,6 +18,7 @@ import com.psddev.dari.db.ObjectField;
 import com.psddev.dari.db.ObjectIndex;
 import com.psddev.dari.db.Query;
 import com.psddev.dari.db.State;
+import com.psddev.dari.db.StateSerializer;
 import com.psddev.dari.db.StateValueUtils;
 import com.psddev.dari.db.UpdateNotifier;
 import com.psddev.dari.util.IoUtils;
@@ -28,7 +29,6 @@ import com.psddev.dari.util.Profiler;
 import com.psddev.dari.util.Settings;
 import com.psddev.dari.util.SettingsException;
 import com.psddev.dari.util.Stats;
-import org.iq80.snappy.Snappy;
 import org.jooq.BatchBindStep;
 import org.jooq.Condition;
 import org.jooq.Converter;
@@ -132,8 +132,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
     public static final String CATALOG_SUB_SETTING = "catalog";
     public static final String METRIC_CATALOG_SUB_SETTING = "metricCatalog";
-    public static final String COMPRESS_DATA_SUB_SETTING = "compressData";
-
     public static final String INDEX_SPATIAL_SUB_SETTING = "indexSpatial";
 
     public static final String CONNECTION_QUERY_OPTION = "sql.connection";
@@ -178,7 +176,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     private volatile DataSource readDataSource;
     private volatile String catalog;
     private volatile String metricCatalog;
-    private volatile boolean compressData;
     private volatile boolean indexSpatial;
 
     private final List<UpdateNotifier<?>> updateNotifiers = new ArrayList<>();
@@ -678,16 +675,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         }
     }
 
-    /** Returns {@code true} if the data should be compressed. */
-    public boolean isCompressData() {
-        return compressData;
-    }
-
-    /** Sets whether the data should be compressed. */
-    public void setCompressData(boolean compressData) {
-        this.compressData = compressData;
-    }
-
     public boolean isIndexSpatial() {
         return indexSpatial;
     }
@@ -960,68 +947,21 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         }
     }
 
-    private byte[] serializeState(State state) {
-        Map<String, Object> values = state.getSimpleValues();
-        byte[] dataBytes = ObjectUtils.toJson(values).getBytes(StandardCharsets.UTF_8);
-
-        if (isCompressData()) {
-            byte[] compressed = new byte[Snappy.maxCompressedLength(dataBytes.length)];
-            int compressedLength = Snappy.compress(dataBytes, 0, dataBytes.length, compressed, 0);
-
-            dataBytes = new byte[compressedLength + 1];
-            dataBytes[0] = 's';
-            System.arraycopy(compressed, 0, dataBytes, 1, compressedLength);
-        }
-
-        return dataBytes;
-    }
-
-    private static byte[] decodeData(byte[] dataBytes) {
-        char format;
-
-        while (true) {
-            format = (char) dataBytes[0];
-
-            if (format == 's') {
-                dataBytes = Snappy.uncompress(dataBytes, 1, dataBytes.length - 1);
-
-            } else if (format == '{') {
-                return dataBytes;
-
-            } else {
-                break;
-            }
-        }
-
-        throw new IllegalStateException(String.format(
-                "Unknown format! ([%s])",
-                format));
-    }
-
-    @SuppressWarnings("unchecked")
-    public static Map<String, Object> unserializeData(byte[] dataBytes) {
-        char format;
-
-        while (true) {
-            format = (char) dataBytes[0];
-
-            if (format == 's') {
-                dataBytes = Snappy.uncompress(dataBytes, 1, dataBytes.length - 1);
-
-            } else if (format == '{') {
-                return (Map<String, Object>) ObjectUtils.fromJson(dataBytes);
-
-            } else {
-                break;
-            }
-        }
-
-        throw new IllegalStateException(String.format(
-                "Unknown format! ([%s])", format));
-    }
-
-    // Creates a previously saved object using the given resultSet.
-    protected <T> T createSavedObjectWithResultSet(ResultSet resultSet, Query<T> query) throws SQLException {
+    /**
+     * Creates a previously saved object using the given {@code resultSet},
+     * and sets common state options based on the given {@code query}.
+     *
+     * @param resultSet
+     *        Can't be {@code null}.
+     *
+     * @param query
+     *        May be {@code null}.
+     *
+     * @return Never {@code null}.
+     *
+     * @see #createSavedObject(Object, Object, Query)
+     */
+    protected <T> T createSavedObjectUsingResultSet(ResultSet resultSet, Query<T> query) throws SQLException {
         T object = createSavedObject(resultSet.getObject(2), resultSet.getObject(1), query);
         State objectState = State.getInstance(object);
 
@@ -1029,17 +969,12 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             byte[] data = resultSet.getBytes(3);
 
             if (data != null) {
-                byte[] decodedData = decodeData(data);
-                @SuppressWarnings("unchecked")
-                Map<String, Object> unserializedData = (Map<String, Object>) ObjectUtils.fromJson(decodedData);
+                objectState.setValues(StateSerializer.deserialize(data));
+                objectState.getExtras().put(DATA_LENGTH_EXTRA, data.length);
 
-                objectState.setValues(unserializedData);
-                objectState.getExtras().put(DATA_LENGTH_EXTRA, decodedData.length);
-                Boolean returnOriginal = ObjectUtils.to(Boolean.class, query.getOptions().get(RETURN_ORIGINAL_DATA_QUERY_OPTION));
-                if (returnOriginal == null) {
-                    returnOriginal = Boolean.FALSE;
-                }
-                if (returnOriginal) {
+                if (query != null
+                        && ObjectUtils.to(boolean.class, query.getOptions().get(RETURN_ORIGINAL_DATA_QUERY_OPTION))) {
+
                     objectState.getExtras().put(ORIGINAL_DATA_EXTRA, data);
                 }
             }
@@ -1147,7 +1082,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                 .getSQL(ParamType.INLINED);
 
         return select(sqlQuery, query, result -> result.next()
-                ? createSavedObjectWithResultSet(result, query)
+                ? createSavedObjectUsingResultSet(result, query)
                 : null);
     }
 
@@ -1163,7 +1098,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             List<T> objects = new ArrayList<>();
 
             while (result.next()) {
-                objects.add(createSavedObjectWithResultSet(result, query));
+                objects.add(createSavedObjectUsingResultSet(result, query));
             }
 
             return objects;
@@ -1318,16 +1253,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                 READ_DATA_SOURCE_SETTING));
 
         setCatalog(ObjectUtils.to(String.class, settings.get(CATALOG_SUB_SETTING)));
-
         setMetricCatalog(ObjectUtils.to(String.class, settings.get(METRIC_CATALOG_SUB_SETTING)));
-
-        Boolean compressData = ObjectUtils.firstNonNull(
-                ObjectUtils.to(Boolean.class, settings.get(COMPRESS_DATA_SUB_SETTING)),
-                Settings.get(Boolean.class, "dari/isCompressSqlData"));
-        if (compressData != null) {
-            setCompressData(compressData);
-        }
-
         setIndexSpatial(ObjectUtils.firstNonNull(ObjectUtils.to(Boolean.class, settings.get(INDEX_SPATIAL_SUB_SETTING)), Boolean.TRUE));
 
         Connection connection = openAnyConnection();
@@ -1728,7 +1654,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                     // Looks like a new object so try to INSERT.
                     if (isNew) {
                         if (data == null) {
-                            data = serializeState(state);
+                            data = StateSerializer.serialize(state.getSimpleValues());
                         }
 
                         if (execute(connection, context, context
@@ -1757,7 +1683,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                         // Normal update.
                         if (atomicOperations.isEmpty()) {
                             if (data == null) {
-                                data = serializeState(state);
+                                data = StateSerializer.serialize(state.getSimpleValues());
                             }
 
                             if (execute(connection, context, context
@@ -1806,7 +1732,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                                 operation.execute(state);
                             }
 
-                            data = serializeState(state);
+                            data = StateSerializer.serialize(state.getSimpleValues());
 
                             if (execute(connection, context, context
                                     .update(recordTable())

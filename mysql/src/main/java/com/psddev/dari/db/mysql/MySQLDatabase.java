@@ -10,6 +10,7 @@ import com.psddev.dari.db.Query;
 import com.psddev.dari.db.Singleton;
 import com.psddev.dari.db.SqlVendor;
 import com.psddev.dari.db.State;
+import com.psddev.dari.db.StateSerializer;
 import com.psddev.dari.db.StateValueUtils;
 import com.psddev.dari.db.sql.AbstractSqlDatabase;
 import com.psddev.dari.util.CompactMap;
@@ -197,8 +198,8 @@ public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable 
     }
 
     @Override
-    protected <T> T createSavedObjectWithResultSet(ResultSet resultSet, Query<T> query) throws SQLException {
-        T object = super.createSavedObjectWithResultSet(resultSet, query);
+    protected <T> T createSavedObjectUsingResultSet(ResultSet resultSet, Query<T> query) throws SQLException {
+        T object = super.createSavedObjectUsingResultSet(resultSet, query);
 
         if (object instanceof Singleton) {
             singletonIds.put(object.getClass(), State.getInstance(object).getId());
@@ -313,7 +314,7 @@ public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable 
                         }
 
                         byte[] data = result.getBytes(2);
-                        Map<String, Object> dataJson = unserializeData(data);
+                        Map<String, Object> dataJson = StateSerializer.deserialize(data);
                         UUID typeId = ObjectUtils.to(UUID.class, dataJson.get(StateValueUtils.TYPE_KEY));
 
                         if (!UuidUtils.ZERO_UUID.equals(typeId)) {
