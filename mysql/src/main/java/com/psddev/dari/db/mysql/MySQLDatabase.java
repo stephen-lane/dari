@@ -69,8 +69,6 @@ public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable 
     public static final String ENABLE_REPLICATION_CACHE_SUB_SETTING = "enableReplicationCache";
     public static final String REPLICATION_CACHE_SIZE_SUB_SETTING = "replicationCacheSize";
 
-    public static final String DISABLE_REPLICATION_CACHE_QUERY_OPTION = "sql.disableReplicationCache";
-
     private static final Logger LOGGER = LoggerFactory.getLogger(MySQLDatabase.class);
 
     private static final String SHORT_NAME = "MySQL";
@@ -408,7 +406,6 @@ public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable 
     private boolean checkReplicationCache(Query<?> query) {
         return query.isCache()
                 && isEnableReplicationCache()
-                && !Boolean.TRUE.equals(query.getOptions().get(DISABLE_REPLICATION_CACHE_QUERY_OPTION))
                 && mysqlBinaryLogReader != null
                 && mysqlBinaryLogReader.isConnected();
     }
