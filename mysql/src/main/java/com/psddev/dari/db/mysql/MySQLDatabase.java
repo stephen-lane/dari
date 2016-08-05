@@ -70,7 +70,6 @@ public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable 
     public static final String REPLICATION_CACHE_SIZE_SUB_SETTING = "replicationCacheSize";
 
     public static final String DISABLE_REPLICATION_CACHE_QUERY_OPTION = "sql.disableReplicationCache";
-    public static final String MYSQL_INDEX_HINT_QUERY_OPTION = "sql.mysqlIndexHint";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(MySQLDatabase.class);
 
