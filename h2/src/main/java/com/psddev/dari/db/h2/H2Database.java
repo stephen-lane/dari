@@ -47,16 +47,18 @@ public class H2Database extends AbstractSqlDatabase {
 
     @Override
     protected void setUp() {
-        Connection connection = openConnection();
+        if (isIndexSpatial()) {
+            Connection connection = openConnection();
 
-        try {
-            org.h2gis.ext.H2GISExtension.load(connection);
+            try {
+                org.h2gis.ext.H2GISExtension.load(connection);
 
-        } catch (SQLException error) {
-            throw new SqlDatabaseException(this, "Can't load H2 GIS extension!", error);
+            } catch (SQLException error) {
+                throw new SqlDatabaseException(this, "Can't load H2 GIS extension!", error);
 
-        } finally {
-            closeConnection(connection);
+            } finally {
+                closeConnection(connection);
+            }
         }
 
         super.setUp();
