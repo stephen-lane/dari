@@ -24,8 +24,8 @@ abstract class AbstractSqlIndex {
     public final Field<Object> valueField;
 
     protected AbstractSqlIndex(AbstractSqlDatabase database, String namePrefix, int version) {
-        DataType<Integer> integerType = database.integerType;
-        DataType<UUID> uuidType = database.uuidType;
+        DataType<Integer> integerType = database.integerType();
+        DataType<UUID> uuidType = database.uuidType();
 
         this.database = database;
         this.table = DSL.table(DSL.name(namePrefix + version));

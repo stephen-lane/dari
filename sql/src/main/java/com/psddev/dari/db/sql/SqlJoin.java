@@ -168,7 +168,7 @@ final class SqlJoin {
             switch (queryKey) {
                 case Query.ID_KEY :
                 case Query.TYPE_KEY :
-                    return DSL.inline(ObjectUtils.to(UUID.class, value), sqlQuery.database.uuidType);
+                    return DSL.inline(ObjectUtils.to(UUID.class, value), sqlQuery.database.uuidType());
 
                 default :
                     return value;

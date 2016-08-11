@@ -151,25 +151,19 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     private static final String QUERY_PROFILER_EVENT = SHORT_NAME + " " + QUERY_STATS_OPERATION;
     private static final String UPDATE_PROFILER_EVENT = SHORT_NAME + " " + UPDATE_STATS_OPERATION;
 
-    protected final DataType<byte[]> byteArrayType;
-    protected final DataType<Double> doubleType;
-    protected final DataType<Integer> integerType;
-    protected final DataType<String> stringIndexType;
-    protected final DataType<UUID> uuidType;
+    protected final Table<Record> recordTable = DSL.table(DSL.name("Record"));
+    protected final Field<UUID> recordIdField = DSL.field(DSL.name("id"), uuidType());
+    protected final Field<UUID> recordTypeIdField = DSL.field(DSL.name("typeId"), uuidType());
+    protected final Field<byte[]> recordDataField = DSL.field(DSL.name("data"), byteArrayType());
 
-    protected final Table<Record> recordTable;
-    protected final Field<UUID> recordIdField;
-    protected final Field<UUID> recordTypeIdField;
-    protected final Field<byte[]> recordDataField;
+    protected final Table<Record> recordUpdateTable = DSL.table(DSL.name("RecordUpdate"));
+    protected final Field<UUID> recordUpdateIdField = DSL.field(DSL.name("id"), uuidType());
+    protected final Field<UUID> recordUpdateTypeIdField = DSL.field(DSL.name("typeId"), uuidType());
+    protected final Field<Double> recordUpdateDateField = DSL.field(DSL.name("updateDate"), doubleType());
 
-    protected final Table<Record> recordUpdateTable;
-    protected final Field<UUID> recordUpdateIdField;
-    protected final Field<UUID> recordUpdateTypeIdField;
-    protected final Field<Double> recordUpdateDateField;
-
-    protected final Table<Record> symbolTable;
-    protected final Field<Integer> symbolIdField;
-    protected final Field<String> symbolValueField;
+    protected final Table<Record> symbolTable = DSL.table(DSL.name("Symbol"));
+    protected final Field<Integer> symbolIdField = DSL.field(DSL.name("symbolId"), integerType());
+    protected final Field<String> symbolValueField = DSL.field(DSL.name("value"), stringIndexType());
 
     private volatile List<AbstractSqlIndex> locationSqlIndexes;
     private volatile List<AbstractSqlIndex> numberSqlIndexes;
@@ -237,90 +231,24 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         }
     };
 
-    protected AbstractSqlDatabase() {
-        byteArrayType = initializeByteArrayType();
-        doubleType = initializeDoubleType();
-        integerType = initializeIntegerType();
-        stringIndexType = initializeStringIndexType();
-        uuidType = initializeUuidType();
-
-        recordTable = initializeRecordTable();
-        recordIdField = initializeRecordIdField();
-        recordTypeIdField = initializeRecordTypeIdField();
-        recordDataField = initializeRecordDataField();
-
-        recordUpdateTable = initializeRecordUpdateTable();
-        recordUpdateIdField = initializeRecordUpdateIdField();
-        recordUpdateTypeIdField = initializeRecordUpdateTypeIdField();
-        recordUpdateDateField = initializeRecordUpdateDateField();
-
-        symbolTable = initializeSymbolTable();
-        symbolIdField = initializeSymbolIdField();
-        symbolValueField = initializeSymbolValueField();
-    }
-
-    protected DataType<byte[]> initializeByteArrayType() {
+    protected DataType<byte[]> byteArrayType() {
         return SQLDataType.LONGVARBINARY;
     }
 
-    protected DataType<Double> initializeDoubleType() {
+    protected DataType<Double> doubleType() {
         return SQLDataType.DOUBLE;
     }
 
-    protected DataType<Integer> initializeIntegerType() {
+    protected DataType<Integer> integerType() {
         return SQLDataType.INTEGER;
     }
 
-    protected DataType<String> initializeStringIndexType() {
+    protected DataType<String> stringIndexType() {
         return STRING_INDEX_TYPE;
     }
 
-    protected DataType<UUID> initializeUuidType() {
+    protected DataType<UUID> uuidType() {
         return SQLDataType.UUID;
-    }
-
-    protected Table<Record> initializeRecordTable() {
-        return DSL.table(DSL.name("Record"));
-    }
-
-    protected Field<UUID> initializeRecordIdField() {
-        return DSL.field(DSL.name("id"), uuidType);
-    }
-
-    protected Field<UUID> initializeRecordTypeIdField() {
-        return DSL.field(DSL.name("typeId"), uuidType);
-    }
-
-    protected Field<byte[]> initializeRecordDataField() {
-        return DSL.field(DSL.name("data"), byteArrayType);
-    }
-
-    protected Table<Record> initializeRecordUpdateTable() {
-        return DSL.table(DSL.name("RecordUpdate"));
-    }
-
-    protected Field<UUID> initializeRecordUpdateIdField() {
-        return DSL.field(DSL.name("id"), uuidType);
-    }
-
-    protected Field<UUID> initializeRecordUpdateTypeIdField() {
-        return DSL.field(DSL.name("typeId"), uuidType);
-    }
-
-    protected Field<Double> initializeRecordUpdateDateField() {
-        return DSL.field(DSL.name("updateDate"), doubleType);
-    }
-
-    protected Table<Record> initializeSymbolTable() {
-        return DSL.table(DSL.name("Symbol"));
-    }
-
-    protected Field<Integer> initializeSymbolIdField() {
-        return DSL.field(DSL.name("symbolId"), integerType);
-    }
-
-    protected Field<String> initializeSymbolValueField() {
-        return DSL.field(DSL.name("value"), stringIndexType);
     }
 
     protected Field<Double> stArea(Field<Object> field) {
@@ -743,7 +671,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                 org.jooq.Query createQuery = context
                         .insertInto(symbolTable, symbolValueField)
                         .select(context
-                                .select(DSL.inline(symbol, stringIndexType))
+                                .select(DSL.inline(symbol, stringIndexType()))
                                 .whereNotExists(context
                                         .selectOne()
                                         .from(symbolTable)
@@ -1592,9 +1520,9 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                                         recordTypeIdField,
                                         recordDataField)
                                 .select(context.select(
-                                        DSL.inline(id, uuidType),
-                                        DSL.inline(typeId, uuidType),
-                                        DSL.inline(data, byteArrayType))
+                                        DSL.inline(id, uuidType()),
+                                        DSL.inline(typeId, uuidType()),
+                                        DSL.inline(data, byteArrayType()))
                                         .whereNotExists(context
                                                 .selectOne()
                                                 .from(recordTable)
@@ -1691,9 +1619,9 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                                         recordUpdateTypeIdField,
                                         recordUpdateDateField)
                                 .select(context.select(
-                                        DSL.inline(id, uuidType),
-                                        DSL.inline(typeId, uuidType),
-                                        DSL.inline(now, doubleType))
+                                        DSL.inline(id, uuidType()),
+                                        DSL.inline(typeId, uuidType()),
+                                        DSL.inline(now, doubleType()))
                                         .whereNotExists(context
                                                 .selectOne()
                                                 .from(recordUpdateTable)

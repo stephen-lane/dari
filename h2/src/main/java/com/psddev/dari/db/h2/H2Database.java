@@ -41,7 +41,7 @@ public class H2Database extends AbstractSqlDatabase {
     });
 
     @Override
-    protected DataType<String> initializeStringIndexType() {
+    protected DataType<String> stringIndexType() {
         return STRING_INDEX_TYPE;
     }
 

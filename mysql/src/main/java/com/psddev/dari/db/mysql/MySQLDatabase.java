@@ -86,7 +86,7 @@ public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable 
     private final transient ConcurrentMap<Class<?>, UUID> singletonIds = new ConcurrentHashMap<>();
 
     @Override
-    protected DataType<UUID> initializeUuidType() {
+    protected DataType<UUID> uuidType() {
         return UUID_TYPE;
     }
 
