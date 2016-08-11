@@ -73,7 +73,7 @@ final class SqlIterator<T> implements Closeable, Iterator<T> {
         }
 
         try {
-            T object = database.createSavedObjectWithResultSet(result, query);
+            T object = database.createSavedObjectUsingResultSet(result, query);
 
             moveToNext();
             return object;
