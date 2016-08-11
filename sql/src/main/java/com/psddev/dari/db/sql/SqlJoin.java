@@ -132,11 +132,11 @@ final class SqlJoin {
                     sqlIndex = sqlIndexes.get(sqlIndexes.size() - 1);
                 }
 
-                table = DSL.table(DSL.name(sqlIndex.table().getName())).as(sqlQuery.aliasPrefix + alias);
-                idField = sqlQuery.aliasedField(alias, sqlIndex.idField().getName());
-                typeIdField = sqlQuery.aliasedField(alias, sqlIndex.typeIdField().getName());
-                symbolIdField = sqlQuery.aliasedField(alias, sqlIndex.symbolIdField().getName());
-                valueField = sqlQuery.aliasedField(alias, sqlIndex.valueField().getName());
+                table = DSL.table(DSL.name(sqlIndex.table.getName())).as(sqlQuery.aliasPrefix + alias);
+                idField = sqlQuery.aliasedField(alias, sqlIndex.idField.getName());
+                typeIdField = sqlQuery.aliasedField(alias, sqlIndex.typeIdField.getName());
+                symbolIdField = sqlQuery.aliasedField(alias, sqlIndex.symbolIdField.getName());
+                valueField = sqlQuery.aliasedField(alias, sqlIndex.valueField.getName());
 
                 addSymbolId(queryKey);
                 break;
@@ -168,7 +168,7 @@ final class SqlJoin {
             switch (queryKey) {
                 case Query.ID_KEY :
                 case Query.TYPE_KEY :
-                    return DSL.inline(ObjectUtils.to(UUID.class, value), sqlQuery.database.uuidType());
+                    return DSL.inline(ObjectUtils.to(UUID.class, value), sqlQuery.database.uuidType);
 
                 default :
                     return value;

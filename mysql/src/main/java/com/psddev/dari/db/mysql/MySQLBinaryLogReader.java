@@ -44,7 +44,7 @@ class MySQLBinaryLogReader {
     private final MySQLBinaryLogLifecycleListener lifecycleListener;
     private final AtomicBoolean running = new AtomicBoolean();
 
-    public MySQLBinaryLogReader(MySQLDatabase database, Cache<UUID, Object[]> cache, DataSource dataSource) {
+    public MySQLBinaryLogReader(MySQLDatabase database, Cache<UUID, Object[]> cache, DataSource dataSource, String recordTableName) {
         Class<?> dataSourceClass = dataSource.getClass();
         String dataSourceClassName = dataSourceClass.getName();
         String jdbcUrl = null;
@@ -102,7 +102,7 @@ class MySQLBinaryLogReader {
 
         client.setServerId(RANDOM.nextLong());
         client.registerLifecycleListener(lifecycleListener);
-        client.registerEventListener(new MySQLBinaryLogEventListener(database, cache, catalog));
+        client.registerEventListener(new MySQLBinaryLogEventListener(database, cache, catalog, recordTableName));
 
         @SuppressWarnings("rawtypes")
         Map<EventType, EventDataDeserializer> eventDataDeserializers = new HashMap<>();

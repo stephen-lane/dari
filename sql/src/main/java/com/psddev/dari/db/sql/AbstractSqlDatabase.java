@@ -151,19 +151,25 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     private static final String QUERY_PROFILER_EVENT = SHORT_NAME + " " + QUERY_STATS_OPERATION;
     private static final String UPDATE_PROFILER_EVENT = SHORT_NAME + " " + UPDATE_STATS_OPERATION;
 
-    private final Table<Record> recordTable;
-    private final Field<UUID> recordIdField;
-    private final Field<UUID> recordTypeIdField;
-    private final Field<byte[]> recordDataField;
+    protected final DataType<byte[]> byteArrayType;
+    protected final DataType<Double> doubleType;
+    protected final DataType<Integer> integerType;
+    protected final DataType<String> stringIndexType;
+    protected final DataType<UUID> uuidType;
 
-    private final Table<Record> recordUpdateTable;
-    private final Field<UUID> recordUpdateIdField;
-    private final Field<UUID> recordUpdateTypeIdField;
-    private final Field<Double> recordUpdateDateField;
+    protected final Table<Record> recordTable;
+    protected final Field<UUID> recordIdField;
+    protected final Field<UUID> recordTypeIdField;
+    protected final Field<byte[]> recordDataField;
 
-    private final Table<Record> symbolTable;
-    private final Field<Integer> symbolIdField;
-    private final Field<String> symbolValueField;
+    protected final Table<Record> recordUpdateTable;
+    protected final Field<UUID> recordUpdateIdField;
+    protected final Field<UUID> recordUpdateTypeIdField;
+    protected final Field<Double> recordUpdateDateField;
+
+    protected final Table<Record> symbolTable;
+    protected final Field<Integer> symbolIdField;
+    protected final Field<String> symbolValueField;
 
     private volatile List<AbstractSqlIndex> locationSqlIndexes;
     private volatile List<AbstractSqlIndex> numberSqlIndexes;
@@ -213,8 +219,8 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
             try (DSLContext context = openContext(connection)) {
                 ResultQuery<Record2<Integer, String>> query = context
-                        .select(symbolIdField(), symbolValueField())
-                        .from(symbolTable());
+                        .select(symbolIdField, symbolValueField)
+                        .from(symbolTable);
 
                 try {
                     Map<String, Integer> symbolIds = new ConcurrentHashMap<>();
@@ -232,45 +238,89 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     };
 
     protected AbstractSqlDatabase() {
-        DataType<byte[]> byteArrayType = byteArrayType();
-        DataType<Double> doubleType = doubleType();
-        DataType<Integer> integerType = integerType();
-        DataType<String> stringIndexType = stringIndexType();
-        DataType<UUID> uuidType = uuidType();
+        byteArrayType = initializeByteArrayType();
+        doubleType = initializeDoubleType();
+        integerType = initializeIntegerType();
+        stringIndexType = initializeStringIndexType();
+        uuidType = initializeUuidType();
 
-        recordTable = DSL.table(DSL.name("Record"));
-        recordIdField = DSL.field(DSL.name("id"), uuidType);
-        recordTypeIdField = DSL.field(DSL.name("typeId"), uuidType);
-        recordDataField = DSL.field(DSL.name("data"), byteArrayType);
+        recordTable = initializeRecordTable();
+        recordIdField = initializeRecordIdField();
+        recordTypeIdField = initializeRecordTypeIdField();
+        recordDataField = initializeRecordDataField();
 
-        recordUpdateTable = DSL.table(DSL.name("RecordUpdate"));
-        recordUpdateIdField = DSL.field(DSL.name("id"), uuidType);
-        recordUpdateTypeIdField = DSL.field(DSL.name("typeId"), uuidType);
-        recordUpdateDateField = DSL.field(DSL.name("updateDate"), doubleType);
+        recordUpdateTable = initializeRecordUpdateTable();
+        recordUpdateIdField = initializeRecordUpdateIdField();
+        recordUpdateTypeIdField = initializeRecordUpdateTypeIdField();
+        recordUpdateDateField = initializeRecordUpdateDateField();
 
-        symbolTable = DSL.table(DSL.name("Symbol"));
-        symbolIdField = DSL.field(DSL.name("symbolId"), integerType);
-        symbolValueField = DSL.field(DSL.name("value"), stringIndexType);
+        symbolTable = initializeSymbolTable();
+        symbolIdField = initializeSymbolIdField();
+        symbolValueField = initializeSymbolValueField();
     }
 
-    public DataType<byte[]> byteArrayType() {
+    protected DataType<byte[]> initializeByteArrayType() {
         return SQLDataType.LONGVARBINARY;
     }
 
-    public DataType<Double> doubleType() {
+    protected DataType<Double> initializeDoubleType() {
         return SQLDataType.DOUBLE;
     }
 
-    public DataType<Integer> integerType() {
+    protected DataType<Integer> initializeIntegerType() {
         return SQLDataType.INTEGER;
     }
 
-    public DataType<String> stringIndexType() {
+    protected DataType<String> initializeStringIndexType() {
         return STRING_INDEX_TYPE;
     }
 
-    public DataType<UUID> uuidType() {
+    protected DataType<UUID> initializeUuidType() {
         return SQLDataType.UUID;
+    }
+
+    protected Table<Record> initializeRecordTable() {
+        return DSL.table(DSL.name("Record"));
+    }
+
+    protected Field<UUID> initializeRecordIdField() {
+        return DSL.field(DSL.name("id"), uuidType);
+    }
+
+    protected Field<UUID> initializeRecordTypeIdField() {
+        return DSL.field(DSL.name("typeId"), uuidType);
+    }
+
+    protected Field<byte[]> initializeRecordDataField() {
+        return DSL.field(DSL.name("data"), byteArrayType);
+    }
+
+    protected Table<Record> initializeRecordUpdateTable() {
+        return DSL.table(DSL.name("RecordUpdate"));
+    }
+
+    protected Field<UUID> initializeRecordUpdateIdField() {
+        return DSL.field(DSL.name("id"), uuidType);
+    }
+
+    protected Field<UUID> initializeRecordUpdateTypeIdField() {
+        return DSL.field(DSL.name("typeId"), uuidType);
+    }
+
+    protected Field<Double> initializeRecordUpdateDateField() {
+        return DSL.field(DSL.name("updateDate"), doubleType);
+    }
+
+    protected Table<Record> initializeSymbolTable() {
+        return DSL.table(DSL.name("Symbol"));
+    }
+
+    protected Field<Integer> initializeSymbolIdField() {
+        return DSL.field(DSL.name("symbolId"), integerType);
+    }
+
+    protected Field<String> initializeSymbolValueField() {
+        return DSL.field(DSL.name("value"), stringIndexType);
     }
 
     public Field<Double> stArea(Field<Object> field) {
@@ -291,50 +341,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
     public Field<Object> stMakeLine(Field<Object> x, Field<Object> y) {
         return DSL.field("ST_MakeLine({0}, {1})", x, y);
-    }
-
-    public Table<Record> recordTable() {
-        return recordTable;
-    }
-
-    public Field<UUID> recordIdField() {
-        return recordIdField;
-    }
-
-    public Field<UUID> recordTypeIdField() {
-        return recordTypeIdField;
-    }
-
-    public Field<byte[]> recordDataField() {
-        return recordDataField;
-    }
-
-    public Table<Record> recordUpdateTable() {
-        return recordUpdateTable;
-    }
-
-    public Field<UUID> recordUpdateIdField() {
-        return recordUpdateIdField;
-    }
-
-    public Field<UUID> recordUpdateTypeIdField() {
-        return recordUpdateTypeIdField;
-    }
-
-    public Field<Double> recordUpdateDateField() {
-        return recordUpdateDateField;
-    }
-
-    public Table<Record> symbolTable() {
-        return symbolTable;
-    }
-
-    public Field<Integer> symbolIdField() {
-        return symbolIdField;
-    }
-
-    public Field<String> symbolValueField() {
-        return symbolValueField;
     }
 
     /**
@@ -362,7 +368,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
             // Skip set-up if the Record table already exists.
             if (context.meta().getTables().stream()
-                    .filter(t -> t.getName().equals(recordTable().getName()))
+                    .filter(t -> t.getName().equals(recordTable.getName()))
                     .findFirst()
                     .isPresent()) {
 
@@ -475,18 +481,18 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                 Object symbolId = getSymbolId(sqlIndexValue.getUniqueName());
 
                 for (AbstractSqlIndex sqlIndex : getSqlIndexes(index)) {
-                    Table<Record> table = sqlIndex.table();
+                    Table<Record> table = sqlIndex.table;
                     BatchBindStep batch = batches.get(table);
-                    Param<UUID> idParam = sqlIndex.idParam();
-                    Param<UUID> typeIdParam = sqlIndex.typeIdParam();
-                    Param<Integer> symbolIdParam = sqlIndex.symbolIdParam();
+                    Param<UUID> idParam = sqlIndex.idParam;
+                    Param<UUID> typeIdParam = sqlIndex.typeIdParam;
+                    Param<Integer> symbolIdParam = sqlIndex.symbolIdParam;
 
                     if (batch == null) {
                         batch = context.batch(context.insertInto(table)
-                                .set(sqlIndex.idField(), idParam)
-                                .set(sqlIndex.typeIdField(), typeIdParam)
-                                .set(sqlIndex.symbolIdField(), symbolIdParam)
-                                .set(sqlIndex.valueField(), sqlIndex.valueParam()));
+                                .set(sqlIndex.idField, idParam)
+                                .set(sqlIndex.typeIdField, typeIdParam)
+                                .set(sqlIndex.symbolIdField, symbolIdParam)
+                                .set(sqlIndex.valueField, sqlIndex.valueParam()));
                     }
 
                     boolean bound = false;
@@ -550,11 +556,11 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         for (AbstractSqlIndex sqlIndex : deleteSqlIndexes) {
             try {
                 DeleteConditionStep<Record> delete = context
-                        .deleteFrom(sqlIndex.table())
-                        .where(sqlIndex.idField().in(stateIds));
+                        .deleteFrom(sqlIndex.table)
+                        .where(sqlIndex.idField.in(stateIds));
 
                 if (onlyIndex != null) {
-                    delete = delete.and(sqlIndex.symbolIdField().eq(getReadSymbolId(onlyIndex.getUniqueName())));
+                    delete = delete.and(sqlIndex.symbolIdField.eq(getReadSymbolId(onlyIndex.getUniqueName())));
                 }
 
                 context.execute(delete);
@@ -746,15 +752,11 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         Connection connection = openAnyConnection();
 
         try (DSLContext context = openContext(connection)) {
-            Table<Record> symbolTable = symbolTable();
-            Field<Integer> symbolIdField = symbolIdField();
-            Field<String> symbolValueField = symbolValueField();
-
             if (create) {
                 org.jooq.Query createQuery = context
                         .insertInto(symbolTable, symbolValueField)
                         .select(context
-                                .select(DSL.inline(symbol, stringIndexType()))
+                                .select(DSL.inline(symbol, stringIndexType))
                                 .whereNotExists(context
                                         .selectOne()
                                         .from(symbolTable)
@@ -1263,7 +1265,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         boolean empty = true;
 
         for (AbstractSqlIndex sqlIndex : sqlIndexes) {
-            if (existingTables.contains(sqlIndex.table().getName().toLowerCase(Locale.ENGLISH))) {
+            if (existingTables.contains(sqlIndex.table.getName().toLowerCase(Locale.ENGLISH))) {
                 builder.add(sqlIndex);
                 empty = false;
             }
@@ -1623,19 +1625,19 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                         }
 
                         if (execute(connection, context, context
-                                .insertInto(recordTable(),
-                                        recordIdField(),
-                                        recordTypeIdField(),
-                                        recordDataField())
+                                .insertInto(recordTable,
+                                        recordIdField,
+                                        recordTypeIdField,
+                                        recordDataField)
                                 .select(context.select(
-                                        DSL.inline(id, uuidType()),
-                                        DSL.inline(typeId, uuidType()),
-                                        DSL.inline(data, byteArrayType()))
+                                        DSL.inline(id, uuidType),
+                                        DSL.inline(typeId, uuidType),
+                                        DSL.inline(data, byteArrayType))
                                         .whereNotExists(context
                                                 .selectOne()
-                                                .from(recordTable())
-                                                .where(recordIdField().eq(id))
-                                                .and(recordTypeIdField().eq(typeId))))) < 1) {
+                                                .from(recordTable)
+                                                .where(recordIdField.eq(id))
+                                                .and(recordTypeIdField.eq(typeId))))) < 1) {
 
                             // INSERT failed so retry with UPDATE.
                             isNew = false;
@@ -1652,10 +1654,10 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                             }
 
                             if (execute(connection, context, context
-                                    .update(recordTable())
-                                    .set(recordTypeIdField(), typeId)
-                                    .set(recordDataField(), data)
-                                    .where(recordIdField().eq(id))) < 1) {
+                                    .update(recordTable)
+                                    .set(recordTypeIdField, typeId)
+                                    .set(recordDataField, data)
+                                    .where(recordIdField.eq(id))) < 1) {
 
                                 // UPDATE failed so retry with INSERT.
                                 isNew = true;
@@ -1700,12 +1702,12 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                             data = StateSerializer.serialize(state.getSimpleValues());
 
                             if (execute(connection, context, context
-                                    .update(recordTable())
-                                    .set(recordTypeIdField(), typeId)
-                                    .set(recordDataField(), data)
-                                    .where(recordIdField().eq(id))
-                                    .and(recordTypeIdField().eq(oldTypeId))
-                                    .and(recordDataField().eq(oldData))) < 1) {
+                                    .update(recordTable)
+                                    .set(recordTypeIdField, typeId)
+                                    .set(recordDataField, data)
+                                    .where(recordIdField.eq(id))
+                                    .and(recordTypeIdField.eq(oldTypeId))
+                                    .and(recordDataField.eq(oldData))) < 1) {
 
                                 // UPDATE failed so start over.
                                 retryWrites();
@@ -1722,18 +1724,18 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                 while (true) {
                     if (isNew) {
                         if (execute(connection, context, context
-                                .insertInto(recordUpdateTable(),
-                                        recordUpdateIdField(),
-                                        recordUpdateTypeIdField(),
-                                        recordUpdateDateField())
+                                .insertInto(recordUpdateTable,
+                                        recordUpdateIdField,
+                                        recordUpdateTypeIdField,
+                                        recordUpdateDateField)
                                 .select(context.select(
-                                        DSL.inline(id, uuidType()),
-                                        DSL.inline(typeId, uuidType()),
-                                        DSL.inline(now, doubleType()))
+                                        DSL.inline(id, uuidType),
+                                        DSL.inline(typeId, uuidType),
+                                        DSL.inline(now, doubleType))
                                         .whereNotExists(context
                                                 .selectOne()
-                                                .from(recordUpdateTable())
-                                                .where(recordUpdateIdField().eq(id))))) < 1) {
+                                                .from(recordUpdateTable)
+                                                .where(recordUpdateIdField.eq(id))))) < 1) {
 
                             // INSERT failed so retry with UPDATE.
                             isNew = false;
@@ -1742,10 +1744,10 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
                     } else {
                         if (execute(connection, context, context
-                                .update(recordUpdateTable())
-                                .set(recordUpdateTypeIdField(), typeId)
-                                .set(recordUpdateDateField(), now)
-                                .where(recordUpdateIdField().eq(id))) < 1) {
+                                .update(recordUpdateTable)
+                                .set(recordUpdateTypeIdField, typeId)
+                                .set(recordUpdateDateField, now)
+                                .where(recordUpdateIdField.eq(id))) < 1) {
 
                             // UPDATE failed so retry with INSERT.
                             isNew = true;
@@ -1788,14 +1790,14 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
             // Delete data.
             execute(connection, context, context
-                    .delete(recordTable())
-                    .where(recordIdField().in(stateIds)));
+                    .delete(recordTable)
+                    .where(recordIdField.in(stateIds)));
 
             // Save delete date.
             execute(connection, context, context
-                    .update(recordUpdateTable())
-                    .set(recordUpdateDateField(), System.currentTimeMillis() / 1000.0)
-                    .where(recordUpdateIdField().in(stateIds)));
+                    .update(recordUpdateTable)
+                    .set(recordUpdateDateField, System.currentTimeMillis() / 1000.0)
+                    .where(recordUpdateIdField.in(stateIds)));
         }
     }
 

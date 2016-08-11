@@ -14,18 +14,18 @@ import java.util.UUID;
 abstract class AbstractSqlIndex {
 
     protected final AbstractSqlDatabase database;
-    private final Table<Record> table;
-    private final Field<UUID> idField;
-    private final Param<UUID> idParam;
-    private final Field<UUID> typeIdField;
-    private final Param<UUID> typeIdParam;
-    private final Field<Integer> symbolIdField;
-    private final Param<Integer> symbolIdParam;
-    private final Field<Object> valueField;
+    public final Table<Record> table;
+    public final Field<UUID> idField;
+    public final Param<UUID> idParam;
+    public final Field<UUID> typeIdField;
+    public final Param<UUID> typeIdParam;
+    public final Field<Integer> symbolIdField;
+    public final Param<Integer> symbolIdParam;
+    public final Field<Object> valueField;
 
     protected AbstractSqlIndex(AbstractSqlDatabase database, String namePrefix, int version) {
-        DataType<Integer> integerType = database.integerType();
-        DataType<UUID> uuidType = database.uuidType();
+        DataType<Integer> integerType = database.integerType;
+        DataType<UUID> uuidType = database.uuidType;
 
         this.database = database;
         this.table = DSL.table(DSL.name(namePrefix + version));
@@ -36,38 +36,6 @@ abstract class AbstractSqlIndex {
         this.symbolIdField = DSL.field(DSL.name("symbolId"), integerType);
         this.symbolIdParam = DSL.param(symbolIdField.getName(), integerType);
         this.valueField = DSL.field(DSL.name("value"));
-    }
-
-    public Table<Record> table() {
-        return table;
-    }
-
-    public Field<UUID> idField() {
-        return idField;
-    }
-
-    public Param<UUID> idParam() {
-        return idParam;
-    }
-
-    public Field<UUID> typeIdField() {
-        return typeIdField;
-    }
-
-    public Param<UUID> typeIdParam() {
-        return typeIdParam;
-    }
-
-    public Field<Integer> symbolIdField() {
-        return symbolIdField;
-    }
-
-    public Param<Integer> symbolIdParam() {
-        return symbolIdParam;
-    }
-
-    public Field<Object> valueField() {
-        return valueField;
     }
 
     public abstract Object valueParam();

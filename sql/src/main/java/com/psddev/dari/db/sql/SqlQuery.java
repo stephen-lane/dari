@@ -75,9 +75,9 @@ class SqlQuery {
         renderContext = dslContext.renderContext().paramType(ParamType.INLINED);
 
         recordTableAlias = aliasPrefix + "r";
-        recordTable = DSL.table(DSL.name(database.recordTable().getName())).as(recordTableAlias);
-        recordIdField = DSL.field(DSL.name(recordTableAlias, database.recordIdField().getName()), database.uuidType());
-        recordTypeIdField = DSL.field(DSL.name(recordTableAlias, database.recordTypeIdField().getName()), database.uuidType());
+        recordTable = DSL.table(DSL.name(database.recordTable.getName())).as(recordTableAlias);
+        recordIdField = DSL.field(DSL.name(recordTableAlias, database.recordIdField.getName()), database.uuidType);
+        recordTypeIdField = DSL.field(DSL.name(recordTableAlias, database.recordTypeIdField.getName()), database.uuidType);
         mappedKeys = query.mapEmbeddedKeys(database.getEnvironment());
         selectedIndexes = new HashMap<>();
 
@@ -496,10 +496,10 @@ class SqlQuery {
      * matching the query were last updated.
      */
     public String lastUpdateStatement() {
-        Table<?> table = initialize(DSL.table(DSL.name(database.recordUpdateTable().getName())).as(recordTableAlias));
+        Table<?> table = initialize(DSL.table(DSL.name(database.recordUpdateTable.getName())).as(recordTableAlias));
 
         return tableRenderContext.render(dslContext
-                .select(DSL.field(DSL.name(recordTableAlias, database.recordUpdateDateField().getName())).max())
+                .select(DSL.field(DSL.name(recordTableAlias, database.recordUpdateDateField.getName())).max())
                 .from(table)
                 .where(whereCondition));
     }
@@ -538,7 +538,7 @@ class SqlQuery {
 
             if (!referenceOnly) {
                 String distinctAlias = aliasPrefix + "d";
-                DataType<UUID> uuidType = database.uuidType();
+                DataType<UUID> uuidType = database.uuidType;
                 select = dslContext
                         .select(selectFields)
                         .from(recordTable)

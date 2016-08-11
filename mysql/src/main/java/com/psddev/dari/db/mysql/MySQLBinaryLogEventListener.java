@@ -37,11 +37,11 @@ class MySQLBinaryLogEventListener implements EventListener {
     private final List<Serializable[]> pendingUpdates = new ArrayList<>();
     private final List<Serializable[]> pendingInvalidates = new ArrayList<>();
 
-    public MySQLBinaryLogEventListener(MySQLDatabase mysqlDatabase, Cache<UUID, Object[]> cache, String databaseName) {
+    public MySQLBinaryLogEventListener(MySQLDatabase mysqlDatabase, Cache<UUID, Object[]> cache, String databaseName, String recordTableName) {
         this.mysqlDatabase = mysqlDatabase;
         this.cache = cache;
         this.databaseName = databaseName;
-        this.recordTableName = mysqlDatabase.recordTable().getName();
+        this.recordTableName = recordTableName;
     }
 
     @Override

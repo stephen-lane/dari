@@ -86,7 +86,7 @@ public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable 
     private final transient ConcurrentMap<Class<?>, UUID> singletonIds = new ConcurrentHashMap<>();
 
     @Override
-    public DataType<UUID> uuidType() {
+    protected DataType<UUID> initializeUuidType() {
         return UUID_TYPE;
     }
 
@@ -293,9 +293,9 @@ public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable 
 
             try {
                 String sqlQuery = DSL.using(dialect())
-                        .select(recordIdField(), recordDataField())
-                        .from(recordTable())
-                        .where(recordIdField().in(missingIds))
+                        .select(recordIdField, recordDataField)
+                        .from(recordTable)
+                        .where(recordIdField.in(missingIds))
                         .getSQL(ParamType.INLINED);
 
                 List<T> selectObjects = objects;
@@ -393,7 +393,7 @@ public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable 
 
             try {
                 LOGGER.info("Starting MySQL binary log reader");
-                mysqlBinaryLogReader = new MySQLBinaryLogReader(this, replicationCache, ObjectUtils.firstNonNull(getReadDataSource(), getDataSource()));
+                mysqlBinaryLogReader = new MySQLBinaryLogReader(this, replicationCache, ObjectUtils.firstNonNull(getReadDataSource(), getDataSource()), recordTable.getName());
                 mysqlBinaryLogReader.start();
 
             } catch (IllegalArgumentException error) {

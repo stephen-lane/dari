@@ -41,9 +41,9 @@ final class SqlSubJoin {
 
         AbstractSqlDatabase database = sub.database;
         String alias = sub.recordTableAlias;
-        Field<?> id = DSL.field(DSL.name(alias, database.recordIdField().getName()), database.uuidType());
+        Field<?> id = DSL.field(DSL.name(alias, database.recordIdField.getName()), database.uuidType);
 
-        this.table = sub.initialize(DSL.table(DSL.name(database.recordTable().getName())).as(alias));
+        this.table = sub.initialize(DSL.table(DSL.name(database.recordTable.getName())).as(alias));
         this.on = join.valueField.eq(id);
 
         if (sub.needsDistinct) {
