@@ -1,56 +1,197 @@
 package com.psddev.dari.db.mysql;
 
+import com.github.shyiko.mysql.binlog.BinaryLogClient.EventListener;
+import com.github.shyiko.mysql.binlog.event.DeleteRowsEventData;
+import com.github.shyiko.mysql.binlog.event.Event;
+import com.github.shyiko.mysql.binlog.event.EventData;
+import com.github.shyiko.mysql.binlog.event.EventType;
+import com.github.shyiko.mysql.binlog.event.TableMapEventData;
+import com.github.shyiko.mysql.binlog.event.UpdateRowsEventData;
+import com.github.shyiko.mysql.binlog.event.WriteRowsEventData;
+import com.google.common.cache.Cache;
+import com.psddev.dari.db.State;
+import com.psddev.dari.db.StateSerializer;
+import com.psddev.dari.db.shyiko.DariQueryEventData;
+import com.psddev.dari.util.StringUtils;
+import com.psddev.dari.util.UuidUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
-import com.github.shyiko.mysql.binlog.event.WriteRowsEventData;
-import com.google.common.base.Charsets;
-import com.psddev.dari.db.State;
-import com.psddev.dari.db.sql.AbstractSqlDatabase;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.github.shyiko.mysql.binlog.BinaryLogClient.EventListener;
-import com.github.shyiko.mysql.binlog.event.DeleteRowsEventData;
-import com.github.shyiko.mysql.binlog.event.Event;
-import com.github.shyiko.mysql.binlog.event.EventData;
-import com.github.shyiko.mysql.binlog.event.EventHeader;
-import com.github.shyiko.mysql.binlog.event.EventType;
-import com.github.shyiko.mysql.binlog.event.TableMapEventData;
-import com.github.shyiko.mysql.binlog.event.UpdateRowsEventData;
-import com.google.common.cache.Cache;
-import com.psddev.dari.db.shyiko.DariQueryEventData;
-import com.psddev.dari.util.StringUtils;
-import com.psddev.dari.util.UuidUtils;
 
 class MySQLBinaryLogEventListener implements EventListener {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(MySQLBinaryLogEventListener.class);
-    private static final Pattern DELETE_PATTERN = Pattern.compile("DELETE\\s+FROM\\s+`?(?<table>\\p{Alnum}+)`?\\s+WHERE\\s+`?id`?\\s*(?:(?:IN\\s*\\()|(?:=))\\s*(?<id>(?:(?:[^\']+'){2},?\\s*){1,})\\)?", Pattern.CASE_INSENSITIVE);
-    private static final Pattern UPDATE_PATTERN = Pattern.compile("UPDATE\\s+`?(?<table>\\p{Alnum}+)`?\\s+SET\\s+`?typeId`?\\s*=\\s*(?<typeId>(?:[^\']+'){2})\\s*,\\s*`?data`?\\s*=\\s*(?<data>.+)\\s*WHERE\\s+`?id`?\\s*(?:(?:IN\\s*\\()|(?:=))\\s*(?<id>(?:[^\']+'){2}).*", Pattern.CASE_INSENSITIVE);
 
-    private final MySQLDatabase database;
-    private final String recordTableName;
+    private final MySQLDatabase mysqlDatabase;
     private final Cache<UUID, Object[]> cache;
-    private final String catalog;
+    private final String databaseName;
+    private final String recordTableName;
 
-    private boolean transactionBegin = false;
-    private TableMapEventData tableMapEventData;
-    private final List<Event> events = new ArrayList<Event>();
-    private boolean isFlushCache = false;
+    private Long recordTableId;
+    private boolean invalidateCacheOnCommit;
+    private final List<Serializable[]> pendingUpdates = new ArrayList<>();
+    private final List<Serializable[]> pendingInvalidates = new ArrayList<>();
 
-    public MySQLBinaryLogEventListener(MySQLDatabase database, Cache<UUID, Object[]> cache, String catalog) {
-        this.database = database;
-        this.recordTableName = database.recordTable().getName();
+    public MySQLBinaryLogEventListener(MySQLDatabase mysqlDatabase, Cache<UUID, Object[]> cache, String databaseName) {
+        this.mysqlDatabase = mysqlDatabase;
         this.cache = cache;
-        this.catalog = catalog;
+        this.databaseName = databaseName;
+        this.recordTableName = mysqlDatabase.recordTable().getName();
     }
 
+    @Override
+    public void onEvent(Event event) {
+        EventData eventData = event.getData();
+
+        if (eventData instanceof DariQueryEventData) {
+            DariQueryEventData queryEventData = (DariQueryEventData) eventData;
+            String sql = queryEventData.getSql();
+
+            if (sql.equalsIgnoreCase("BEGIN")) {
+                LOGGER.debug("Begin");
+                reset();
+
+            } else if (sql.equalsIgnoreCase("COMMIT")) {
+                LOGGER.debug("Commit");
+                commit();
+
+            } else if (sql.equalsIgnoreCase("ROLLBACK")) {
+                LOGGER.debug("Rollback");
+                reset();
+
+            } else if (queryEventData.getErrorCode() == 0
+                    && queryEventData.getDatabase().equals(databaseName)) {
+
+                int firstBackQuote = sql.indexOf('`');
+
+                if (firstBackQuote > -1) {
+                    ++ firstBackQuote;
+                    int secondBackQuote = sql.indexOf('`', firstBackQuote);
+                    String table = sql.substring(firstBackQuote, secondBackQuote);
+
+                    if (recordTableName.equalsIgnoreCase(table)) {
+                        invalidateCacheOnCommit = true;
+                    }
+                }
+            }
+
+        } else if (event.getHeader().getEventType() == EventType.XID) {
+            LOGGER.debug("XID");
+            commit();
+
+        // Only work on changes to the Record table.
+        } else if (eventData instanceof TableMapEventData) {
+            TableMapEventData tableMapEventData = (TableMapEventData) eventData;
+
+            if (tableMapEventData.getDatabase().equals(databaseName)
+                    && tableMapEventData.getTable().equalsIgnoreCase(recordTableName)) {
+
+                recordTableId = tableMapEventData.getTableId();
+                LOGGER.debug("Table ID: {}", recordTableId);
+            }
+
+        } else if (recordTableId != null) {
+            try {
+                if (eventData instanceof WriteRowsEventData) {
+                    WriteRowsEventData d = (WriteRowsEventData) eventData;
+
+                    if (d.getTableId() == recordTableId) {
+                        d.getRows().forEach(row -> {
+                            if (LOGGER.isInfoEnabled()) {
+                                LOGGER.debug("Pending write: {}", StringUtils.hex((byte[]) row[0]));
+                            }
+
+                            pendingUpdates.add(row);
+                        });
+                    }
+
+                } else if (eventData instanceof UpdateRowsEventData) {
+                    UpdateRowsEventData d = (UpdateRowsEventData) eventData;
+
+                    if (d.getTableId() == recordTableId) {
+                        d.getRows().stream().map(Map.Entry::getValue).forEach(row -> {
+                            if (LOGGER.isInfoEnabled()) {
+                                LOGGER.debug("Pending update: {}", StringUtils.hex((byte[]) row[0]));
+                            }
+
+                            pendingUpdates.add(row);
+                        });
+                    }
+
+                } else if (eventData instanceof DeleteRowsEventData) {
+                    DeleteRowsEventData d = (DeleteRowsEventData) eventData;
+
+                    if (d.getTableId() == recordTableId) {
+                        d.getRows().forEach(row -> {
+                            if (LOGGER.isInfoEnabled()) {
+                                LOGGER.debug("Pending delete: {}", StringUtils.hex((byte[]) row[0]));
+                            }
+
+                            pendingInvalidates.add(row);
+                        });
+                    }
+                }
+
+            } finally {
+                recordTableId = null;
+            }
+        }
+    }
+
+    private void reset() {
+        invalidateCacheOnCommit = false;
+        pendingUpdates.clear();
+        pendingInvalidates.clear();
+    }
+
+    private void commit() {
+        try {
+            if (invalidateCacheOnCommit) {
+                LOGGER.debug("Invalidate all");
+                cache.invalidateAll();
+
+            } else {
+                pendingUpdates.forEach(row -> {
+                    UUID id = uuid((byte[]) row[0]);
+
+                    if (id != null) {
+                        byte[] data = (byte[]) row[2];
+                        Map<String, Object> dataJson = StateSerializer.deserialize(data);
+                        Object object = mysqlDatabase.createSavedObjectFromReplicationCache(id, data, dataJson, null);
+
+                        mysqlDatabase.notifyUpdate(object);
+
+                        if (cache.getIfPresent(id) != null) {
+                            LOGGER.debug("Update: {}", id);
+                            cache.put(id, new Object[]{
+                                    UuidUtils.toBytes(State.getInstance(object).getTypeId()),
+                                    data,
+                                    dataJson});
+                        }
+                    }
+                });
+
+                pendingInvalidates.forEach(row -> {
+                    UUID id = uuid((byte[]) row[0]);
+
+                    if (id != null) {
+                        LOGGER.debug("Invalidate: {}", id);
+                        cache.invalidate(id);
+                    }
+                });
+            }
+
+        } finally {
+            reset();
+        }
+    }
+
+    // Binary fields don't include trailing 0s so add them back.
     private UUID uuid(byte[] bytes) {
         int bytesLength = bytes.length;
 
@@ -61,271 +202,6 @@ class MySQLBinaryLogEventListener implements EventListener {
 
         } else {
             return UuidUtils.fromBytes(bytes);
-        }
-    }
-
-    private void updateCache(byte[] id, byte[] typeId, byte[] data) {
-        UUID idUuid = uuid(id);
-
-        if (idUuid != null) {
-            Map<String, Object> dataJson = AbstractSqlDatabase.unserializeData(data);
-            Object object = database.createSavedObjectFromReplicationCache(idUuid, data, dataJson, null);
-
-            database.notifyUpdate(object);
-
-            if (cache.getIfPresent(idUuid) != null) {
-                LOGGER.debug("Update cache: [{}]", idUuid);
-                cache.put(idUuid, new Object[] {
-                        UuidUtils.toBytes(State.getInstance(object).getTypeId()),
-                        data,
-                        dataJson });
-            }
-        }
-    }
-
-    private void invalidateCache(byte[] id) {
-        UUID idUuid = uuid(id);
-
-        if (idUuid != null) {
-            LOGGER.debug("Invalidate cache: [{}]", idUuid);
-            cache.invalidate(idUuid);
-        }
-    }
-
-    private void commitTransaction() {
-
-        for (Event event : events) {
-            EventHeader eventHeader = event.getHeader();
-            EventType eventType = eventHeader.getEventType();
-            EventData eventData = event.getData();
-            LOGGER.debug("BIN LOG TEST [{}] [{}]", event.getHeader().getEventType().toString(), event.getData().toString());
-            if (eventType == EventType.WRITE_ROWS || eventType == EventType.EXT_WRITE_ROWS) {
-                for (Serializable[] row : ((WriteRowsEventData) eventData).getRows()) {
-                    byte[] data = row[2] instanceof byte[] ? (byte[]) row[2]
-                            : row[2] instanceof String ? ((String) row[2]).getBytes(Charsets.UTF_8)
-                            : null;
-
-                    updateCache((byte[]) row[0], (byte[]) row[1], data);
-                    LOGGER.debug("InsertRow HEX [{}][{}]", StringUtils.hex((byte[]) row[0]), ((byte[]) row[0]).length);
-                }
-
-            } else if (eventType == EventType.UPDATE_ROWS || eventType == EventType.EXT_UPDATE_ROWS) {
-                for (Map.Entry<Serializable[], Serializable[]> row : ((UpdateRowsEventData) eventData).getRows()) {
-                    Serializable[] newValue = row.getValue();
-                    byte[] data = newValue[2] instanceof byte[] ? (byte[]) newValue[2]
-                            : newValue[2] instanceof String ? ((String) newValue[2]).getBytes(Charsets.UTF_8)
-                            : null;
-
-                    updateCache((byte[]) newValue[0], (byte[]) newValue[1], data);
-                    LOGGER.debug("UpdateRow HEX [{}][{}]", StringUtils.hex((byte[]) newValue[0]), ((byte[]) newValue[0]).length);
-                }
-            } else if (eventType == EventType.DELETE_ROWS || eventType == EventType.EXT_DELETE_ROWS) {
-                for (Serializable[] row : ((DeleteRowsEventData) eventData).getRows()) {
-                    invalidateCache((byte[]) row[0]);
-                    LOGGER.debug("DeleteRow HEX [{}][{}]", StringUtils.hex((byte[]) row[0]), ((byte[]) row[0]).length);
-                }
-            } else if (eventType == EventType.QUERY) {
-                DariQueryEventData queryEventData = (DariQueryEventData) eventData;
-                if (queryEventData.getAction() == DariQueryEventData.Action.UPDATE) {
-                    updateCache(queryEventData.getId(), queryEventData.getTypeId(), queryEventData.getData());
-                } else if (queryEventData.getAction() == DariQueryEventData.Action.DELETE) {
-                    invalidateCache(queryEventData.getId());
-                }
-
-            } else {
-                LOGGER.error("NOT RECOGNIZED TYPE: {}", eventType);
-            }
-        }
-    }
-
-    private void flushCache() {
-        cache.invalidateAll();
-    }
-
-    private byte[] getByteData(byte[] source, String strSource, int begin, int end) {
-        byte[] target = null;
-        if (strSource.startsWith("_binary")) {
-            int targetIndex = 0;
-            target = new byte[end - begin - 9];
-            for (int sourceIndex = begin + 8; sourceIndex < end - 1; sourceIndex++) {
-                byte value = 0;
-                if (source[sourceIndex] == 92) { // '\'
-                    switch (source[++sourceIndex]) {
-                        case 34: // "
-                            value = 34;
-                            break;
-                        case 39: // '
-                            value = 39;
-                            break;
-                        case 48: // 0
-                            value = 0;
-                            break;
-                        case 97: // a
-                            value = 7;
-                            break;
-                        case 98: // b
-                            value = 8;
-                            break;
-                        case 116: // t
-                            value = 9;
-                            break;
-                        case 110: // n
-                            value = 10;
-                            break;
-                        case 118: // v
-                            value = 11;
-                            break;
-                        case 102: // f
-                            value = 12;
-                            break;
-                        case 114: // r
-                            value = 13;
-                            break;
-                        case 101: // e
-                            value = 27;
-                            break;
-                        default:
-                            value = source[--sourceIndex];
-                            break;
-                    }
-                } else {
-                    value = source[sourceIndex];
-                }
-                target[targetIndex++] = value;
-            }
-        } else if (strSource.startsWith("X")) {
-            String hex = strSource.substring(2, strSource.length() - 1);
-            int len = hex.length();
-            target = new byte[len / 2];
-            for (int i = 0; i < len; i += 2) {
-                target[i / 2] = (byte) ((Character.digit(hex.charAt(i), 16) << 4)
-                        + Character.digit(hex.charAt(i + 1), 16));
-            }
-
-        } else {
-            // TODO: error
-        }
-        return target;
-    }
-
-    private boolean processStatement(DariQueryEventData queryEventData) {
-
-        boolean processed = false;
-        if (queryEventData.getErrorCode() == 0 && queryEventData.getDatabase().equals(catalog)) {
-
-            String sql = queryEventData.getSql();
-            // TODO: parse sql statement to handle full syntax such as [LOW_PRIORITY | DELAYED | HIGH_PRIORITY] [IGNORE] [INTO]
-            String[] statementParts = sql.split("`?\\s+`?", 4);
-            String table = null;
-            if (statementParts[0].equalsIgnoreCase("UPDATE")
-                    || statementParts[0].equalsIgnoreCase("HANDLER")) {
-                table = statementParts[1];
-            } else if (statementParts[0].equalsIgnoreCase("DELETE")
-                    || statementParts[0].equalsIgnoreCase("INSERT")
-                    || statementParts[0].equalsIgnoreCase("REPLACE")) {
-                table = statementParts[2];
-            } else if ((statementParts[0].equalsIgnoreCase("ALTER")
-                    || statementParts[0].equalsIgnoreCase("CREATE")
-                    || statementParts[0].equalsIgnoreCase("RENAME")
-                    || statementParts[0].equalsIgnoreCase("TRUNCATE")
-                    || statementParts[0].equalsIgnoreCase("DROP"))
-                    && statementParts[1].equalsIgnoreCase("TABLE")) {
-                table = statementParts[2];
-            }
-            if (recordTableName.equalsIgnoreCase(table)) {
-                byte[] byteStatement = queryEventData.getStatement();
-                if (statementParts[0].equalsIgnoreCase("UPDATE")) {
-                    queryEventData.setActionl(DariQueryEventData.Action.UPDATE);
-                    Matcher matcher = UPDATE_PATTERN.matcher(sql);
-                    if (matcher.matches()) {
-                        queryEventData.setId(getByteData(byteStatement, matcher.group(4), matcher.start(4), matcher.end(4)));
-                        queryEventData.setTypeId(getByteData(byteStatement, matcher.group(2), matcher.start(2), matcher.end(2)));
-                        queryEventData.setData(getByteData(byteStatement, matcher.group(3), matcher.start(3), matcher.end(3)));
-                        processed = true;
-                        LOGGER.debug("[DEBUG] QUERY EVENT UPDATE [{}]", queryEventData);
-                    } else {
-                        isFlushCache = true;
-                        LOGGER.debug("Bin log cache flushed due to [{}]", sql);
-                    }
-                } else if (statementParts[0].equalsIgnoreCase("DELETE")) {
-                    queryEventData.setActionl(DariQueryEventData.Action.DELETE);
-                    Matcher matcher = DELETE_PATTERN.matcher(sql);
-                    if (matcher.matches()) {
-                        queryEventData.setId(getByteData(byteStatement, matcher.group(2), matcher.start(2), matcher.end(2)));
-                        processed = true;
-                        LOGGER.debug("[DEBUG] QUERY EVENT DELETE [{}]", queryEventData);
-                    } else {
-                        isFlushCache = true;
-                        LOGGER.debug("Bin log cache flushed due to [{}]", sql);
-                    }
-                } else if (statementParts[0].equalsIgnoreCase("INSERT")) {
-                    // Do nothing
-                } else {
-                    isFlushCache = true;
-                    LOGGER.debug("Bin log cache flushed due to [{}]", sql);
-                }
-            }
-        }
-        return processed;
-    }
-
-    @Override
-    public void onEvent(Event event) {
-
-        EventHeader eventHeader = event.getHeader();
-        EventType eventType = eventHeader.getEventType();
-        EventData eventData = event.getData();
-        long tableId = 0;
-
-        LOGGER.debug("TYPE: {}", eventType);
-
-        if (transactionBegin) {
-            if ((eventType == EventType.QUERY && ((DariQueryEventData) eventData).getSql().equalsIgnoreCase("COMMIT"))
-                    || (eventType == EventType.XID)) {
-                LOGGER.debug("[DEBUG] QUERY EVENT TRANSACTION COMMIT: [{}]", events.size());
-                try {
-                    if (isFlushCache) {
-                        flushCache();
-                    } else {
-                        commitTransaction();
-                    }
-                } finally {
-                    events.clear();
-                    isFlushCache = false;
-                    transactionBegin = false;
-                }
-            } else {
-                if (tableMapEventData != null) {
-                    // TODO: check column metadata to get length.
-                    try {
-                        if (EventType.isWrite(eventType)) {
-                            tableId = ((WriteRowsEventData) eventData).getTableId();
-                        } else if (EventType.isUpdate(eventType)) {
-                            tableId = ((UpdateRowsEventData) eventData).getTableId();
-                        } else if (EventType.isDelete(eventType)) {
-                            tableId = ((DeleteRowsEventData) eventData).getTableId();
-                        } else {
-                            LOGGER.error("NOT RECOGNIZED TYPE: {}", eventType);
-                        }
-                        if (tableMapEventData.getTableId() == tableId) {
-                            events.add(event);
-                        }
-                    } finally {
-                        tableMapEventData = null;
-                    }
-                } else if (eventType == EventType.TABLE_MAP) {
-                    if (((TableMapEventData) eventData).getDatabase().equals(catalog) && ((TableMapEventData) eventData).getTable().equalsIgnoreCase(recordTableName)) {
-                        tableMapEventData = (TableMapEventData) eventData;
-                    }
-                } else if (eventType == EventType.QUERY) {
-                    if (processStatement((DariQueryEventData) eventData)) {
-                        events.add(event);
-                    }
-                }
-            }
-        } else if (eventType == EventType.QUERY && ((DariQueryEventData) eventData).getSql().equalsIgnoreCase("BEGIN")) {
-            transactionBegin = true;
-            LOGGER.debug("[DEBUG] QUERY EVENT TRANSACTION BEGIN");
         }
     }
 }

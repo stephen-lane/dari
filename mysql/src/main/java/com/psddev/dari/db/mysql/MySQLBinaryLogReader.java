@@ -1,21 +1,5 @@
 package com.psddev.dari.db.mysql;
 
-import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
-import java.security.SecureRandom;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Properties;
-import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
-import javax.sql.DataSource;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.github.shyiko.mysql.binlog.BinaryLogClient;
 import com.github.shyiko.mysql.binlog.event.EventType;
 import com.github.shyiko.mysql.binlog.event.TableMapEventData;
@@ -35,6 +19,20 @@ import com.psddev.dari.db.shyiko.DariQueryEventDataDeserializer;
 import com.psddev.dari.db.shyiko.DariUpdateRowsEventDataDeserializer;
 import com.psddev.dari.db.shyiko.DariWriteRowsEventDataDeserializer;
 import com.psddev.dari.util.ObjectUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.sql.DataSource;
+import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.security.SecureRandom;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Properties;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 class MySQLBinaryLogReader {
 
@@ -42,14 +40,11 @@ class MySQLBinaryLogReader {
     private static final Pattern MYSQL_JDBC_URL_PATTERN = Pattern.compile("(?i)jdbc:mysql://([^:/]+)(?::(\\d+))?/([^?]+).*");
     private static final SecureRandom RANDOM = new SecureRandom();
 
-    private final MySQLDatabase database;
     private final BinaryLogClient client;
     private final MySQLBinaryLogLifecycleListener lifecycleListener;
     private final AtomicBoolean running = new AtomicBoolean();
 
     public MySQLBinaryLogReader(MySQLDatabase database, Cache<UUID, Object[]> cache, DataSource dataSource) {
-        this.database = database;
-
         Class<?> dataSourceClass = dataSource.getClass();
         String dataSourceClassName = dataSourceClass.getName();
         String jdbcUrl = null;
@@ -75,14 +70,11 @@ class MySQLBinaryLogReader {
                 password = (String) dataSourceClass.getMethod("getPassword").invoke(dataSource);
             }
 
-        } catch (IllegalAccessException error) {
+        } catch (IllegalAccessException | NoSuchMethodException error) {
             dataSourceError = error;
 
         } catch (InvocationTargetException error) {
             dataSourceError = error.getCause();
-
-        } catch (NoSuchMethodException error) {
-            dataSourceError = error;
         }
 
         if (dataSourceError != null) {
@@ -113,8 +105,8 @@ class MySQLBinaryLogReader {
         client.registerEventListener(new MySQLBinaryLogEventListener(database, cache, catalog));
 
         @SuppressWarnings("rawtypes")
-        Map<EventType, EventDataDeserializer> eventDataDeserializers = new HashMap<EventType, EventDataDeserializer>();
-        Map<Long, TableMapEventData> tableMapEventByTableId = new HashMap<Long, TableMapEventData>();
+        Map<EventType, EventDataDeserializer> eventDataDeserializers = new HashMap<>();
+        Map<Long, TableMapEventData> tableMapEventByTableId = new HashMap<>();
 
         eventDataDeserializers.put(EventType.FORMAT_DESCRIPTION, new FormatDescriptionEventDataDeserializer());
         eventDataDeserializers.put(EventType.ROTATE, new RotateEventDataDeserializer());
