@@ -1683,7 +1683,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                             // Restore the data from the old object.
                             State oldState = State.getInstance(oldObject);
                             UUID oldTypeId = oldState.getVisibilityAwareTypeId();
-                            byte[] oldData = Static.getOriginalData(oldObject);
+                            byte[] oldData = (byte[]) oldState.getExtra(ORIGINAL_DATA_EXTRA);
 
                             state.setValues(oldState.getValues());
 
@@ -1850,14 +1850,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                                 State.getInstance(object).getId()),
                         error);
             }
-        }
-    }
-
-    /** {@link AbstractSqlDatabase} utility methods. */
-    public static final class Static {
-
-        public static byte[] getOriginalData(Object object) {
-            return (byte[]) State.getInstance(object).getExtra(ORIGINAL_DATA_EXTRA);
         }
     }
 }
