@@ -1219,7 +1219,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
         setCatalog(ObjectUtils.to(String.class, settings.get(CATALOG_SUB_SETTING)));
         setMetricCatalog(ObjectUtils.to(String.class, settings.get(METRIC_CATALOG_SUB_SETTING)));
-        setIndexSpatial(ObjectUtils.firstNonNull(ObjectUtils.to(Boolean.class, settings.get(INDEX_SPATIAL_SUB_SETTING)), Boolean.TRUE));
+        setIndexSpatial(ObjectUtils.to(boolean.class, settings.get(INDEX_SPATIAL_SUB_SETTING)));
 
         Connection connection = openAnyConnection();
         Set<String> existingTables;
