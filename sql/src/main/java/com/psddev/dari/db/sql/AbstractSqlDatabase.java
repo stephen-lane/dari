@@ -586,15 +586,16 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     }
 
     /**
-     * @return Never {@code null}.
+     * Returns the jOOQ dialect that should be used to construct the SQL
+     * statements.
      */
-    protected abstract SQLDialect dialect();
+    protected abstract @Nonnull SQLDialect getDialect();
 
     /**
      * @return Never {@code null}.
      */
     protected DSLContext openContext(Connection connection) {
-        return DSL.using(connection, dialect());
+        return DSL.using(connection, getDialect());
     }
 
     private SqlDatabaseException convertJooqError(DataAccessException error, org.jooq.Query query) {
@@ -957,7 +958,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
      * @param query May be {@code null}.
      */
     public <T> T selectFirst(String sqlQuery, Query<T> query) {
-        sqlQuery = DSL.using(dialect())
+        sqlQuery = DSL.using(getDialect())
                 .selectFrom(DSL.table("(" + sqlQuery + ")").as("q"))
                 .offset(0)
                 .limit(1)
@@ -1262,7 +1263,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         }
 
         // 2. Select one more item than requested.
-        String sqlQuery = DSL.using(dialect())
+        String sqlQuery = DSL.using(getDialect())
                 .selectFrom(DSL.table("(" + buildSelectStatement(query) + ")").as("q"))
                 .offset((int) offset)
                 .limit(limit + 1)

@@ -70,7 +70,7 @@ class SqlQuery {
         this.query = query;
         this.aliasPrefix = aliasPrefix;
 
-        dslContext = DSL.using(database.dialect());
+        dslContext = DSL.using(database.getDialect());
         tableRenderContext = dslContext.renderContext().paramType(ParamType.INLINED).declareTables(true);
         renderContext = dslContext.renderContext().paramType(ParamType.INLINED);
 

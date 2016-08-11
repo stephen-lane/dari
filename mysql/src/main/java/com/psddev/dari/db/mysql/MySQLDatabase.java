@@ -28,6 +28,7 @@ import org.jooq.util.mysql.MySQLDataType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nonnull;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -169,7 +170,7 @@ public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable 
     }
 
     @Override
-    protected SQLDialect dialect() {
+    protected @Nonnull SQLDialect getDialect() {
         return SQLDialect.MYSQL;
     }
 
@@ -292,7 +293,7 @@ public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable 
             Profiler.Static.startThreadEvent(REPLICATION_CACHE_PUT_PROFILER_EVENT);
 
             try {
-                String sqlQuery = DSL.using(dialect())
+                String sqlQuery = DSL.using(getDialect())
                         .select(recordIdField, recordDataField)
                         .from(recordTable)
                         .where(recordIdField.in(missingIds))
