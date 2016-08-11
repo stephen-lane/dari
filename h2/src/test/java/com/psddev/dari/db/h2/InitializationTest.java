@@ -31,13 +31,13 @@ public class InitializationTest {
     public void dataSource() {
         HikariDataSource hikari = new HikariDataSource();
         hikari.setJdbcUrl(JDBC_URL);
-        put(H2Database.DATA_SOURCE_SETTING, hikari);
+        put(H2Database.DATA_SOURCE_SUB_SETTING, hikari);
         database.initialize("", settings);
     }
 
     @Test(expected = SettingsException.class)
     public void dataSourceNotDataSource() {
-        put(H2Database.DATA_SOURCE_SETTING, "foo");
+        put(H2Database.DATA_SOURCE_SUB_SETTING, "foo");
         database.initialize("", settings);
     }
 }

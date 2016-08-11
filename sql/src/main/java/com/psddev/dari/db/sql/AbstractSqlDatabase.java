@@ -124,12 +124,10 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         }
     });
 
-    public static final String DATA_SOURCE_SETTING = "dataSource";
-    public static final String DATA_SOURCE_JNDI_NAME_SETTING = "dataSourceJndiName";
-
-    public static final String READ_DATA_SOURCE_SETTING = "readDataSource";
-    public static final String READ_DATA_SOURCE_JNDI_NAME_SETTING = "readDataSourceJndiName";
-
+    public static final String DATA_SOURCE_SUB_SETTING = "dataSource";
+    public static final String DATA_SOURCE_JNDI_NAME_SUB_SETTING = "dataSourceJndiName";
+    public static final String READ_DATA_SOURCE_SUB_SETTING = "readDataSource";
+    public static final String READ_DATA_SOURCE_JNDI_NAME_SUB_SETTING = "readDataSourceJndiName";
     public static final String CATALOG_SUB_SETTING = "catalog";
     public static final String METRIC_CATALOG_SUB_SETTING = "metricCatalog";
     public static final String INDEX_SPATIAL_SUB_SETTING = "indexSpatial";
@@ -137,8 +135,8 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     public static final String CONNECTION_QUERY_OPTION = "sql.connection";
     public static final String RETURN_ORIGINAL_DATA_QUERY_OPTION = "sql.returnOriginalData";
     public static final String DISABLE_BY_ID_ITERATOR_OPTION = "sql.disableByIdIterator";
-    public static final String SKIP_INDEX_STATE_EXTRA = "sql.skipIndex";
 
+    public static final String SKIP_INDEX_STATE_EXTRA = "sql.skipIndex";
     public static final String ORIGINAL_DATA_EXTRA = "sql.originalData";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AbstractSqlDatabase.class);
@@ -1211,13 +1209,13 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     protected void doInitialize(String settingsKey, Map<String, Object> settings) {
         setDataSource(createDataSource(
                 settings,
-                DATA_SOURCE_JNDI_NAME_SETTING,
-                DATA_SOURCE_SETTING));
+                DATA_SOURCE_JNDI_NAME_SUB_SETTING,
+                DATA_SOURCE_SUB_SETTING));
 
         setReadDataSource(createDataSource(
                 settings,
-                READ_DATA_SOURCE_JNDI_NAME_SETTING,
-                READ_DATA_SOURCE_SETTING));
+                READ_DATA_SOURCE_JNDI_NAME_SUB_SETTING,
+                READ_DATA_SOURCE_SUB_SETTING));
 
         setCatalog(ObjectUtils.to(String.class, settings.get(CATALOG_SUB_SETTING)));
         setMetricCatalog(ObjectUtils.to(String.class, settings.get(METRIC_CATALOG_SUB_SETTING)));
