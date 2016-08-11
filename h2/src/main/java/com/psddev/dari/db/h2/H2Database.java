@@ -2,12 +2,12 @@ package com.psddev.dari.db.h2;
 
 import com.psddev.dari.db.SqlVendor;
 import com.psddev.dari.db.sql.AbstractSqlDatabase;
+import com.psddev.dari.db.sql.SqlDatabaseException;
 import org.jooq.Converter;
 import org.jooq.DataType;
 import org.jooq.SQLDialect;
 import org.jooq.impl.SQLDataType;
 
-import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
 
@@ -46,21 +46,24 @@ public class H2Database extends AbstractSqlDatabase {
     }
 
     @Override
-    protected void setUp(AbstractSqlDatabase database) throws IOException, SQLException {
-        Connection connection = database.openConnection();
+    protected void setUp() {
+        Connection connection = openConnection();
 
         try {
             org.h2gis.ext.H2GISExtension.load(connection);
 
+        } catch (SQLException error) {
+            throw new SqlDatabaseException(this, "Can't load H2 GIS extension!", error);
+
         } finally {
-            database.closeConnection(connection);
+            closeConnection(connection);
         }
 
-        super.setUp(database);
+        super.setUp();
     }
 
     @Override
-    protected String setUpResourcePath() {
+    protected String getSetUpResourcePath() {
         return "schema-12.sql";
     }
 

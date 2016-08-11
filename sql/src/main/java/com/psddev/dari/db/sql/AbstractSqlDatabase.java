@@ -50,6 +50,8 @@ import org.jooq.impl.SQLDataType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
@@ -342,27 +344,25 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     }
 
     /**
-     * Sets up the given {@code database}.
+     * Sets up the database.
      *
      * <p>This method should create all the necessary elements, such as tables,
      * that are required for proper operation.</p>
      *
-     * <p>The default implementation executes all SQL statements from
-     * the resource at {@link #setUpResourcePath()} and processes the errors
-     * using {@link #catchSetUpError(SQLException)}.</p>
-     *
-     * @param database Can't be {@code null}.
+     * <p>The default implementation executes all SQL statements from the
+     * resource at {@link #getSetUpResourcePath()}, ignoring any errors as
+     * indicated by {@link #shouldIgnoreSetUpError(DataAccessException)}.</p>
      */
-    protected void setUp(AbstractSqlDatabase database) throws IOException, SQLException {
-        String resourcePath = setUpResourcePath();
+    protected void setUp() {
+        String resourcePath = getSetUpResourcePath();
 
         if (resourcePath == null) {
             return;
         }
 
-        Connection connection = database.openConnection();
+        Connection connection = openConnection();
 
-        try (DSLContext context = database.openContext(connection)) {
+        try (DSLContext context = openContext(connection)) {
 
             // Skip set-up if the Record table already exists.
             if (context.meta().getTables().stream()
@@ -373,50 +373,56 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                 return;
             }
 
-            try (InputStream resourceInput = getClass().getResourceAsStream(resourcePath)) {
-                for (String ddl : IoUtils.toString(resourceInput, StandardCharsets.UTF_8).trim().split("(?:\r\n?|\n){2,}")) {
-                    try {
-                        context.execute(ddl);
+            String ddls;
 
-                    } catch (DataAccessException error) {
-                        Throwables.propagateIfInstanceOf(error.getCause(), SQLException.class);
-                        throw error;
+            try (InputStream resourceInput = getClass().getResourceAsStream(resourcePath)) {
+                ddls = IoUtils.toString(resourceInput, StandardCharsets.UTF_8);
+
+            } catch (IOException error) {
+                throw new IllegalStateException(
+                        String.format("Can't read from [%s] to set up [%s] SQL database!", resourcePath, this),
+                        error);
+            }
+
+            for (String ddl : ddls.trim().split("(?:\r\n?|\n){2,}")) {
+                try {
+                    context.execute(ddl);
+
+                } catch (DataAccessException error) {
+                    if (!shouldIgnoreSetUpError(error)) {
+                        throw convertJooqError(error, null);
                     }
                 }
             }
 
         } finally {
-            database.closeConnection(connection);
+            closeConnection(connection);
         }
     }
 
     /**
      * Returns the path to the resource that contains the SQL statements to
-     * be executed during {@link #setUp(AbstractSqlDatabase)}.
+     * be executed during {@link #setUp()}.
      *
      * <p>The default implementation returns {@code null} to signal that
      * there's nothing to do.</p>
-     *
-     * @return May be {@code null}.
      */
-    protected String setUpResourcePath() {
+    protected @Nullable String getSetUpResourcePath() {
         return null;
     }
 
     /**
-     * Catches the given {@code error} thrown in
-     * {@link #setUp(AbstractSqlDatabase)} to be processed in vendor-specific way.
+     * Returns {@code true} if the given {@code error} thrown in
+     * {@link #setUp()} should be ignored.
      *
-     * <p>Typically, this is used to ignore errors when the underlying
-     * database doesn't natively support a specific capability (e.g.
-     * {@code CREATE TABLE IF NOT EXISTS}).</p>
+     * <p>This is for when the underlying database doesn't natively support a
+     * specific capability (e.g. {@code CREATE TABLE IF NOT EXISTS}).</p>
      *
-     * <p>The default implementation always rethrows the error.</p>
-     *
-     * @param error Can't be {@code null}.
+     * <p>The default implementation always returns {@code false} to indicate
+     * that errors shouldn't be ignored.</p>
      */
-    protected void catchSetUpError(SQLException error) throws SQLException {
-        throw error;
+    protected boolean shouldIgnoreSetUpError(@Nonnull DataAccessException error) {
+        return false;
     }
 
     /**
@@ -570,40 +576,34 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         }
     }
 
-    /** Returns the JDBC data source used for general database operations. */
-    public DataSource getDataSource() {
+    /**
+     * Returns the JDBC data source that should be used for write operations.
+     */
+    public @Nullable DataSource getDataSource() {
         return dataSource;
     }
 
-    /** Sets the JDBC data source used for general database operations. */
-    public void setDataSource(DataSource dataSource) {
+    /**
+     * Sets the JDBC data source that should be used for write operations.
+     */
+    public void setDataSource(@Nullable DataSource dataSource) {
         this.dataSource = dataSource;
-
-        if (dataSource == null) {
-            return;
-        }
-
-        synchronized (this) {
-            try {
-                setUp(this);
-                invalidateCaches();
-
-            } catch (IOException error) {
-                throw new IllegalStateException(error);
-
-            } catch (SQLException error) {
-                throw new SqlDatabaseException(this, "Can't check for required tables!", error);
-            }
-        }
     }
 
-    /** Returns the JDBC data source used exclusively for read operations. */
-    public DataSource getReadDataSource() {
-        return this.readDataSource;
+    /**
+     * Returns the JDBC data source that should be used for read operations.
+     *
+     * <p>This may return a JDBC data source that can be used for write
+     * operations, if a read-only data source isn't available.</p>
+     */
+    public @Nullable DataSource getReadDataSource() {
+        return readDataSource != null ? readDataSource : getDataSource();
     }
 
-    /** Sets the JDBC data source used exclusively for read operations. */
-    public void setReadDataSource(DataSource readDataSource) {
+    /**
+     * Sets the JDBC data source that should be used for read operations.
+     */
+    public void setReadDataSource(@Nullable DataSource readDataSource) {
         this.readDataSource = readDataSource;
     }
 
@@ -613,17 +613,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
     public void setCatalog(String catalog) {
         this.catalog = catalog;
-
-        try {
-            setUp(this);
-            invalidateCaches();
-
-        } catch (IOException error) {
-            throw new IllegalStateException(error);
-
-        } catch (SQLException error) {
-            throw new SqlDatabaseException(this, "Can't check for required tables!", error);
-        }
     }
 
     /** Returns the catalog that contains the Metric table.
@@ -691,11 +680,11 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                     || (message != null
                     && message.contains("timeout"))) {
 
-                return new SqlDatabaseException.ReadTimeout(this, sqlError, query.getSQL(), null);
+                return new SqlDatabaseException.ReadTimeout(this, sqlError, query != null ? query.getSQL() : null, null);
             }
         }
 
-        return new SqlDatabaseException(this, sqlError, query.getSQL(), null);
+        return new SqlDatabaseException(this, sqlError, query != null ? query.getSQL() : null, null);
     }
 
     @Override
@@ -1082,31 +1071,22 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         return SqlIterator.iterable(this, sqlQuery, fetchSize, query);
     }
 
-    // --- AbstractDatabase support ---
-
     @Override
     public Connection openConnection() {
-        DataSource dataSource = getDataSource();
-
-        if (dataSource == null) {
-            throw new SqlDatabaseException(this, "No SQL data source!");
-        }
-
-        try {
-            Connection connection = getConnectionFromDataSource(dataSource);
-
-            connection.setReadOnly(false);
-            setTransactionIsolation(connection);
-
-            return connection;
-
-        } catch (SQLException error) {
-            throw new SqlDatabaseException(this, "Can't connect to the SQL engine!", error);
-        }
+        return getConnection(getDataSource(), false);
     }
 
-    private Connection getConnectionFromDataSource(DataSource dataSource) throws SQLException {
-        int limit = Settings.getOrDefault(int.class, "dari/sqlConnectionRetryLimit", 5);
+    @Override
+    protected Connection doOpenReadConnection() {
+        return getConnection(getReadDataSource(), true);
+    }
+
+    private Connection getConnection(DataSource dataSource, boolean readOnly) {
+        if (dataSource == null) {
+            throw new SqlDatabaseException(this, "Can't get a connection without a data source!");
+        }
+
+        int retryLimit = Settings.getOrDefault(int.class, "dari/sqlConnectionRetryLimit", 5);
 
         while (true) {
             try {
@@ -1117,54 +1097,35 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                     connection.setCatalog(catalog);
                 }
 
+                if (readOnly) {
+                    connection.setReadOnly(true);
+
+                } else {
+                    connection.setReadOnly(false);
+                    setTransactionIsolation(connection);
+                }
+
                 return connection;
 
             } catch (SQLException error) {
-                if (error instanceof SQLRecoverableException) {
-                    -- limit;
+                -- retryLimit;
 
-                    if (limit >= 0) {
-                        Stats.Timer timer = STATS.startTimer();
-
-                        try {
-                            Thread.sleep(ObjectUtils.jitter(10L, 0.5));
-
-                        } catch (InterruptedException ignore) {
-                            // Ignore and keep retrying.
-
-                        } finally {
-                            timer.stop(CONNECTION_ERROR_STATS_OPERATION);
-                        }
-
-                        continue;
-                    }
+                if (retryLimit <= 0 || !(error instanceof SQLRecoverableException)) {
+                    throw new SqlDatabaseException(this, "Can't get a connection!", error);
                 }
 
-                throw error;
+                Stats.Timer timer = STATS.startTimer();
+
+                try {
+                    Thread.sleep(ObjectUtils.jitter(10L, 0.5));
+
+                } catch (InterruptedException ignore) {
+                    // Ignore and keep retrying.
+
+                } finally {
+                    timer.stop(CONNECTION_ERROR_STATS_OPERATION);
+                }
             }
-        }
-    }
-
-    @Override
-    protected Connection doOpenReadConnection() {
-        DataSource readDataSource = getReadDataSource();
-
-        if (readDataSource == null) {
-            readDataSource = getDataSource();
-        }
-
-        if (readDataSource == null) {
-            throw new SqlDatabaseException(this, "No SQL data source!");
-        }
-
-        try {
-            Connection connection = getConnectionFromDataSource(readDataSource);
-
-            connection.setReadOnly(true);
-            return connection;
-
-        } catch (SQLException error) {
-            throw new SqlDatabaseException(this, "Can't connect to the SQL engine!", error);
         }
     }
 
@@ -1220,6 +1181,9 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         setCatalog(ObjectUtils.to(String.class, settings.get(CATALOG_SUB_SETTING)));
         setMetricCatalog(ObjectUtils.to(String.class, settings.get(METRIC_CATALOG_SUB_SETTING)));
         setIndexSpatial(ObjectUtils.to(boolean.class, settings.get(INDEX_SPATIAL_SUB_SETTING)));
+
+        setUp();
+        invalidateCaches();
 
         Connection connection = openAnyConnection();
         Set<String> existingTables;

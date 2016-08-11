@@ -393,7 +393,7 @@ public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable 
 
             try {
                 LOGGER.info("Starting MySQL binary log reader");
-                mysqlBinaryLogReader = new MySQLBinaryLogReader(this, replicationCache, ObjectUtils.firstNonNull(getReadDataSource(), getDataSource()), recordTable.getName());
+                mysqlBinaryLogReader = new MySQLBinaryLogReader(this, replicationCache, getReadDataSource(), recordTable.getName());
                 mysqlBinaryLogReader.start();
 
             } catch (IllegalArgumentException error) {
