@@ -17,10 +17,8 @@ import com.psddev.dari.util.CompactMap;
 import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.Profiler;
 import com.psddev.dari.util.UuidUtils;
-import org.jooq.Condition;
 import org.jooq.Converter;
 import org.jooq.DataType;
-import org.jooq.Field;
 import org.jooq.SQLDialect;
 import org.jooq.conf.ParamType;
 import org.jooq.impl.DSL;
@@ -89,26 +87,6 @@ public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable 
     @Override
     protected DataType<UUID> uuidType() {
         return UUID_TYPE;
-    }
-
-    @Override
-    protected Condition stContains(Field<Object> x, Field<Object> y) {
-        return DSL.condition("MBRContains({0}, {1})", x, y);
-    }
-
-    @Override
-    protected Field<Object> stGeomFromText(Field<String> wkt) {
-        return DSL.field("GeomFromText({0})", wkt);
-    }
-
-    @Override
-    protected Field<Double> stLength(Field<Object> field) {
-        return DSL.field("GLength({0})", Double.class, field);
-    }
-
-    @Override
-    protected Field<Object> stMakeLine(Field<Object> x, Field<Object> y) {
-        return DSL.field("LineString({0}, {1})", x, y);
     }
 
     @Override
