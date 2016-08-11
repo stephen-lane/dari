@@ -123,7 +123,15 @@ final class SqlJoin {
                 needsIndexTable = true;
                 needsIsNotNull = true;
 
-                sqlIndex = sqlQuery.database.findSelectIndexTable(index);
+                List<AbstractSqlIndex> sqlIndexes = sqlQuery.database.getSqlIndexes(index);
+
+                if (sqlIndexes.isEmpty()) {
+                    throw new UnsupportedOperationException();
+
+                } else {
+                    sqlIndex = sqlIndexes.get(sqlIndexes.size() - 1);
+                }
+
                 table = DSL.table(DSL.name(sqlIndex.table().getName())).as(sqlQuery.aliasPrefix + alias);
                 idField = sqlQuery.aliasedField(alias, sqlIndex.idField().getName());
                 typeIdField = sqlQuery.aliasedField(alias, sqlIndex.typeIdField().getName());

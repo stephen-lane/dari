@@ -427,42 +427,11 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         connection.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
     }
 
-    /**
-     * Finds the index table that should be used with SELECT SQL queries.
-     *
-     * @param type May be {@code null}.
-     * @return Never {@code null}.
-     */
-    public AbstractSqlIndex findSelectIndexTable(String type) {
-        List<AbstractSqlIndex> tables = findUpdateIndexTables(type);
-
-        if (tables.isEmpty()) {
-            throw new UnsupportedOperationException();
-
-        } else {
-            return tables.get(tables.size() - 1);
-        }
-    }
-
-    private String indexType(ObjectIndex index) {
+    List<AbstractSqlIndex> getSqlIndexes(ObjectIndex index) {
         List<String> fieldNames = index.getFields();
         ObjectField field = index.getParent().getField(fieldNames.get(0));
 
-        return field != null ? field.getInternalItemType() : index.getType();
-    }
-
-    public AbstractSqlIndex findSelectIndexTable(ObjectIndex index) {
-        return findSelectIndexTable(indexType(index));
-    }
-
-    /**
-     * Finds all the index tables that should be used with UPDATE SQL queries.
-     *
-     * @param type May be {@code null}.
-     * @return Never {@code null}.
-     */
-    public List<AbstractSqlIndex> findUpdateIndexTables(String type) {
-        switch (type) {
+        switch (field != null ? field.getInternalItemType() : index.getType()) {
             case ObjectField.RECORD_TYPE :
             case ObjectField.UUID_TYPE :
                 return uuidSqlIndexes;
@@ -480,10 +449,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             default :
                 return stringSqlIndexes;
         }
-    }
-
-    public List<AbstractSqlIndex> findUpdateIndexTables(ObjectIndex index) {
-        return findUpdateIndexTables(indexType(index));
     }
 
     private void insertIndexes(
@@ -509,7 +474,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
                 Object symbolId = getSymbolId(sqlIndexValue.getUniqueName());
 
-                for (AbstractSqlIndex sqlIndex : findUpdateIndexTables(index)) {
+                for (AbstractSqlIndex sqlIndex : getSqlIndexes(index)) {
                     Table<Record> table = sqlIndex.table();
                     BatchBindStep batch = batches.get(table);
                     Param<UUID> idParam = sqlIndex.idParam();
