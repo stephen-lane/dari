@@ -85,7 +85,7 @@ import java.util.stream.Collectors;
 /** Database backed by a SQL engine. */
 public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> implements MetricSqlDatabase {
 
-    public static final int MAX_STRING_INDEX_TYPE_LENGTH = 500;
+    private static final int MAX_STRING_INDEX_TYPE_LENGTH = 500;
 
     private static final DataType<String> STRING_INDEX_TYPE = SQLDataType.LONGVARBINARY.asConvertedDataType(new Converter<byte[], String>() {
 
@@ -323,23 +323,23 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         return DSL.field(DSL.name("value"), stringIndexType);
     }
 
-    public Field<Double> stArea(Field<Object> field) {
+    protected Field<Double> stArea(Field<Object> field) {
         return DSL.field("ST_Area({0})", Double.class, field);
     }
 
-    public Condition stContains(Field<Object> x, Field<Object> y) {
+    protected Condition stContains(Field<Object> x, Field<Object> y) {
         return DSL.condition("ST_Contains({0}, {1})", x, y);
     }
 
-    public Field<Object> stGeomFromText(Field<String> wkt) {
+    protected Field<Object> stGeomFromText(Field<String> wkt) {
         return DSL.field("ST_GeomFromText({0})", wkt);
     }
 
-    public Field<Double> stLength(Field<Object> field) {
+    protected Field<Double> stLength(Field<Object> field) {
         return DSL.field("ST_Length({0})", Double.class, field);
     }
 
-    public Field<Object> stMakeLine(Field<Object> x, Field<Object> y) {
+    protected Field<Object> stMakeLine(Field<Object> x, Field<Object> y) {
         return DSL.field("ST_MakeLine({0}, {1})", x, y);
     }
 
@@ -355,7 +355,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
      *
      * @param database Can't be {@code null}.
      */
-    public void setUp(AbstractSqlDatabase database) throws IOException, SQLException {
+    protected void setUp(AbstractSqlDatabase database) throws IOException, SQLException {
         String resourcePath = setUpResourcePath();
 
         if (resourcePath == null) {
@@ -429,7 +429,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
      *
      * @param connection Can't be {@code null}.
      */
-    public void setTransactionIsolation(Connection connection) throws SQLException {
+    protected void setTransactionIsolation(Connection connection) throws SQLException {
         connection.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
     }
 
@@ -989,7 +989,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
      * @param query May be {@code null}.
      * @param selectFunction Can't be {@code null}.
      */
-    protected <R> R select(String sqlQuery, Query<?> query, SqlSelectFunction<R> selectFunction) {
+    public <R> R select(String sqlQuery, Query<?> query, SqlSelectFunction<R> selectFunction) {
         Connection connection = openQueryConnection(query);
 
         try {
@@ -1770,7 +1770,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     }
 
     @Override
-    public void doRecalculations(Connection connection, boolean isImmediate, ObjectIndex index, List<State> states) throws SQLException {
+    protected void doRecalculations(Connection connection, boolean isImmediate, ObjectIndex index, List<State> states) throws SQLException {
         try (DSLContext context = openContext(connection)) {
             deleteIndexes(connection, context, index, states);
             insertIndexes(connection, context, index, states);

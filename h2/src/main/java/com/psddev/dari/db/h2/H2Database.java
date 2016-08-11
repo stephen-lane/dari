@@ -13,6 +13,8 @@ import java.sql.SQLException;
 
 public class H2Database extends AbstractSqlDatabase {
 
+    private static final int MAX_STRING_INDEX_TYPE_LENGTH = 500;
+
     private static final DataType<String> STRING_INDEX_TYPE = SQLDataType.VARCHAR.asConvertedDataType(new Converter<String, String>() {
 
         @Override
@@ -39,12 +41,12 @@ public class H2Database extends AbstractSqlDatabase {
     });
 
     @Override
-    public DataType<String> initializeStringIndexType() {
+    protected DataType<String> initializeStringIndexType() {
         return STRING_INDEX_TYPE;
     }
 
     @Override
-    public void setUp(AbstractSqlDatabase database) throws IOException, SQLException {
+    protected void setUp(AbstractSqlDatabase database) throws IOException, SQLException {
         Connection connection = database.openConnection();
 
         try {

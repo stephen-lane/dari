@@ -91,27 +91,27 @@ public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable 
     }
 
     @Override
-    public Condition stContains(Field<Object> x, Field<Object> y) {
+    protected Condition stContains(Field<Object> x, Field<Object> y) {
         return DSL.condition("MBRContains({0}, {1})", x, y);
     }
 
     @Override
-    public Field<Object> stGeomFromText(Field<String> wkt) {
+    protected Field<Object> stGeomFromText(Field<String> wkt) {
         return DSL.field("GeomFromText({0})", wkt);
     }
 
     @Override
-    public Field<Double> stLength(Field<Object> field) {
+    protected Field<Double> stLength(Field<Object> field) {
         return DSL.field("GLength({0})", Double.class, field);
     }
 
     @Override
-    public Field<Object> stMakeLine(Field<Object> x, Field<Object> y) {
+    protected Field<Object> stMakeLine(Field<Object> x, Field<Object> y) {
         return DSL.field("LineString({0}, {1})", x, y);
     }
 
     @Override
-    public void setTransactionIsolation(Connection connection) throws SQLException {
+    protected void setTransactionIsolation(Connection connection) throws SQLException {
         if (binlogFormatStatement == null) {
             synchronized (this) {
                 if (binlogFormatStatement == null) {
@@ -207,7 +207,7 @@ public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable 
 
     // Creates a previously saved object from the replication cache.
     @SuppressWarnings("unchecked")
-    public <T> T createSavedObjectFromReplicationCache(UUID id, byte[] data, Map<String, Object> dataJson, Query<T> query) {
+    protected <T> T createSavedObjectFromReplicationCache(UUID id, byte[] data, Map<String, Object> dataJson, Query<T> query) {
         UUID typeId = ObjectUtils.to(UUID.class, dataJson.get(StateValueUtils.TYPE_KEY));
         T object = createSavedObject(typeId, id, query);
         State state = State.getInstance(object);
