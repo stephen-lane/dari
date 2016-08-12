@@ -50,9 +50,6 @@ import org.jooq.impl.SQLDataType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import javax.annotation.ParametersAreNonnullByDefault;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
 import javax.sql.DataSource;
@@ -335,7 +332,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
      * <p>The default implementation returns {@code null} to signal that
      * there's nothing to do.</p>
      */
-    protected @Nullable String getSetUpResourcePath() {
+    protected String getSetUpResourcePath() {
         return null;
     }
 
@@ -349,7 +346,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
      * <p>The default implementation always returns {@code false} to indicate
      * that errors shouldn't be ignored.</p>
      */
-    protected boolean shouldIgnoreSetUpError(@Nonnull DataAccessException error) {
+    protected boolean shouldIgnoreSetUpError(DataAccessException error) {
         return false;
     }
 
@@ -507,14 +504,14 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     /**
      * Returns the JDBC data source that should be used for write operations.
      */
-    public @Nullable DataSource getDataSource() {
+    public DataSource getDataSource() {
         return dataSource;
     }
 
     /**
      * Sets the JDBC data source that should be used for write operations.
      */
-    public void setDataSource(@Nullable DataSource dataSource) {
+    public void setDataSource(DataSource dataSource) {
         this.dataSource = dataSource;
     }
 
@@ -524,14 +521,14 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
      * <p>This may return a JDBC data source that can be used for write
      * operations, if a read-only data source isn't available.</p>
      */
-    public @Nullable DataSource getReadDataSource() {
+    public DataSource getReadDataSource() {
         return readDataSource != null ? readDataSource : getDataSource();
     }
 
     /**
      * Sets the JDBC data source that should be used for read operations.
      */
-    public void setReadDataSource(@Nullable DataSource readDataSource) {
+    public void setReadDataSource(DataSource readDataSource) {
         this.readDataSource = readDataSource;
     }
 
@@ -589,7 +586,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
      * Returns the jOOQ dialect that should be used to construct the SQL
      * statements.
      */
-    protected abstract @Nonnull SQLDialect getDialect();
+    protected abstract SQLDialect getDialect();
 
     /**
      * @return Never {@code null}.
@@ -769,7 +766,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             .concurrencyLevel(20)
             .build(new CacheLoader<Query<?>, String>() {
                 @Override
-                @ParametersAreNonnullByDefault
                 public String load(Query<?> query) throws Exception {
                     return new SqlQuery(AbstractSqlDatabase.this, query).selectStatement();
                 }

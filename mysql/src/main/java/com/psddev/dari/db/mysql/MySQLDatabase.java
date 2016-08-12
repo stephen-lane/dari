@@ -26,7 +26,6 @@ import org.jooq.util.mysql.MySQLDataType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.annotation.Nonnull;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -148,7 +147,7 @@ public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable 
     }
 
     @Override
-    protected @Nonnull SQLDialect getDialect() {
+    protected SQLDialect getDialect() {
         return SQLDialect.MYSQL;
     }
 

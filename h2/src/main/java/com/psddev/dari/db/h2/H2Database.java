@@ -8,7 +8,6 @@ import org.jooq.DataType;
 import org.jooq.SQLDialect;
 import org.jooq.impl.SQLDataType;
 
-import javax.annotation.Nonnull;
 import java.sql.Connection;
 import java.sql.SQLException;
 
@@ -71,7 +70,7 @@ public class H2Database extends AbstractSqlDatabase {
     }
 
     @Override
-    protected @Nonnull SQLDialect getDialect() {
+    protected SQLDialect getDialect() {
         return SQLDialect.H2;
     }
 
