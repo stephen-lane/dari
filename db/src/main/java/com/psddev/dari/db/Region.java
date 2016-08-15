@@ -234,6 +234,11 @@ public class Region {
         return ObjectUtils.toJson(featureCollection);
     }
 
+    /**
+     * Returns the well-known text representation of this region.
+     *
+     * @see <a href="https://en.wikipedia.org/wiki/Well-known_text">WKT</a>
+     */
     public String toWkt() {
         StringBuilder mp = new StringBuilder();
 
