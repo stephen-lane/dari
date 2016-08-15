@@ -13,7 +13,6 @@ import com.psddev.dari.db.AbstractDatabase;
 import com.psddev.dari.db.AtomicOperation;
 import com.psddev.dari.db.DatabaseException;
 import com.psddev.dari.db.Grouping;
-import com.psddev.dari.db.MetricSqlDatabase;
 import com.psddev.dari.db.ObjectField;
 import com.psddev.dari.db.ObjectIndex;
 import com.psddev.dari.db.Query;
@@ -81,12 +80,77 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 
-/** Database backed by a SQL engine. */
-public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> implements MetricSqlDatabase {
+/**
+ * Abstract database implementation for use with JDBC.
+ */
+public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
 
-    private static final int MAX_STRING_INDEX_TYPE_LENGTH = 500;
+    /**
+     * Sub-setting name for specifying the JDBC data source used primarily for
+     * writes and sometimes reads.
+     *
+     * @see #getDataSource()
+     * @see #setDataSource(DataSource)
+     */
+    public static final String DATA_SOURCE_SUB_SETTING = "dataSource";
+
+    /**
+     * Sub-setting name for specifying the JNDI name that points to the JDBC
+     * data source. used primarily for writes and sometimes reads.
+     *
+     * @see #getDataSource()
+     * @see #setDataSource(DataSource)
+     */
+    public static final String DATA_SOURCE_JNDI_NAME_SUB_SETTING = "dataSourceJndiName";
+
+    /**
+     * Sub-setting name for specifying the JDBC data source used exclusively
+     * for reads.
+     *
+     * @see #getReadDataSource()
+     * @see #setReadDataSource(DataSource)
+     */
+    public static final String READ_DATA_SOURCE_SUB_SETTING = "readDataSource";
+
+    /**
+     * Sub-setting name for specifying the JNDI name that points to the JDBC
+     * data source used exclusively for reads.
+     *
+     * @see #getReadDataSource()
+     * @see #setReadDataSource(DataSource)
+     */
+    public static final String READ_DATA_SOURCE_JNDI_NAME_SUB_SETTING = "readDataSourceJndiName";
+
+    /**
+     * Sub-setting name for specifying the JDBC catalog where the data should
+     * be stored.
+     *
+     * @see #getCatalog()
+     * @see #setCatalog(String)
+     */
+    public static final String CATALOG_SUB_SETTING = "catalog";
+
+    /**
+     * Sub-setting name for specifying whether spatial data should be indexed.
+     *
+     * @see #isIndexSpatial()
+     * @see #setIndexSpatial(boolean)
+     */
+    public static final String INDEX_SPATIAL_SUB_SETTING = "indexSpatial";
+
+    public static final String CONNECTION_QUERY_OPTION = "sql.connection";
+    public static final String RETURN_ORIGINAL_DATA_QUERY_OPTION = "sql.returnOriginalData";
+    public static final String DISABLE_BY_ID_ITERATOR_OPTION = "sql.disableByIdIterator";
+
+    public static final String SKIP_INDEX_STATE_EXTRA = "sql.skipIndex";
+    public static final String ORIGINAL_DATA_EXTRA = "sql.originalData";
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(AbstractSqlDatabase.class);
+    private static final Stats STATS = new Stats("SQL");
 
     private static final DataType<String> STRING_INDEX_TYPE = SQLDataType.LONGVARBINARY.asConvertedDataType(new Converter<byte[], String>() {
+
+        private static final int MAX_STRING_INDEX_TYPE_LENGTH = 500;
 
         @Override
         public String from(byte[] bytes) {
@@ -123,43 +187,94 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         }
     });
 
-    public static final String DATA_SOURCE_SUB_SETTING = "dataSource";
-    public static final String DATA_SOURCE_JNDI_NAME_SUB_SETTING = "dataSourceJndiName";
-    public static final String READ_DATA_SOURCE_SUB_SETTING = "readDataSource";
-    public static final String READ_DATA_SOURCE_JNDI_NAME_SUB_SETTING = "readDataSourceJndiName";
-    public static final String CATALOG_SUB_SETTING = "catalog";
-    public static final String METRIC_CATALOG_SUB_SETTING = "metricCatalog";
-    public static final String INDEX_SPATIAL_SUB_SETTING = "indexSpatial";
+    private volatile DataSource dataSource;
+    private volatile DataSource readDataSource;
+    private volatile String catalog;
+    private volatile boolean indexSpatial;
 
-    public static final String CONNECTION_QUERY_OPTION = "sql.connection";
-    public static final String RETURN_ORIGINAL_DATA_QUERY_OPTION = "sql.returnOriginalData";
-    public static final String DISABLE_BY_ID_ITERATOR_OPTION = "sql.disableByIdIterator";
-
-    public static final String SKIP_INDEX_STATE_EXTRA = "sql.skipIndex";
-    public static final String ORIGINAL_DATA_EXTRA = "sql.originalData";
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(AbstractSqlDatabase.class);
-
-    private static final String SHORT_NAME = "SQL";
-    private static final Stats STATS = new Stats(SHORT_NAME);
-    private static final String CONNECTION_ERROR_STATS_OPERATION = "Connection Error";
-    private static final String QUERY_STATS_OPERATION = "Query";
-    private static final String UPDATE_STATS_OPERATION = "Update";
-    private static final String QUERY_PROFILER_EVENT = SHORT_NAME + " " + QUERY_STATS_OPERATION;
-    private static final String UPDATE_PROFILER_EVENT = SHORT_NAME + " " + UPDATE_STATS_OPERATION;
-
+    /**
+     * jOOQ table that represents the {@code Record} table.
+     *
+     * <p>It contains the following fields:</p>
+     *
+     * <ul>
+     *     <li>{@link #recordIdField}</li>
+     *     <li>{@link #recordTypeIdField}</li>
+     *     <li>{@link #recordDataField}</li>
+     * </ul>
+     */
     protected final Table<Record> recordTable = DSL.table(DSL.name("Record"));
+
+    /**
+     * jOOQ field that represents the {@code id} field in {@link #recordTable}.
+     */
     protected final Field<UUID> recordIdField = DSL.field(DSL.name("id"), uuidType());
+
+    /**
+     * jOOQ field that represents the {@code typeId} field in
+     * {@link #recordTable}.
+     */
     protected final Field<UUID> recordTypeIdField = DSL.field(DSL.name("typeId"), uuidType());
+
+    /**
+     * jOOQ field that represents the {@code data} field in
+     * {@link #recordTable}.
+     */
     protected final Field<byte[]> recordDataField = DSL.field(DSL.name("data"), byteArrayType());
 
+    /**
+     * jOOQ table that represents the {@code RecordUpdate} table.
+     *
+     * <p>It contains the following fields:</p>
+     *
+     * <ul>
+     *     <li>{@link #recordUpdateIdField}</li>
+     *     <li>{@link #recordUpdateTypeIdField}</li>
+     *     <li>{@link #recordUpdateDateField}</li>
+     * </ul>
+     */
     protected final Table<Record> recordUpdateTable = DSL.table(DSL.name("RecordUpdate"));
+
+    /**
+     * jOOQ field that represents the {@code id} field in
+     * {@link #recordUpdateTable}.
+     */
     protected final Field<UUID> recordUpdateIdField = DSL.field(DSL.name("id"), uuidType());
+
+    /**
+     * jOOQ field that represents the {@code typeId} field in
+     * {@link #recordUpdateTable}.
+     */
     protected final Field<UUID> recordUpdateTypeIdField = DSL.field(DSL.name("typeId"), uuidType());
+
+    /**
+     * jOOQ field that represents the {@code updateDate} field in
+     * {@link #recordUpdateTable}.
+     */
     protected final Field<Double> recordUpdateDateField = DSL.field(DSL.name("updateDate"), doubleType());
 
+    /**
+     * jOOQ table that represents the {@code Symbol} table.
+     *
+     * <p>It contains the following fields:</p>
+     *
+     * <ul>
+     *     <li>{@link #symbolIdField}</li>
+     *     <li>{@link #symbolValueField}</li>
+     * </ul>
+     */
     protected final Table<Record> symbolTable = DSL.table(DSL.name("Symbol"));
+
+    /**
+     * jOOQ field that represents the {@code symbolId} field in
+     * {@link #symbolTable}.
+     */
     protected final Field<Integer> symbolIdField = DSL.field(DSL.name("symbolId"), integerType());
+
+    /**
+     * jOOQ field that represents the {@code value} field in
+     * {@link #symbolTable}.
+     */
     protected final Field<String> symbolValueField = DSL.field(DSL.name("value"), stringIndexType());
 
     private volatile List<AbstractSqlIndex> locationSqlIndexes;
@@ -169,18 +284,12 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
     private volatile List<AbstractSqlIndex> uuidSqlIndexes;
     private volatile List<AbstractSqlIndex> deleteSqlIndexes;
 
-    private volatile DataSource dataSource;
-    private volatile DataSource readDataSource;
-    private volatile String catalog;
-    private volatile String metricCatalog;
-    private volatile boolean indexSpatial;
-
     private final List<UpdateNotifier<?>> updateNotifiers = new ArrayList<>();
 
     // Cache that stores the difference between the local and the database
-    // time. This is used to calculate a more accurate time without querying
-    // the database all the time.
-    private final transient Supplier<Long> nowOffset = Suppliers.memoizeWithExpiration(() -> {
+    // time. This is used to calculate a more accurate time in #now without
+    // querying the database all the time.
+    private final Supplier<Long> nowOffset = Suppliers.memoizeWithExpiration(() -> {
         try {
             Connection connection = openConnection();
 
@@ -201,8 +310,8 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
 
     }, 5, TimeUnit.MINUTES);
 
-    // Cache that stores all the symbol IDs.
-    private final transient Lazy<Map<String, Integer>> symbolIds = new Lazy<Map<String, Integer>>() {
+    // Cache that stores all symbol IDs.
+    private final Lazy<Map<String, Integer>> symbolIds = new Lazy<Map<String, Integer>>() {
 
         @Override
         protected Map<String, Integer> create() {
@@ -228,44 +337,331 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         }
     };
 
+    // Cache that stores select statements.
+    private final LoadingCache<Query<?>, String> selectStatements = CacheBuilder
+            .newBuilder()
+            .maximumSize(5000)
+            .concurrencyLevel(20)
+            .build(new CacheLoader<Query<?>, String>() {
+
+                @Override
+                public String load(Query<?> query) {
+                    return new SqlQuery(AbstractSqlDatabase.this, query).selectStatement();
+                }
+            });
+
+    /**
+     * Returns the JDBC data source that should be used for writes and
+     * possibly reads.
+     *
+     * @return Nullable.
+     * @see #DATA_SOURCE_SUB_SETTING
+     * @see #DATA_SOURCE_JNDI_NAME_SUB_SETTING
+     */
+    public DataSource getDataSource() {
+        return dataSource;
+    }
+
+    /**
+     * Sets the JDBC data source that should be used for writes and
+     * possibly reads.
+     *
+     * @param dataSource Nullable.
+     * @see #DATA_SOURCE_SUB_SETTING
+     * @see #DATA_SOURCE_JNDI_NAME_SUB_SETTING
+     */
+    public void setDataSource(DataSource dataSource) {
+        this.dataSource = dataSource;
+    }
+
+    /**
+     * Returns the JDBC data source that should be used for reads.
+     *
+     * <p>This may return a JDBC data source that can be used for writes,
+     * if a read-only data source isn't available.</p>
+     *
+     * @return Nullable.
+     * @see #READ_DATA_SOURCE_SUB_SETTING
+     * @see #READ_DATA_SOURCE_JNDI_NAME_SUB_SETTING
+     */
+    public DataSource getReadDataSource() {
+        return readDataSource != null ? readDataSource : getDataSource();
+    }
+
+    /**
+     * Sets the JDBC data source that should be used for reads.
+     *
+     * @param readDataSource Nullable.
+     * @see #READ_DATA_SOURCE_SUB_SETTING
+     * @see #READ_DATA_SOURCE_JNDI_NAME_SUB_SETTING
+     */
+    public void setReadDataSource(DataSource readDataSource) {
+        this.readDataSource = readDataSource;
+    }
+
+    /**
+     * Returns the JDBC catalog where the data should be stored.
+     *
+     * @return Nullable.
+     * @see #CATALOG_SUB_SETTING
+     */
+    public String getCatalog() {
+        return catalog;
+    }
+
+    /**
+     * Sets the JDBC catalog where the data should be stored.
+     *
+     * @param catalog Nullable.
+     * @see #CATALOG_SUB_SETTING
+     */
+    public void setCatalog(String catalog) {
+        this.catalog = catalog;
+    }
+
+    /**
+     * Returns {@code true} if spatial data should be indexed.
+     *
+     * @see #INDEX_SPATIAL_SUB_SETTING
+     */
+    public boolean isIndexSpatial() {
+        return indexSpatial;
+    }
+
+    /**
+     * Sets whether spatial data should be indexed.
+     *
+     * @see #INDEX_SPATIAL_SUB_SETTING
+     */
+    public void setIndexSpatial(boolean indexSpatial) {
+        this.indexSpatial = indexSpatial;
+    }
+
+    /**
+     * Returns the jOOQ dialect that should be used to construct the SQL
+     * statements.
+     *
+     * @return Nonnull.
+     */
+    protected abstract SQLDialect getDialect();
+
+    /**
+     * Returns the jOOQ data type that should be used to work with byte arrays.
+     *
+     * @return Nonnull.
+     */
     protected DataType<byte[]> byteArrayType() {
         return SQLDataType.LONGVARBINARY;
     }
 
+    /**
+     * Returns the jOOQ data type that should be used to work with doubles.
+     *
+     * @return Nonnull.
+     */
     protected DataType<Double> doubleType() {
         return SQLDataType.DOUBLE;
     }
 
+    /**
+     * Returns the jOOQ data type that should be used to work with integers.
+     *
+     * @return Nonnull.
+     */
     protected DataType<Integer> integerType() {
         return SQLDataType.INTEGER;
     }
 
+    /**
+     * Returns the jOOQ data type that should be used to work with index
+     * table strings.
+     *
+     * <p>The default implementation limits the length to 500 bytes.</p>
+     *
+     * @return Nonnull.
+     */
     protected DataType<String> stringIndexType() {
         return STRING_INDEX_TYPE;
     }
 
+    /**
+     * Returns the jOOQ data type that should be used to work with UUIDs.
+     *
+     * @return Nonnull.
+     */
     protected DataType<UUID> uuidType() {
         return SQLDataType.UUID;
     }
 
+    /**
+     * Returns a jOOQ field that represents {@code ST_Area(field)} function.
+     *
+     * @param field Nullable.
+     * @return Nonnull.
+     * @see <a href="http://www.postgis.org/docs/ST_Area.html">ST_Area</a>
+     */
     protected Field<Double> stArea(Field<Object> field) {
         return DSL.field("ST_Area({0})", Double.class, field);
     }
 
+    /**
+     * Returns a jOOQ condition that represents {@code ST_Contains(x, y)}
+     * function.
+     *
+     * @param x Nullable.
+     * @param y Nullable.
+     * @return Nonnull.
+     * @see <a href="http://www.postgis.org/docs/ST_Contains.html">ST_Contains</a>
+     */
     protected Condition stContains(Field<Object> x, Field<Object> y) {
         return DSL.condition("ST_Contains({0}, {1})", x, y);
     }
 
+    /**
+     * Returns a jOOQ field that represents {@code ST_GeomFromText(wkt)}
+     * function.
+     *
+     * @param wkt Nullable.
+     * @return Nonnull.
+     * @see <a href="http://www.postgis.org/docs/ST_GeomFromText.html">ST_GeomFromText</a>
+     */
     protected Field<Object> stGeomFromText(Field<String> wkt) {
         return DSL.field("ST_GeomFromText({0})", wkt);
     }
 
+    /**
+     * Returns a jOOQ field that represents {@code ST_Length(field)} function.
+     *
+     * @param field Nullable.
+     * @return Nonnull.
+     * @see <a href="http://www.postgis.org/docs/ST_Length.html">ST_Length</a>
+     */
     protected Field<Double> stLength(Field<Object> field) {
         return DSL.field("ST_Length({0})", Double.class, field);
     }
 
+    /**
+     * Returns a jOOQ field that represents {@code ST_MakeLine(x, y)} function.
+     * @param x Nullable.
+     * @param y Nullable.
+     * @return Nonnull.
+     * @see <a href="http://www.postgis.org/docs/ST_MakeLine.html">ST_MakeLine</a>
+     */
     protected Field<Object> stMakeLine(Field<Object> x, Field<Object> y) {
         return DSL.field("ST_MakeLine({0}, {1})", x, y);
+    }
+
+    @Override
+    public Connection openConnection() {
+        return getConnection(getDataSource(), false);
+    }
+
+    @Override
+    protected Connection doOpenReadConnection() {
+        return getConnection(getReadDataSource(), true);
+    }
+
+    // Returns the most appropriate and prepared connection from the data
+    // source.
+    private Connection getConnection(DataSource dataSource, boolean readOnly) {
+        if (dataSource == null) {
+            throw new SqlDatabaseException(this, "Can't get a connection without a data source!");
+        }
+
+        int retryLimit = Settings.getOrDefault(int.class, "dari/sqlConnectionRetryLimit", 5);
+
+        while (true) {
+            try {
+                Connection connection = dataSource.getConnection();
+                String catalog = getCatalog();
+
+                if (catalog != null) {
+                    connection.setCatalog(catalog);
+                }
+
+                connection.setReadOnly(readOnly);
+                prepareConnection(connection, readOnly);
+
+                return connection;
+
+            } catch (SQLException error) {
+                -- retryLimit;
+
+                if (retryLimit <= 0 || !(error instanceof SQLRecoverableException)) {
+                    throw new SqlDatabaseException(this, "Can't get a connection!", error);
+                }
+
+                Stats.Timer timer = STATS.startTimer();
+
+                try {
+                    Thread.sleep(ObjectUtils.jitter(10L, 0.5));
+
+                } catch (InterruptedException ignore) {
+                    // Ignore and keep retrying.
+
+                } finally {
+                    timer.stop("SQL: Connection Error");
+                }
+            }
+        }
+    }
+
+    /**
+     * Prepares the given {@code connection} after it's been opened.
+     *
+     * <p>The default implementation sets the transaction isolation to
+     * {@link Connection#TRANSACTION_READ_COMMITTED}.</p>
+     *
+     * @param connection Nonnull.
+     *
+     * @param readOnly
+     *        {@code true} if the given {@code connection} is read-only.
+     *
+     * @see #openConnection()
+     * @see #openReadConnection()
+     */
+    protected void prepareConnection(Connection connection, boolean readOnly) throws SQLException {
+        if (!readOnly) {
+            connection.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
+        }
+    }
+
+    // Opens a jOOQ context from the connection.
+    private DSLContext openContext(Connection connection) {
+        return DSL.using(connection, getDialect());
+    }
+
+    // Converts the jOOQ error to a more standard one.
+    private SqlDatabaseException convertJooqError(DataAccessException error, org.jooq.Query query) {
+        Throwable cause = error.getCause();
+        SQLException sqlError = cause instanceof SQLException ? (SQLException) cause : null;
+
+        if (sqlError != null) {
+            String message = sqlError.getMessage();
+
+            if (sqlError instanceof SQLTimeoutException
+                    || (message != null
+                    && message.contains("timeout"))) {
+
+                return new SqlDatabaseException.ReadTimeout(this, sqlError, query != null ? query.getSQL() : null, null);
+            }
+        }
+
+        return new SqlDatabaseException(this, sqlError, query != null ? query.getSQL() : null, null);
+    }
+
+    @Override
+    public void closeConnection(Connection connection) {
+        if (connection != null) {
+            try {
+                if (!connection.isClosed()) {
+                    connection.close();
+                }
+
+            } catch (SQLException error) {
+                // Not likely and probably harmless.
+            }
+        }
     }
 
     /**
@@ -320,9 +716,18 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                 }
             }
 
+            invalidateCaches();
+
         } finally {
             closeConnection(connection);
         }
+    }
+
+    /**
+     * Invalidates all caches.
+     */
+    public void invalidateCaches() {
+        symbolIds.reset();
     }
 
     /**
@@ -331,6 +736,8 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
      *
      * <p>The default implementation returns {@code null} to signal that
      * there's nothing to do.</p>
+     *
+     * @return Nullable.
      */
     protected String getSetUpResourcePath() {
         return null;
@@ -345,773 +752,25 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
      *
      * <p>The default implementation always returns {@code false} to indicate
      * that errors shouldn't be ignored.</p>
+     *
+     * @param error Nonnull.
      */
     protected boolean shouldIgnoreSetUpError(DataAccessException error) {
         return false;
     }
 
-    /**
-     * Sets the most appropriate transaction isolation on the given
-     * {@code connection} in preparation for writing to the database.
-     *
-     * <p>The default implementation sets it to READ COMMITTED.</p>
-     *
-     * @param connection Can't be {@code null}.
-     */
-    protected void setTransactionIsolation(Connection connection) throws SQLException {
-        connection.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
-    }
-
-    List<AbstractSqlIndex> getSqlIndexes(ObjectIndex index) {
-        List<String> fieldNames = index.getFields();
-        ObjectField field = index.getParent().getField(fieldNames.get(0));
-
-        switch (field != null ? field.getInternalItemType() : index.getType()) {
-            case ObjectField.RECORD_TYPE :
-            case ObjectField.UUID_TYPE :
-                return uuidSqlIndexes;
-
-            case ObjectField.DATE_TYPE :
-            case ObjectField.NUMBER_TYPE :
-                return numberSqlIndexes;
-
-            case ObjectField.LOCATION_TYPE :
-                return locationSqlIndexes;
-
-            case ObjectField.REGION_TYPE :
-                return regionSqlIndexes;
-
-            default :
-                return stringSqlIndexes;
-        }
-    }
-
-    private void insertIndexes(
-            Connection connection,
-            DSLContext context,
-            ObjectIndex onlyIndex,
-            List<State> states)
-            throws SQLException {
-
-        Map<Table<Record>, BatchBindStep> batches = new HashMap<>();
-        Map<Table<Record>, Set<Map<String, Object>>> bindValuesSets = new HashMap<>();
-
-        for (State state : states) {
-            UUID id = state.getId();
-            UUID typeId = state.getVisibilityAwareTypeId();
-
-            for (SqlIndexValue sqlIndexValue : SqlIndexValue.find(state)) {
-                ObjectIndex index = sqlIndexValue.getIndex();
-
-                if (onlyIndex != null && !onlyIndex.equals(index)) {
-                    continue;
-                }
-
-                Object symbolId = getSymbolId(sqlIndexValue.getUniqueName());
-
-                for (AbstractSqlIndex sqlIndex : getSqlIndexes(index)) {
-                    Table<Record> table = sqlIndex.table;
-                    BatchBindStep batch = batches.get(table);
-                    Param<UUID> idParam = sqlIndex.idParam;
-                    Param<UUID> typeIdParam = sqlIndex.typeIdParam;
-                    Param<Integer> symbolIdParam = sqlIndex.symbolIdParam;
-
-                    if (batch == null) {
-                        batch = context.batch(context.insertInto(table)
-                                .set(sqlIndex.idField, idParam)
-                                .set(sqlIndex.typeIdField, typeIdParam)
-                                .set(sqlIndex.symbolIdField, symbolIdParam)
-                                .set(sqlIndex.valueField, sqlIndex.valueParam()));
-                    }
-
-                    boolean bound = false;
-
-                    for (Object[] valuesArray : sqlIndexValue.getValuesArray()) {
-                        Map<String, Object> bindValues = sqlIndex.valueBindValues(index, valuesArray[0]);
-
-                        if (bindValues != null) {
-                            bindValues.put(idParam.getName(), id);
-                            bindValues.put(typeIdParam.getName(), typeId);
-                            bindValues.put(symbolIdParam.getName(), symbolId);
-
-                            Set<Map<String, Object>> bindValuesSet = bindValuesSets.get(table);
-
-                            if (bindValuesSet == null) {
-                                bindValuesSet = new HashSet<>();
-                                bindValuesSets.put(table, bindValuesSet);
-                            }
-
-                            if (!bindValuesSet.contains(bindValues)) {
-                                batch = batch.bind(bindValues);
-                                bound = true;
-                                bindValuesSet.add(bindValues);
-                            }
-                        }
-                    }
-
-                    if (bound) {
-                        batches.put(table, batch);
-                    }
-                }
-            }
-        }
-
-        for (BatchBindStep batch : batches.values()) {
-            try {
-                batch.execute();
-
-            } catch (DataAccessException error) {
-                Throwables.propagateIfInstanceOf(error.getCause(), SQLException.class);
-                throw error;
-            }
-        }
-    }
-
-    private void deleteIndexes(
-            Connection connection,
-            DSLContext context,
-            ObjectIndex onlyIndex,
-            List<State> states)
-            throws SQLException {
-
-        if (states == null || states.isEmpty()) {
-            return;
-        }
-
-        Set<UUID> stateIds = states.stream()
-                .map(State::getId)
-                .collect(Collectors.toSet());
-
-        for (AbstractSqlIndex sqlIndex : deleteSqlIndexes) {
-            try {
-                DeleteConditionStep<Record> delete = context
-                        .deleteFrom(sqlIndex.table)
-                        .where(sqlIndex.idField.in(stateIds));
-
-                if (onlyIndex != null) {
-                    delete = delete.and(sqlIndex.symbolIdField.eq(getReadSymbolId(onlyIndex.getUniqueName())));
-                }
-
-                context.execute(delete);
-
-            } catch (DataAccessException error) {
-                Throwables.propagateIfInstanceOf(error, SQLException.class);
-                throw error;
-            }
-        }
-    }
-
-    /**
-     * Returns the JDBC data source that should be used for write operations.
-     */
-    public DataSource getDataSource() {
-        return dataSource;
-    }
-
-    /**
-     * Sets the JDBC data source that should be used for write operations.
-     */
-    public void setDataSource(DataSource dataSource) {
-        this.dataSource = dataSource;
-    }
-
-    /**
-     * Returns the JDBC data source that should be used for read operations.
-     *
-     * <p>This may return a JDBC data source that can be used for write
-     * operations, if a read-only data source isn't available.</p>
-     */
-    public DataSource getReadDataSource() {
-        return readDataSource != null ? readDataSource : getDataSource();
-    }
-
-    /**
-     * Sets the JDBC data source that should be used for read operations.
-     */
-    public void setReadDataSource(DataSource readDataSource) {
-        this.readDataSource = readDataSource;
-    }
-
-    public String getCatalog() {
-        return catalog;
-    }
-
-    public void setCatalog(String catalog) {
-        this.catalog = catalog;
-    }
-
-    /** Returns the catalog that contains the Metric table.
-     *
-     * @return May be {@code null}.
-     *
-     **/
-    public String getMetricCatalog() {
-        return metricCatalog;
-    }
-
-    public void setMetricCatalog(String metricCatalog) {
-        if (ObjectUtils.isBlank(metricCatalog)) {
-            this.metricCatalog = null;
-
-        } else {
-            this.metricCatalog = metricCatalog;
-        }
-    }
-
-    public boolean isIndexSpatial() {
-        return indexSpatial;
-    }
-
-    public void setIndexSpatial(boolean indexSpatial) {
-        this.indexSpatial = indexSpatial;
-    }
-
-    /**
-     * Opens a connection to the underlying SQL server, preferably the writable
-     * one that has the most up-to-date data.
-     *
-     * @return Never {@code null}.
-     */
-    protected Connection openAnyConnection() {
-        try {
-            return openConnection();
-
-        } catch (DatabaseException error) {
-            LOGGER.debug("Can't open a writable connection! Trying a readable one instead...", error);
-            return openReadConnection();
-        }
-    }
-
-    /**
-     * Returns the jOOQ dialect that should be used to construct the SQL
-     * statements.
-     */
-    protected abstract SQLDialect getDialect();
-
-    /**
-     * @return Never {@code null}.
-     */
-    protected DSLContext openContext(Connection connection) {
-        return DSL.using(connection, getDialect());
-    }
-
-    private SqlDatabaseException convertJooqError(DataAccessException error, org.jooq.Query query) {
-        Throwable cause = error.getCause();
-        SQLException sqlError = cause instanceof SQLException ? (SQLException) cause : null;
-
-        if (sqlError != null) {
-            String message = sqlError.getMessage();
-
-            if (sqlError instanceof SQLTimeoutException
-                    || (message != null
-                    && message.contains("timeout"))) {
-
-                return new SqlDatabaseException.ReadTimeout(this, sqlError, query != null ? query.getSQL() : null, null);
-            }
-        }
-
-        return new SqlDatabaseException(this, sqlError, query != null ? query.getSQL() : null, null);
-    }
-
-    @Override
-    public long now() {
-        return System.currentTimeMillis() - nowOffset.get();
-    }
-
-    /**
-     * Invalidates all caches.
-     *
-     * <p>This forces all metadata to be re-fetched from the database in the
-     * following methods:</p>
-     *
-     * <ul>
-     *     <li>{@link #getSymbolId(String)}</li>
-     *     <li>{@link #getReadSymbolId(String)}</li>
-     * </ul>
-     */
-    public void invalidateCaches() {
-        symbolIds.reset();
-    }
-
-    /**
-     * Returns a unique ID for the given {@code symbol}, creating one if
-     * necessary.
-     *
-     * @param symbol Can't be {@code null}.
-     */
-    public int getSymbolId(String symbol) {
-        return findSymbolId(symbol, true);
-    }
-
-    /**
-     * Returns a unique ID for the given {@code symbol}, or {@code -1} if
-     * it's not available.
-     *
-     * @param symbol Can't be {@code null}.
-     */
-    public int getReadSymbolId(String symbol) {
-        return findSymbolId(symbol, false);
-    }
-
-    private int findSymbolId(String symbol, boolean create) {
-        Preconditions.checkNotNull(symbol);
-
-        Integer id = symbolIds.get().get(symbol);
-
-        if (id != null) {
-            return id;
-        }
-
-        Connection connection = openAnyConnection();
-
-        try (DSLContext context = openContext(connection)) {
-            if (create) {
-                org.jooq.Query createQuery = context
-                        .insertInto(symbolTable, symbolValueField)
-                        .select(context
-                                .select(DSL.inline(symbol, stringIndexType()))
-                                .whereNotExists(context
-                                        .selectOne()
-                                        .from(symbolTable)
-                                        .where(symbolValueField.eq(symbol))));
-
-                try {
-                    createQuery.execute();
-
-                } catch (DataAccessException error) {
-                    throw convertJooqError(error, createQuery);
-                }
-            }
-
-            ResultQuery<Record1<Integer>> selectQuery = context
-                    .select(symbolIdField)
-                    .from(symbolTable)
-                    .where(symbolValueField.eq(symbol));
-
-            try {
-                id = selectQuery
-                        .fetchOptional()
-                        .map(Record1::value1)
-                        .orElse(null);
-
-                if (id != null) {
-                    symbolIds.get().put(symbol, id);
-                    onSymbolIdUpdate(symbol, id);
-                    return id;
-
-                } else {
-                    return -1;
-                }
-
-            } catch (DataAccessException error) {
-                throw convertJooqError(error, selectQuery);
-            }
-
-        } finally {
-            closeConnection(connection);
-        }
-    }
-
-    /**
-     * Called when the given {@code symbol}'s {@code id} is updated.
-     *
-     * @param symbol Can't be {@code null}.
-     * @param id Can't be {@code null}.
-     */
-    protected void onSymbolIdUpdate(String symbol, int id) {
-    }
-
-    private String addComment(String sql, Query<?> query) {
-        if (query != null) {
-            String comment = query.getComment();
-
-            if (!ObjectUtils.isBlank(comment)) {
-                return "/*" + comment + "*/ " + sql;
-            }
-        }
-
-        return sql;
-    }
-
-    /**
-     * Builds an SQL statement that can be used to get a count of all
-     * objects matching the given {@code query}.
-     */
-    public String buildCountStatement(Query<?> query) {
-        return addComment(new SqlQuery(this, query).countStatement(), query);
-    }
-
-    /**
-     * Builds an SQL statement that can be used to get all objects
-     * grouped by the values of the given {@code groupFields}.
-     */
-    public String buildGroupStatement(Query<?> query, String... groupFields) {
-        return addComment(new SqlQuery(this, query).groupStatement(groupFields), query);
-    }
-
-    /**
-     * Builds an SQL statement that can be used to get when the objects
-     * matching the given {@code query} were last updated.
-     */
-    public String buildLastUpdateStatement(Query<?> query) {
-        return addComment(new SqlQuery(this, query).lastUpdateStatement(), query);
-    }
-
-    /**
-     * Maintains a cache of Querys to SQL select statements.
-     */
-    private final LoadingCache<Query<?>, String> sqlQueryCache = CacheBuilder
-            .newBuilder()
-            .maximumSize(5000)
-            .concurrencyLevel(20)
-            .build(new CacheLoader<Query<?>, String>() {
-                @Override
-                public String load(Query<?> query) throws Exception {
-                    return new SqlQuery(AbstractSqlDatabase.this, query).selectStatement();
-                }
-            });
-
-    /**
-     * Builds an SQL statement that can be used to list all rows
-     * matching the given {@code query}.
-     */
-    public String buildSelectStatement(Query<?> query) {
-        try {
-            Query<?> strippedQuery = query.clone();
-            // Remove any possibility that multiple CachingDatabases will be cached in the sqlQueryCache.
-            strippedQuery.setDatabase(this);
-            strippedQuery.getOptions().remove(State.REFERENCE_RESOLVING_QUERY_OPTION);
-            return addComment(sqlQueryCache.getUnchecked(strippedQuery), query);
-        } catch (UncheckedExecutionException e) {
-            Throwable cause = e.getCause();
-            if (cause instanceof RuntimeException) {
-                throw (RuntimeException) cause;
-            } else {
-                throw new DatabaseException(this, cause);
-            }
-        }
-    }
-
-    // Closes all the given SQL resources safely.
-    protected void closeResources(Query<?> query, Connection connection, Statement statement, ResultSet result) {
-        if (result != null) {
-            try {
-                result.close();
-            } catch (SQLException error) {
-                // Not likely and probably harmless.
-            }
-        }
-
-        if (statement != null) {
-            try {
-                statement.close();
-            } catch (SQLException error) {
-                // Not likely and probably harmless.
-            }
-        }
-
-        Object queryConnection;
-
-        if (connection != null
-                && (query == null
-                || (queryConnection = query.getOptions().get(CONNECTION_QUERY_OPTION)) == null
-                || !connection.equals(queryConnection))) {
-            try {
-                if (!connection.isClosed()) {
-                    connection.close();
-                }
-            } catch (SQLException ex) {
-                // Not likely and probably harmless.
-            }
-        }
-    }
-
-    /**
-     * Creates a previously saved object using the given {@code resultSet},
-     * and sets common state options based on the given {@code query}.
-     *
-     * @param resultSet
-     *        Can't be {@code null}.
-     *
-     * @param query
-     *        May be {@code null}.
-     *
-     * @return Never {@code null}.
-     *
-     * @see #createSavedObject(Object, Object, Query)
-     */
-    protected <T> T createSavedObjectUsingResultSet(ResultSet resultSet, Query<T> query) throws SQLException {
-        T object = createSavedObject(resultSet.getObject(2), resultSet.getObject(1), query);
-        State objectState = State.getInstance(object);
-
-        if (!objectState.isReferenceOnly()) {
-            byte[] data = resultSet.getBytes(3);
-
-            if (data != null) {
-                objectState.setValues(StateSerializer.deserialize(data));
-                objectState.getExtras().put(DATA_LENGTH_EXTRA, data.length);
-
-                if (query != null
-                        && ObjectUtils.to(boolean.class, query.getOptions().get(RETURN_ORIGINAL_DATA_QUERY_OPTION))) {
-
-                    objectState.getExtras().put(ORIGINAL_DATA_EXTRA, data);
-                }
-            }
-        }
-
-        return swapObjectType(query, object);
-    }
-
-    /**
-     * Executes the given read {@code statement} (created from the given
-     * {@code sqlQuery}) before the given {@code timeout} (in seconds).
-     */
-    public ResultSet executeQueryBeforeTimeout(
-            Statement statement,
-            String sqlQuery,
-            int timeout)
-            throws SQLException {
-
-        if (timeout > 0) {
-            statement.setQueryTimeout(timeout);
-        }
-
-        Stats.Timer timer = STATS.startTimer();
-        Profiler.Static.startThreadEvent(QUERY_PROFILER_EVENT);
-
-        try {
-            return statement.executeQuery(sqlQuery);
-
-        } finally {
-            double duration = timer.stop(QUERY_STATS_OPERATION);
-            Profiler.Static.stopThreadEvent(sqlQuery);
-
-            LOGGER.debug(
-                    "Read from the SQL database using [{}] in [{}]ms",
-                    sqlQuery, duration * 1000.0);
-        }
-    }
-
-    /**
-     * Selects using the {@code sqlQuery}, which is executed with the given
-     * {@code query} options, and passes the result into the given
-     * {@code selectFunction}.
-     *
-     * @param sqlQuery Can't be {@code null}.
-     * @param query May be {@code null}.
-     * @param selectFunction Can't be {@code null}.
-     */
-    public <R> R select(String sqlQuery, Query<?> query, SqlSelectFunction<R> selectFunction) {
-        Connection connection = openQueryConnection(query);
-
-        try {
-            double timeout = getReadTimeout();
-
-            if (query != null) {
-                Double queryTimeout = query.getTimeout();
-
-                if (queryTimeout != null) {
-                    timeout = queryTimeout;
-                }
-            }
-
-            try (Statement statement = connection.createStatement();
-                    ResultSet result = executeQueryBeforeTimeout(
-                            statement,
-                            sqlQuery,
-                            timeout > 0.0d ? (int) Math.ceil(timeout) : 0)) {
-
-                return selectFunction.apply(result);
-            }
-
-        } catch (SQLException error) {
-            throw createSelectError(sqlQuery, query, error);
-
-        } finally {
-            closeResources(query, connection, null, null);
-        }
-    }
-
-    protected SqlDatabaseException createSelectError(String sqlQuery, Query<?> query, SQLException error) {
-        String message;
-
-        if (error instanceof SQLTimeoutException
-                || ((message = error.getMessage()) != null
-                && message.toLowerCase(Locale.ENGLISH).contains("timeout"))) {
-
-            throw new SqlDatabaseException.ReadTimeout(this, error, sqlQuery, query);
-
-        } else {
-            throw new SqlDatabaseException(this, error, sqlQuery, query);
-        }
-    }
-
-    /**
-     * Selects the first object that matches the given {@code sqlQuery},
-     * which is executed with the given {@code query} options.
-     *
-     * @param sqlQuery Can't be {@code null}.
-     * @param query May be {@code null}.
-     */
-    public <T> T selectFirst(String sqlQuery, Query<T> query) {
-        sqlQuery = DSL.using(getDialect())
-                .selectFrom(DSL.table("(" + sqlQuery + ")").as("q"))
-                .offset(0)
-                .limit(1)
-                .getSQL(ParamType.INLINED);
-
-        return select(sqlQuery, query, result -> result.next()
-                ? createSavedObjectUsingResultSet(result, query)
-                : null);
-    }
-
-    /**
-     * Selects a list of objects that match the given {@code sqlQuery},
-     * which is executed with the given {@code query} options.
-     *
-     * @param sqlQuery Can't be {@code null}.
-     * @param query May be {@code null}.
-     */
-    public <T> List<T> selectList(String sqlQuery, Query<T> query) {
-        return select(sqlQuery, query, result -> {
-            List<T> objects = new ArrayList<>();
-
-            while (result.next()) {
-                objects.add(createSavedObjectUsingResultSet(result, query));
-            }
-
-            return objects;
-        });
-    }
-
-    /**
-     * Selects an iterable of objects that match the given {@code sqlQuery},
-     * which is executed with the given {@code query} options.
-     *
-     * @param sqlQuery Can't be {@code null}.
-     * @param fetchSize Number of objects to fetch at a time.
-     * @param query May be {@code null}.
-     */
-    public <T> Iterable<T> selectIterable(String sqlQuery, int fetchSize, Query<T> query) {
-        return SqlIterator.iterable(this, sqlQuery, fetchSize, query);
-    }
-
-    @Override
-    public Connection openConnection() {
-        return getConnection(getDataSource(), false);
-    }
-
-    @Override
-    protected Connection doOpenReadConnection() {
-        return getConnection(getReadDataSource(), true);
-    }
-
-    private Connection getConnection(DataSource dataSource, boolean readOnly) {
-        if (dataSource == null) {
-            throw new SqlDatabaseException(this, "Can't get a connection without a data source!");
-        }
-
-        int retryLimit = Settings.getOrDefault(int.class, "dari/sqlConnectionRetryLimit", 5);
-
-        while (true) {
-            try {
-                Connection connection = dataSource.getConnection();
-                String catalog = getCatalog();
-
-                if (catalog != null) {
-                    connection.setCatalog(catalog);
-                }
-
-                if (readOnly) {
-                    connection.setReadOnly(true);
-
-                } else {
-                    connection.setReadOnly(false);
-                    setTransactionIsolation(connection);
-                }
-
-                return connection;
-
-            } catch (SQLException error) {
-                -- retryLimit;
-
-                if (retryLimit <= 0 || !(error instanceof SQLRecoverableException)) {
-                    throw new SqlDatabaseException(this, "Can't get a connection!", error);
-                }
-
-                Stats.Timer timer = STATS.startTimer();
-
-                try {
-                    Thread.sleep(ObjectUtils.jitter(10L, 0.5));
-
-                } catch (InterruptedException ignore) {
-                    // Ignore and keep retrying.
-
-                } finally {
-                    timer.stop(CONNECTION_ERROR_STATS_OPERATION);
-                }
-            }
-        }
-    }
-
-    @Override
-    public Connection openQueryConnection(Query<?> query) {
-        if (query != null) {
-            Connection connection = (Connection) query.getOptions().get(CONNECTION_QUERY_OPTION);
-
-            if (connection != null) {
-                return connection;
-            }
-        }
-
-        return super.openQueryConnection(query);
-    }
-
-    @Override
-    public void closeConnection(Connection connection) {
-        if (connection != null) {
-            try {
-                if (!connection.isClosed()) {
-                    connection.close();
-                }
-
-            } catch (SQLException error) {
-                // Not likely and probably harmless.
-            }
-        }
-    }
-
-    @Override
-    protected boolean isRecoverableError(Exception error) {
-        if (error instanceof SQLException) {
-            SQLException sqlError = (SQLException) error;
-            return "40001".equals(sqlError.getSQLState());
-        }
-
-        return false;
-    }
-
     @Override
     protected void doInitialize(String settingsKey, Map<String, Object> settings) {
-        setDataSource(createDataSource(
-                settings,
-                DATA_SOURCE_JNDI_NAME_SUB_SETTING,
-                DATA_SOURCE_SUB_SETTING));
-
-        setReadDataSource(createDataSource(
-                settings,
-                READ_DATA_SOURCE_JNDI_NAME_SUB_SETTING,
-                READ_DATA_SOURCE_SUB_SETTING));
-
+        setDataSource(createDataSource(settings, DATA_SOURCE_JNDI_NAME_SUB_SETTING, DATA_SOURCE_SUB_SETTING));
+        setReadDataSource(createDataSource(settings, READ_DATA_SOURCE_JNDI_NAME_SUB_SETTING, READ_DATA_SOURCE_SUB_SETTING));
         setCatalog(ObjectUtils.to(String.class, settings.get(CATALOG_SUB_SETTING)));
-        setMetricCatalog(ObjectUtils.to(String.class, settings.get(METRIC_CATALOG_SUB_SETTING)));
         setIndexSpatial(ObjectUtils.to(boolean.class, settings.get(INDEX_SPATIAL_SUB_SETTING)));
 
         setUp();
-        invalidateCaches();
 
-        Connection connection = openAnyConnection();
+        // Cache of existing table names.
         Set<String> existingTables;
+        Connection connection = openReadConnection();
 
         try (DSLContext context = openContext(connection)) {
             existingTables = context.meta().getTables().stream()
@@ -1125,13 +784,14 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             closeConnection(connection);
         }
 
-        numberSqlIndexes = sqlIndexes(existingTables, new NumberSqlIndex(this, "RecordNumber", 3));
-        stringSqlIndexes = sqlIndexes(existingTables, new StringSqlIndex(this, "RecordString", 4));
-        uuidSqlIndexes = sqlIndexes(existingTables, new UuidSqlIndex(this, "RecordUuid", 3));
+        // Which index tables to actually use?
+        numberSqlIndexes = filterSqlIndexes(existingTables, new NumberSqlIndex(this, "RecordNumber", 3));
+        stringSqlIndexes = filterSqlIndexes(existingTables, new StringSqlIndex(this, "RecordString", 4));
+        uuidSqlIndexes = filterSqlIndexes(existingTables, new UuidSqlIndex(this, "RecordUuid", 3));
 
         if (isIndexSpatial()) {
-            locationSqlIndexes = sqlIndexes(existingTables, new LocationSqlIndex(this, "RecordLocation", 3));
-            regionSqlIndexes = sqlIndexes(existingTables, new RegionSqlIndex(this, "RecordRegion", 2));
+            locationSqlIndexes = filterSqlIndexes(existingTables, new LocationSqlIndex(this, "RecordLocation", 3));
+            regionSqlIndexes = filterSqlIndexes(existingTables, new RegionSqlIndex(this, "RecordRegion", 2));
 
         } else {
             locationSqlIndexes = Collections.emptyList();
@@ -1147,32 +807,8 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                 .build();
     }
 
-    private List<AbstractSqlIndex> sqlIndexes(Set<String> existingTables, AbstractSqlIndex... sqlIndexes) {
-        ImmutableList.Builder<AbstractSqlIndex> builder = ImmutableList.builder();
-        boolean empty = true;
-
-        for (AbstractSqlIndex sqlIndex : sqlIndexes) {
-            if (existingTables.contains(sqlIndex.table.getName().toLowerCase(Locale.ENGLISH))) {
-                builder.add(sqlIndex);
-                empty = false;
-            }
-        }
-
-        if (empty) {
-            int length = sqlIndexes.length;
-
-            if (length > 0) {
-                builder.add(sqlIndexes[length - 1]);
-            }
-        }
-
-        return builder.build();
-    }
-
-    private DataSource createDataSource(
-            Map<String, Object> settings,
-            String dataSourceJndiNameSetting,
-            String dataSourceSetting) {
+    // Creates a data source using the settings.
+    private DataSource createDataSource(Map<String, Object> settings, String dataSourceJndiNameSetting, String dataSourceSetting) {
 
         // Data source at a non-standard location?
         String dataSourceJndiName = ObjectUtils.to(String.class, settings.get(dataSourceJndiNameSetting));
@@ -1210,9 +846,257 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         return null;
     }
 
+    // Filters index tables that should be used based on existing tables.
+    private List<AbstractSqlIndex> filterSqlIndexes(Set<String> existingTables, AbstractSqlIndex... sqlIndexes) {
+        ImmutableList.Builder<AbstractSqlIndex> builder = ImmutableList.builder();
+        boolean empty = true;
+
+        for (AbstractSqlIndex sqlIndex : sqlIndexes) {
+            if (existingTables.contains(sqlIndex.table.getName().toLowerCase(Locale.ENGLISH))) {
+                builder.add(sqlIndex);
+                empty = false;
+            }
+        }
+
+        if (empty) {
+            int length = sqlIndexes.length;
+
+            if (length > 0) {
+                builder.add(sqlIndexes[length - 1]);
+            }
+        }
+
+        return builder.build();
+    }
+
+    @Override
+    public long now() {
+        return System.currentTimeMillis() - nowOffset.get();
+    }
+
+    @Override
+    public Connection openQueryConnection(Query<?> query) {
+        if (query != null) {
+            Connection connection = (Connection) query.getOptions().get(CONNECTION_QUERY_OPTION);
+
+            if (connection != null) {
+                return connection;
+            }
+        }
+
+        return super.openQueryConnection(query);
+    }
+
+    /**
+     * Builds an SQL statement that can be used to select all objects
+     * matching the given {@code query}.
+     *
+     * @param query Nonnull.
+     * @return Nonnull.
+     */
+    public String buildSelectStatement(Query<?> query) {
+        Preconditions.checkNotNull(query);
+
+        try {
+            Query<?> strippedQuery = query.clone();
+            strippedQuery.setDatabase(this);
+            strippedQuery.getOptions().remove(State.REFERENCE_RESOLVING_QUERY_OPTION);
+            return addComment(selectStatements.getUnchecked(strippedQuery), query);
+
+        } catch (UncheckedExecutionException error) {
+            Throwable cause = error.getCause();
+
+            Throwables.propagateIfPossible(cause);
+            throw new DatabaseException(this, cause);
+        }
+    }
+
+    // Adds comment to the SQL to improve debugging.
+    private String addComment(String sql, Query<?> query) {
+        if (query != null) {
+            String comment = query.getComment();
+
+            if (!ObjectUtils.isBlank(comment)) {
+                return "/*" + comment + "*/ " + sql;
+            }
+        }
+
+        return sql;
+    }
+
+    /**
+     * Selects using the {@code sqlQuery} with the given {@code query} options,
+     * and passes the result into the given {@code selectFunction}.
+     *
+     * @param sqlQuery Nonnull.
+     * @param query Nullable.
+     * @param selectFunction Nonnull.
+     * @return Nullable.
+     */
+    public <R> R select(String sqlQuery, Query<?> query, SqlSelectFunction<R> selectFunction) {
+        Preconditions.checkNotNull(sqlQuery);
+        Preconditions.checkNotNull(selectFunction);
+
+        Connection connection = openQueryConnection(query);
+
+        try {
+            double timeout = getReadTimeout();
+
+            if (query != null) {
+                Double queryTimeout = query.getTimeout();
+
+                if (queryTimeout != null) {
+                    timeout = queryTimeout;
+                }
+            }
+
+            try (Statement statement = connection.createStatement()) {
+                if (timeout > 0.0d) {
+                    statement.setQueryTimeout((int) Math.ceil(timeout));
+                }
+
+                Stats.Timer timer = STATS.startTimer();
+                Profiler.Static.startThreadEvent("SQL: Query");
+                ResultSet result;
+
+                try {
+                    result = statement.executeQuery(sqlQuery);
+
+                } finally {
+                    double duration = timer.stop("SQL: Query");
+                    Profiler.Static.stopThreadEvent(sqlQuery);
+
+                    LOGGER.debug(
+                            "Read from the SQL database using [{}] in [{}]ms",
+                            sqlQuery, duration * 1000.0);
+                }
+
+                return selectFunction.apply(result);
+            }
+
+        } catch (SQLException error) {
+            throw createSelectError(sqlQuery, query, error);
+
+        } finally {
+            closeResources(query, connection, null, null);
+        }
+    }
+
+    // Creates an error that happened during #select.
+    SqlDatabaseException createSelectError(String sqlQuery, Query<?> query, SQLException error) {
+        String message;
+
+        if (error instanceof SQLTimeoutException
+                || ((message = error.getMessage()) != null
+                && message.toLowerCase(Locale.ENGLISH).contains("timeout"))) {
+
+            throw new SqlDatabaseException.ReadTimeout(this, error, sqlQuery, query);
+
+        } else {
+            throw new SqlDatabaseException(this, error, sqlQuery, query);
+        }
+    }
+
+    // Closes all types of resources that were opened during a JDBC operation.
+    void closeResources(Query<?> query, Connection connection, Statement statement, ResultSet result) {
+        if (result != null) {
+            try {
+                result.close();
+            } catch (SQLException error) {
+                // Not likely and probably harmless.
+            }
+        }
+
+        if (statement != null) {
+            try {
+                statement.close();
+            } catch (SQLException error) {
+                // Not likely and probably harmless.
+            }
+        }
+
+        Object queryConnection;
+
+        if (connection != null
+                && (query == null
+                || (queryConnection = query.getOptions().get(CONNECTION_QUERY_OPTION)) == null
+                || !connection.equals(queryConnection))) {
+            try {
+                if (!connection.isClosed()) {
+                    connection.close();
+                }
+            } catch (SQLException ex) {
+                // Not likely and probably harmless.
+            }
+        }
+    }
+
+    /**
+     * Creates a previously saved object using the given {@code result},
+     * and sets common state options based on the given {@code query}.
+     *
+     * @param result Nonnull.
+     * @param query Nullable.
+     * @return Nonnull.
+     * @see #createSavedObject(Object, Object, Query)
+     */
+    protected <T> T createSavedObjectUsingResultSet(ResultSet result, Query<T> query) throws SQLException {
+        T object = createSavedObject(result.getObject(2), result.getObject(1), query);
+        State objectState = State.getInstance(object);
+
+        if (!objectState.isReferenceOnly()) {
+            byte[] data = result.getBytes(3);
+
+            if (data != null) {
+                objectState.setValues(StateSerializer.deserialize(data));
+                objectState.getExtras().put(DATA_LENGTH_EXTRA, data.length);
+
+                if (query != null
+                        && ObjectUtils.to(boolean.class, query.getOptions().get(RETURN_ORIGINAL_DATA_QUERY_OPTION))) {
+
+                    objectState.getExtras().put(ORIGINAL_DATA_EXTRA, data);
+                }
+            }
+        }
+
+        return swapObjectType(query, object);
+    }
+
+    /**
+     * Selects a list of objects that match the given {@code sqlQuery} with
+     * the given {@code query} options.
+     *
+     * @param sqlQuery Nonnull.
+     * @param query Nullable.
+     * @return Nonnull.
+     */
+    public <T> List<T> selectList(String sqlQuery, Query<T> query) {
+        return select(sqlQuery, query, result -> {
+            List<T> objects = new ArrayList<>();
+
+            while (result.next()) {
+                objects.add(createSavedObjectUsingResultSet(result, query));
+            }
+
+            return objects;
+        });
+    }
+
     @Override
     public <T> List<T> readAll(Query<T> query) {
         return selectList(buildSelectStatement(query), query);
+    }
+
+    /**
+     * Builds an SQL statement that can be used to get a count of all
+     * objects matching the given {@code query}.
+     *
+     * @param query Nonnull.
+     * @return Nonnull.
+     */
+    public String buildCountStatement(Query<?> query) {
+        Preconditions.checkNotNull(query);
+        return addComment(new SqlQuery(this, query).countStatement(), query);
     }
 
     @Override
@@ -1224,9 +1108,44 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                 : 0L);
     }
 
+    /**
+     * Selects the first object that matches the given {@code sqlQuery},
+     * which is executed with the given {@code query} options.
+     *
+     * @param sqlQuery Nonnull.
+     * @param query Nullable.
+     * @return Nullable.
+     */
+    public <T> T selectFirst(String sqlQuery, Query<T> query) {
+        Preconditions.checkNotNull(sqlQuery);
+
+        sqlQuery = DSL.using(getDialect())
+                .selectFrom(DSL.table("(" + sqlQuery + ")").as("q"))
+                .offset(0)
+                .limit(1)
+                .getSQL(ParamType.INLINED);
+
+        return select(sqlQuery, query, result -> result.next()
+                ? createSavedObjectUsingResultSet(result, query)
+                : null);
+    }
+
     @Override
     public <T> T readFirst(Query<T> query) {
         return selectFirst(buildSelectStatement(query), query);
+    }
+
+    /**
+     * Selects an iterable of objects that match the given {@code sqlQuery},
+     * which is executed with the given {@code query} options.
+     *
+     * @param sqlQuery Nonnull.
+     * @param fetchSize Number of objects to fetch at a time.
+     * @param query Nullable.
+     * @return Nonnull.
+     */
+    public <T> Iterable<T> selectIterable(String sqlQuery, int fetchSize, Query<T> query) {
+        return () -> new SqlIterator<>(this, sqlQuery, fetchSize, query);
     }
 
     @Override
@@ -1238,6 +1157,18 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         }
 
         return selectIterable(buildSelectStatement(query), fetchSize, query);
+    }
+
+    /**
+     * Builds an SQL statement that can be used to get when any of the objects
+     * matching the given {@code query} were last updated.
+     *
+     * @param query Nonnull.
+     * @return Nonnull.
+     */
+    public String buildLastUpdateStatement(Query<?> query) {
+        Preconditions.checkNotNull(query);
+        return addComment(new SqlQuery(this, query).lastUpdateStatement(), query);
     }
 
     @Override
@@ -1302,6 +1233,21 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
                 return true;
             }
         };
+    }
+
+    /**
+     * Builds an SQL statement that can be used to get all objects grouped by
+     * the values of the given {@code fields}.
+     *
+     * @param query Nonnull.
+     * @param fields Nonnull. Nonempty.
+     * @return Nonnull.
+     */
+    public String buildGroupStatement(Query<?> query, String... fields) {
+        Preconditions.checkNotNull(query);
+        Preconditions.checkNotNull(fields);
+        Preconditions.checkArgument(fields.length > 0);
+        return addComment(new SqlQuery(this, query).groupStatement(fields), query);
     }
 
     @Override
@@ -1412,20 +1358,14 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         connection.setAutoCommit(true);
     }
 
-    /**
-     * Returns {@code true} if the writes should use {@link Savepoint}s.
-     */
-    protected boolean shouldUseSavepoint() {
-        return true;
-    }
-
+    // Executes a write.
     private int execute(Connection connection, DSLContext context, org.jooq.Query query) throws SQLException {
         boolean useSavepoint = shouldUseSavepoint();
         Savepoint savepoint = null;
         Integer affected = null;
 
         Stats.Timer timer = STATS.startTimer();
-        Profiler.Static.startThreadEvent(UPDATE_PROFILER_EVENT);
+        Profiler.Static.startThreadEvent("SQL: Update");
 
         try {
             if (useSavepoint && !connection.getAutoCommit()) {
@@ -1449,7 +1389,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
             throw error;
 
         } finally {
-            double time = timer.stop(UPDATE_STATS_OPERATION);
+            double time = timer.stop("SQL: Update");
             java.util.function.Supplier<String> sqlSupplier = () -> context
                     .renderContext()
                     .paramType(ParamType.INLINED)
@@ -1469,8 +1409,29 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         }
     }
 
+    /**
+     * Returns {@code true} if the writes should use JDBC savepoints.
+     */
+    protected boolean shouldUseSavepoint() {
+        return true;
+    }
+
+    @Override
+    protected boolean isRecoverableError(Exception error) {
+        if (error instanceof SQLException) {
+            SQLException sqlError = (SQLException) error;
+            return "40001".equals(sqlError.getSQLState());
+        }
+
+        return false;
+    }
+
     @Override
     protected void doSaves(Connection connection, boolean isImmediate, List<State> states) throws SQLException {
+        if (states == null || states.isEmpty()) {
+            return;
+        }
+
         List<State> indexStates = null;
         for (State state1 : states) {
             if (Boolean.TRUE.equals(state1.getExtra(SKIP_INDEX_STATE_EXTRA))) {
@@ -1491,8 +1452,10 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         try (DSLContext context = openContext(connection)) {
 
             // Save all indexes.
-            deleteIndexes(connection, context, null, indexStates);
-            insertIndexes(connection, context, null, indexStates);
+            if (!indexStates.isEmpty()) {
+                deleteIndexes(context, null, indexStates);
+                insertIndexes(context, null, indexStates);
+            }
 
             double now = System.currentTimeMillis() / 1000.0;
 
@@ -1648,28 +1611,257 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> i
         }
     }
 
+    // Deletes all index data associated with the states.
+    private void deleteIndexes(DSLContext context, ObjectIndex onlyIndex, List<State> states) throws SQLException {
+        Set<UUID> stateIds = states.stream()
+                .map(State::getId)
+                .collect(Collectors.toSet());
+
+        for (AbstractSqlIndex sqlIndex : deleteSqlIndexes) {
+            try {
+                DeleteConditionStep<Record> delete = context
+                        .deleteFrom(sqlIndex.table)
+                        .where(sqlIndex.idField.in(stateIds));
+
+                if (onlyIndex != null) {
+                    delete = delete.and(sqlIndex.symbolIdField.eq(findSymbolId(onlyIndex.getUniqueName(), false)));
+                }
+
+                context.execute(delete);
+
+            } catch (DataAccessException error) {
+                Throwables.propagateIfInstanceOf(error, SQLException.class);
+                throw error;
+            }
+        }
+    }
+
+    /**
+     * Find a unique ID associated with the given {@code symbol}, creating
+     * one on demand if requested.
+     *
+     * @param symbol Nonnull.
+     * @param create {@code true} to create the ID on demand.
+     * @return {@code -1} if the given {@code symbol} isn't associated with
+     *         an ID and its creation isn't requested.
+     */
+    protected int findSymbolId(String symbol, boolean create) {
+        Preconditions.checkNotNull(symbol);
+
+        // ID already cached?
+        Integer cachedId = symbolIds.get().get(symbol);
+
+        if (cachedId != null) {
+            return cachedId;
+        }
+
+        // Try to find the ID from the database.
+        Connection readConnection = openReadConnection();
+
+        try {
+            int id = readSymbolId(symbol, readConnection);
+
+            if (id > 0 || !create) {
+                return id;
+            }
+
+        } finally {
+            closeConnection(readConnection);
+        }
+
+        // Create the ID and re-fetch it from the database to make sure that
+        // it's correct in case of unique constraint violation.
+        Connection connection = openConnection();
+
+        try {
+            try (DSLContext context = openContext(connection)) {
+                org.jooq.Query createQuery = context
+                        .insertInto(symbolTable, symbolValueField)
+                        .select(context
+                                .select(DSL.inline(symbol, stringIndexType()))
+                                .whereNotExists(context
+                                        .selectOne()
+                                        .from(symbolTable)
+                                        .where(symbolValueField.eq(symbol))));
+
+                try {
+                    createQuery.execute();
+
+                } catch (DataAccessException error) {
+                    throw convertJooqError(error, createQuery);
+                }
+            }
+
+            return readSymbolId(symbol, connection);
+
+        } finally {
+            closeConnection(connection);
+        }
+    }
+
+    // Reads the symbol ID from the database.
+    private int readSymbolId(String symbol, Connection connection) {
+        try (DSLContext context = openContext(connection)) {
+            ResultQuery<Record1<Integer>> selectQuery = context
+                    .select(symbolIdField)
+                    .from(symbolTable)
+                    .where(symbolValueField.eq(symbol));
+
+            try {
+                Integer id = selectQuery
+                        .fetchOptional()
+                        .map(Record1::value1)
+                        .orElse(null);
+
+                if (id != null) {
+                    symbolIds.get().put(symbol, id);
+                    return id;
+
+                } else {
+                    return -1;
+                }
+
+            } catch (DataAccessException error) {
+                throw convertJooqError(error, selectQuery);
+            }
+        }
+    }
+
+    // Inserts all index data associated with the states.
+    private void insertIndexes(DSLContext context, ObjectIndex onlyIndex, List<State> states) throws SQLException {
+        Map<Table<Record>, BatchBindStep> batches = new HashMap<>();
+        Map<Table<Record>, Set<Map<String, Object>>> bindValuesSets = new HashMap<>();
+
+        for (State state : states) {
+            UUID id = state.getId();
+            UUID typeId = state.getVisibilityAwareTypeId();
+
+            for (SqlIndexValue sqlIndexValue : SqlIndexValue.find(state)) {
+                ObjectIndex index = sqlIndexValue.getIndex();
+
+                if (onlyIndex != null && !onlyIndex.equals(index)) {
+                    continue;
+                }
+
+                Object symbolId = findSymbolId(sqlIndexValue.getUniqueName(), true);
+
+                for (AbstractSqlIndex sqlIndex : getSqlIndexes(index)) {
+                    Table<Record> table = sqlIndex.table;
+                    BatchBindStep batch = batches.get(table);
+                    Param<UUID> idParam = sqlIndex.idParam;
+                    Param<UUID> typeIdParam = sqlIndex.typeIdParam;
+                    Param<Integer> symbolIdParam = sqlIndex.symbolIdParam;
+
+                    if (batch == null) {
+                        batch = context.batch(context.insertInto(table)
+                                .set(sqlIndex.idField, idParam)
+                                .set(sqlIndex.typeIdField, typeIdParam)
+                                .set(sqlIndex.symbolIdField, symbolIdParam)
+                                .set(sqlIndex.valueField, sqlIndex.valueParam()));
+                    }
+
+                    boolean bound = false;
+
+                    for (Object[] valuesArray : sqlIndexValue.getValuesArray()) {
+                        Map<String, Object> bindValues = sqlIndex.valueBindValues(index, valuesArray[0]);
+
+                        if (bindValues != null) {
+                            bindValues.put(idParam.getName(), id);
+                            bindValues.put(typeIdParam.getName(), typeId);
+                            bindValues.put(symbolIdParam.getName(), symbolId);
+
+                            Set<Map<String, Object>> bindValuesSet = bindValuesSets.get(table);
+
+                            if (bindValuesSet == null) {
+                                bindValuesSet = new HashSet<>();
+                                bindValuesSets.put(table, bindValuesSet);
+                            }
+
+                            if (!bindValuesSet.contains(bindValues)) {
+                                batch = batch.bind(bindValues);
+                                bound = true;
+                                bindValuesSet.add(bindValues);
+                            }
+                        }
+                    }
+
+                    if (bound) {
+                        batches.put(table, batch);
+                    }
+                }
+            }
+        }
+
+        for (BatchBindStep batch : batches.values()) {
+            try {
+                batch.execute();
+
+            } catch (DataAccessException error) {
+                Throwables.propagateIfInstanceOf(error.getCause(), SQLException.class);
+                throw error;
+            }
+        }
+    }
+
+    // Returns all tables that should be used to work with the index.
+    List<AbstractSqlIndex> getSqlIndexes(ObjectIndex index) {
+        List<String> fieldNames = index.getFields();
+        ObjectField field = index.getParent().getField(fieldNames.get(0));
+
+        switch (field != null ? field.getInternalItemType() : index.getType()) {
+            case ObjectField.RECORD_TYPE :
+            case ObjectField.UUID_TYPE :
+                return uuidSqlIndexes;
+
+            case ObjectField.DATE_TYPE :
+            case ObjectField.NUMBER_TYPE :
+                return numberSqlIndexes;
+
+            case ObjectField.LOCATION_TYPE :
+                return locationSqlIndexes;
+
+            case ObjectField.REGION_TYPE :
+                return regionSqlIndexes;
+
+            default :
+                return stringSqlIndexes;
+        }
+    }
+
     @Override
     protected void doIndexes(Connection connection, boolean isImmediate, List<State> states) throws SQLException {
+        if (states == null || states.isEmpty()) {
+            return;
+        }
+
         try (DSLContext context = openContext(connection)) {
-            deleteIndexes(connection, context, null, states);
-            insertIndexes(connection, context, null, states);
+            deleteIndexes(context, null, states);
+            insertIndexes(context, null, states);
         }
     }
 
     @Override
     protected void doRecalculations(Connection connection, boolean isImmediate, ObjectIndex index, List<State> states) throws SQLException {
+        if (states == null || states.isEmpty()) {
+            return;
+        }
+
         try (DSLContext context = openContext(connection)) {
-            deleteIndexes(connection, context, index, states);
-            insertIndexes(connection, context, index, states);
+            deleteIndexes(context, index, states);
+            insertIndexes(context, index, states);
         }
     }
 
     @Override
     protected void doDeletes(Connection connection, boolean isImmediate, List<State> states) throws SQLException {
+        if (states == null || states.isEmpty()) {
+            return;
+        }
+
         try (DSLContext context = openContext(connection)) {
 
             // Delete all indexes.
-            deleteIndexes(connection, context, null, states);
+            deleteIndexes(context, null, states);
 
             Set<UUID> stateIds = states.stream()
                     .map(State::getId)

@@ -3,6 +3,7 @@ package com.psddev.dari.db.mysql;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.psddev.dari.db.CompoundPredicate;
+import com.psddev.dari.db.MetricSqlDatabase;
 import com.psddev.dari.db.ObjectType;
 import com.psddev.dari.db.Predicate;
 import com.psddev.dari.db.PredicateParser;
@@ -39,7 +40,32 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 
-public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable {
+/**
+ * Database implementation for use with MySQL.
+ *
+ * @see <a href="http://www.mysql.com/">MySQL</a>
+ */
+public class MySQLDatabase extends AbstractSqlDatabase implements MetricSqlDatabase {
+
+    /**
+     * Sub-setting name for specifying whether the replication caching should
+     * be enabled.
+     *
+     * @see #isEnableReplicationCache()
+     * @see #setEnableReplicationCache(boolean)
+     */
+    public static final String ENABLE_REPLICATION_CACHE_SUB_SETTING = "enableReplicationCache";
+
+    /**
+     * Sub-setting name for specifying the maximum number of items to hold in
+     * the replication cache.
+     *
+     * @see #getReplicationCacheMaximumSize()
+     * @see #setReplicationCacheMaximumSize(long)
+     */
+    public static final String REPLICATION_CACHE_SIZE_SUB_SETTING = "replicationCacheSize";
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(MySQLDatabase.class);
 
     private static final DataType<UUID> UUID_TYPE = MySQLDataType.BINARY.asConvertedDataType(new Converter<byte[], UUID>() {
 
@@ -64,84 +90,47 @@ public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable 
         }
     });
 
-    public static final String ENABLE_REPLICATION_CACHE_SUB_SETTING = "enableReplicationCache";
-    public static final String REPLICATION_CACHE_SIZE_SUB_SETTING = "replicationCacheSize";
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(MySQLDatabase.class);
-
-    private static final String SHORT_NAME = "MySQL";
-    private static final String REPLICATION_CACHE_GET_PROFILER_EVENT = SHORT_NAME + " Replication Cache Get";
-    private static final String REPLICATION_CACHE_PUT_PROFILER_EVENT = SHORT_NAME + " Replication Cache Put";
-
-    private static final long DEFAULT_REPLICATION_CACHE_SIZE = 10000L;
-
-    private volatile Boolean binlogFormatStatement;
     private volatile boolean enableReplicationCache;
     private volatile long replicationCacheMaximumSize;
 
-    private transient volatile Cache<UUID, Object[]> replicationCache;
-    private transient volatile MySQLBinaryLogReader mysqlBinaryLogReader;
-    private final transient ConcurrentMap<Class<?>, UUID> singletonIds = new ConcurrentHashMap<>();
+    private volatile Cache<UUID, Object[]> replicationCache;
+    private volatile MySQLBinaryLogReader binaryLogReader;
+    private volatile boolean binlogFormatStatement;
 
-    @Override
-    protected DataType<UUID> uuidType() {
-        return UUID_TYPE;
-    }
+    private final ConcurrentMap<Class<?>, UUID> singletonIds = new ConcurrentHashMap<>();
 
-    @Override
-    protected void setTransactionIsolation(Connection connection) throws SQLException {
-        if (binlogFormatStatement == null) {
-            synchronized (this) {
-                if (binlogFormatStatement == null) {
-                    try (Statement statement = connection.createStatement();
-                            ResultSet result = statement.executeQuery("SHOW VARIABLES WHERE variable_name IN ('log_bin', 'binlog_format')")) {
-
-                        boolean logBin = false;
-
-                        while (result.next()) {
-                            String name = result.getString(1);
-                            String value = result.getString(2);
-
-                            if ("binlog_format".equalsIgnoreCase(name)) {
-                                binlogFormatStatement = "STATEMENT".equalsIgnoreCase(value);
-
-                            } else if ("log_bin".equalsIgnoreCase(name)) {
-                                logBin = !"OFF".equalsIgnoreCase(value);
-                            }
-                        }
-
-                        binlogFormatStatement = logBin && Boolean.TRUE.equals(binlogFormatStatement);
-
-                        if (binlogFormatStatement) {
-                            LOGGER.warn("Can't set transaction isolation to"
-                                    + " READ COMMITTED because binlog_format"
-                                    + " is set to STATEMENT. Please set it to"
-                                    + " MIXED (my.cnf: binlog_format = mixed)"
-                                    + " to prevent reduced performance under"
-                                    + " load.");
-                        }
-                    }
-                }
-            }
-        }
-
-        if (!binlogFormatStatement) {
-            connection.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
-        }
-    }
-
+    /**
+     * Returns {@code true} if the replication caching should be enabled.
+     *
+     * @see #ENABLE_REPLICATION_CACHE_SUB_SETTING
+     */
     public boolean isEnableReplicationCache() {
         return enableReplicationCache;
     }
 
+    /**
+     * Sets whether the replication caching should be enabled.
+     *
+     * @see #ENABLE_REPLICATION_CACHE_SUB_SETTING
+     */
     public void setEnableReplicationCache(boolean enableReplicationCache) {
         this.enableReplicationCache = enableReplicationCache;
     }
 
+    /**
+     * Returns the maximum number of items to hold in the replication cache.
+     *
+     * @see #REPLICATION_CACHE_SIZE_SUB_SETTING
+     */
     public void setReplicationCacheMaximumSize(long replicationCacheMaximumSize) {
         this.replicationCacheMaximumSize = replicationCacheMaximumSize;
     }
 
+    /**
+     * Sets the maximum number of items to hold in the replication cache.
+     *
+     * @see #REPLICATION_CACHE_SIZE_SUB_SETTING
+     */
     public long getReplicationCacheMaximumSize() {
         return this.replicationCacheMaximumSize;
     }
@@ -152,24 +141,97 @@ public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable 
     }
 
     @Override
-    public SqlVendor getMetricVendor() {
-        return new SqlVendor.MySQL();
+    protected DataType<UUID> uuidType() {
+        return UUID_TYPE;
     }
 
     @Override
-    public void close() {
-        if (mysqlBinaryLogReader != null) {
-            LOGGER.info("Stopping MySQL binary log reader");
-            mysqlBinaryLogReader.stop();
-            mysqlBinaryLogReader = null;
+    protected void prepareConnection(Connection connection, boolean readOnly) throws SQLException {
+        if (!binlogFormatStatement) {
+            super.prepareConnection(connection, readOnly);
         }
     }
 
-    /**
-     * Invalidates all entries in the replication cache.
-     */
-    public void invalidateReplicationCache() {
+    @Override
+    public void invalidateCaches() {
+        super.invalidateCaches();
         replicationCache.invalidateAll();
+    }
+
+    @Override
+    protected void doInitialize(String settingsKey, Map<String, Object> settings) {
+        super.doInitialize(settingsKey, settings);
+
+        // Initialize replication caching?
+        setEnableReplicationCache(ObjectUtils.to(boolean.class, settings.get(ENABLE_REPLICATION_CACHE_SUB_SETTING)));
+        setReplicationCacheMaximumSize(ObjectUtils.firstNonNull(ObjectUtils.to(Long.class, settings.get(REPLICATION_CACHE_SIZE_SUB_SETTING)), 10000L));
+
+        if (isEnableReplicationCache()
+                && (binaryLogReader == null
+                || !binaryLogReader.isRunning())) {
+
+            replicationCache = CacheBuilder.newBuilder().maximumSize(getReplicationCacheMaximumSize()).build();
+
+            try {
+                LOGGER.info("Starting MySQL binary log reader");
+                binaryLogReader = new MySQLBinaryLogReader(this, replicationCache, getReadDataSource(), recordTable.getName());
+                binaryLogReader.start();
+
+            } catch (IllegalArgumentException error) {
+                setEnableReplicationCache(false);
+                LOGGER.warn("Can't start MySQL binary log reader!", error);
+            }
+        }
+
+        // Verify that binlog format is set correctly.
+        Connection connection = openConnection();
+
+        try {
+            try (Statement statement = connection.createStatement();
+                 ResultSet result = statement.executeQuery("SHOW VARIABLES WHERE variable_name IN ('log_bin', 'binlog_format')")) {
+
+                boolean logBin = false;
+
+                while (result.next()) {
+                    String name = result.getString(1);
+                    String value = result.getString(2);
+
+                    if ("binlog_format".equalsIgnoreCase(name)) {
+                        binlogFormatStatement = "STATEMENT".equalsIgnoreCase(value);
+
+                    } else if ("log_bin".equalsIgnoreCase(name)) {
+                        logBin = !"OFF".equalsIgnoreCase(value);
+                    }
+                }
+
+                binlogFormatStatement = logBin && Boolean.TRUE.equals(binlogFormatStatement);
+
+                if (binlogFormatStatement) {
+                    LOGGER.warn("Can't set transaction isolation to"
+                            + " READ COMMITTED because binlog_format"
+                            + " is set to STATEMENT. Please set it to"
+                            + " MIXED (my.cnf: binlog_format = mixed)"
+                            + " to prevent reduced performance under"
+                            + " load.");
+                }
+            }
+
+        } catch (SQLException error) {
+
+        } finally {
+            closeConnection(connection);
+        }
+    }
+
+    @Override
+    public void close() throws Exception {
+        super.close();
+
+        if (binaryLogReader != null) {
+            LOGGER.info("Stopping MySQL binary log reader");
+            binaryLogReader.stop();
+            binaryLogReader= null;
+        }
     }
 
     @Override
@@ -184,13 +246,14 @@ public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable 
     }
 
     // Creates a previously saved object from the replication cache.
-    @SuppressWarnings("unchecked")
-    protected <T> T createSavedObjectFromReplicationCache(UUID id, byte[] data, Map<String, Object> dataJson, Query<T> query) {
+    <T> T createSavedObjectFromReplicationCache(UUID id, byte[] data, Map<String, Object> dataJson, Query<T> query) {
         UUID typeId = ObjectUtils.to(UUID.class, dataJson.get(StateValueUtils.TYPE_KEY));
         T object = createSavedObject(typeId, id, query);
         State state = State.getInstance(object);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> dataJsonClone = (Map<String, Object>) cloneJson(dataJson);
 
-        state.setValues((Map<String, Object>) cloneJson(dataJson));
+        state.setValues(dataJsonClone);
 
         if (query != null && ObjectUtils.to(boolean.class, query.getOptions().get(RETURN_ORIGINAL_DATA_QUERY_OPTION))) {
             state.getExtras().put(ORIGINAL_DATA_EXTRA, data);
@@ -199,9 +262,10 @@ public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable 
         return swapObjectType(query, object);
     }
 
-    @SuppressWarnings("unchecked")
+    // Clones the object so that it's safe to use in multiple threads.
     private static Object cloneJson(Object object) {
         if (object instanceof Map) {
+            @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) object;
             Map<String, Object> clone = new CompactMap<>(map.size());
 
@@ -212,7 +276,10 @@ public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable 
             return clone;
 
         } else if (object instanceof List) {
-            return ((List<Object>) object).stream()
+            @SuppressWarnings("unchecked")
+            List<Object> objectList = (List<Object>) object;
+
+            return objectList.stream()
                     .map(MySQLDatabase::cloneJson)
                     .collect(Collectors.toList());
 
@@ -221,13 +288,36 @@ public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable 
         }
     }
 
-    // Tries to find objects by the given ids from the replication cache.
-    // If not found, execute the given query to populate it.
+    @Override
+    public <T> List<T> readAll(Query<T> query) {
+        if (checkReplicationCache(query)) {
+            List<Object> ids = query.findIdOnlyQueryValues();
+
+            if (ids != null && !ids.isEmpty()) {
+                List<T> objects = findObjectsFromReplicationCache(ids, query);
+
+                return objects != null ? objects : new ArrayList<>();
+            }
+        }
+
+        return super.readAll(query);
+    }
+
+    // Checks whether the replication cache should be used.
+    private boolean checkReplicationCache(Query<?> query) {
+        return query.isCache()
+                && isEnableReplicationCache()
+                && binaryLogReader != null
+                && binaryLogReader.isConnected();
+    }
+
+    // Tries to find objects from the replication cache, and if not found,
+    // executes the query to populate it.
     private <T> List<T> findObjectsFromReplicationCache(List<Object> ids, Query<T> query) {
         List<T> objects = null;
         List<UUID> missingIds = null;
 
-        Profiler.Static.startThreadEvent(REPLICATION_CACHE_GET_PROFILER_EVENT);
+        Profiler.Static.startThreadEvent("MySQL: Replication Cache Get");
 
         try {
             for (Object idObject : ids) {
@@ -253,7 +343,7 @@ public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable 
                 @SuppressWarnings("unchecked")
                 Map<String, Object> dataJson = (Map<String, Object>) value[2];
 
-                objects = addObjects(
+                objects = createReplicationCacheObjects(
                         objects,
                         typeId,
                         id,
@@ -267,7 +357,7 @@ public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable 
         }
 
         if (missingIds != null && !missingIds.isEmpty()) {
-            Profiler.Static.startThreadEvent(REPLICATION_CACHE_PUT_PROFILER_EVENT);
+            Profiler.Static.startThreadEvent("MySQL: Replication Cache Put");
 
             try {
                 String sqlQuery = DSL.using(getDialect())
@@ -296,7 +386,7 @@ public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable 
                             replicationCache.put(id, new Object[] { UuidUtils.toBytes(typeId), data, dataJson });
                         }
 
-                        resultObjects = addObjects(
+                        resultObjects = createReplicationCacheObjects(
                                 resultObjects,
                                 typeId,
                                 id,
@@ -316,14 +406,8 @@ public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable 
         return objects;
     }
 
-    private <T> List<T> addObjects(
-            List<T> objects,
-            UUID typeId,
-            UUID id,
-            byte[] data,
-            Map<String, Object> dataJson,
-            Query<T> query) {
-
+    // Creates objects that can go into the replication cache.
+    private <T> List<T> createReplicationCacheObjects(List<T> objects, UUID typeId, UUID id, byte[] data, Map<String, Object> dataJson, Query<T> query) {
         if (typeId != null && query != null) {
             ObjectType type = ObjectType.getInstance(typeId);
 
@@ -353,54 +437,6 @@ public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable 
         }
 
         return objects;
-    }
-
-    @Override
-    protected void doInitialize(String settingsKey, Map<String, Object> settings) {
-        super.doInitialize(settingsKey, settings);
-
-        setEnableReplicationCache(ObjectUtils.to(boolean.class, settings.get(ENABLE_REPLICATION_CACHE_SUB_SETTING)));
-        Long replicationCacheMaxSize = ObjectUtils.to(Long.class, settings.get(REPLICATION_CACHE_SIZE_SUB_SETTING));
-        setReplicationCacheMaximumSize(replicationCacheMaxSize != null ? replicationCacheMaxSize : DEFAULT_REPLICATION_CACHE_SIZE);
-
-        if (isEnableReplicationCache()
-                && (mysqlBinaryLogReader == null
-                || !mysqlBinaryLogReader.isRunning())) {
-
-            replicationCache = CacheBuilder.newBuilder().maximumSize(getReplicationCacheMaximumSize()).build();
-
-            try {
-                LOGGER.info("Starting MySQL binary log reader");
-                mysqlBinaryLogReader = new MySQLBinaryLogReader(this, replicationCache, getReadDataSource(), recordTable.getName());
-                mysqlBinaryLogReader.start();
-
-            } catch (IllegalArgumentException error) {
-                setEnableReplicationCache(false);
-                LOGGER.warn("Can't start MySQL binary log reader!", error);
-            }
-        }
-    }
-
-    private boolean checkReplicationCache(Query<?> query) {
-        return query.isCache()
-                && isEnableReplicationCache()
-                && mysqlBinaryLogReader != null
-                && mysqlBinaryLogReader.isConnected();
-    }
-
-    @Override
-    public <T> List<T> readAll(Query<T> query) {
-        if (checkReplicationCache(query)) {
-            List<Object> ids = query.findIdOnlyQueryValues();
-
-            if (ids != null && !ids.isEmpty()) {
-                List<T> objects = findObjectsFromReplicationCache(ids, query);
-
-                return objects != null ? objects : new ArrayList<>();
-            }
-        }
-
-        return super.readAll(query);
     }
 
     @Override
@@ -456,5 +492,29 @@ public class MySQLDatabase extends AbstractSqlDatabase implements AutoCloseable 
     @Override
     protected boolean shouldUseSavepoint() {
         return false;
+    }
+
+    @Override
+    public SqlVendor getMetricVendor() {
+        return new SqlVendor.MySQL();
+    }
+
+    @Override
+    public String getMetricCatalog() {
+        return null;
+    }
+
+    @Override
+    public int getSymbolId(String symbol) {
+        return findSymbolId(symbol, true);
+    }
+
+    @Override
+    public ResultSet executeQueryBeforeTimeout(Statement statement, String sqlQuery, int timeout) throws SQLException {
+        if (timeout > 0) {
+            statement.setQueryTimeout(timeout);
+        }
+
+        return statement.executeQuery(sqlQuery);
     }
 }

@@ -374,7 +374,7 @@ class SqlQuery {
                     String indexKey = mappedKeys.get(queryKey).getIndexKey(selectedIndexes.get(queryKey));
 
                     if (indexKey != null) {
-                        whereCondition = join.symbolIdField.eq(database.getSymbolId(indexKey)).and(whereCondition);
+                        whereCondition = join.symbolIdField.eq(database.findSymbolId(indexKey, false)).and(whereCondition);
                     }
                 }
 

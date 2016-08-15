@@ -159,7 +159,7 @@ final class SqlJoin {
         }
 
         if (needsIndexTable) {
-            symbolIds.add(sqlQuery.database.getSymbolId(indexKey));
+            symbolIds.add(sqlQuery.database.findSymbolId(indexKey, false));
         }
     }
 

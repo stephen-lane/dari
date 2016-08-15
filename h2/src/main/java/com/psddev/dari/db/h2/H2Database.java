@@ -1,6 +1,5 @@
 package com.psddev.dari.db.h2;
 
-import com.psddev.dari.db.SqlVendor;
 import com.psddev.dari.db.sql.AbstractSqlDatabase;
 import com.psddev.dari.db.sql.SqlDatabaseException;
 import org.jooq.Converter;
@@ -13,9 +12,9 @@ import java.sql.SQLException;
 
 public class H2Database extends AbstractSqlDatabase {
 
-    private static final int MAX_STRING_INDEX_TYPE_LENGTH = 500;
-
     private static final DataType<String> STRING_INDEX_TYPE = SQLDataType.VARCHAR.asConvertedDataType(new Converter<String, String>() {
+
+        private static final int MAX_STRING_INDEX_TYPE_LENGTH = 500;
 
         @Override
         public String from(String string) {
@@ -39,6 +38,11 @@ public class H2Database extends AbstractSqlDatabase {
             return String.class;
         }
     });
+
+    @Override
+    protected SQLDialect getDialect() {
+        return SQLDialect.H2;
+    }
 
     @Override
     protected DataType<String> stringIndexType() {
@@ -67,15 +71,5 @@ public class H2Database extends AbstractSqlDatabase {
     @Override
     protected String getSetUpResourcePath() {
         return "schema-12.sql";
-    }
-
-    @Override
-    protected SQLDialect getDialect() {
-        return SQLDialect.H2;
-    }
-
-    @Override
-    public SqlVendor getMetricVendor() {
-        return new SqlVendor.H2();
     }
 }

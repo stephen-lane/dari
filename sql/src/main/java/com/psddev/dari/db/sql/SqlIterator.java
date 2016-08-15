@@ -1,5 +1,6 @@
 package com.psddev.dari.db.sql;
 
+import com.google.common.base.Preconditions;
 import com.psddev.dari.db.Query;
 
 import java.io.Closeable;
@@ -21,11 +22,17 @@ final class SqlIterator<T> implements Closeable, Iterator<T> {
     private final ResultSet result;
     private boolean hasNext = true;
 
-    public static <T> Iterable<T> iterable(AbstractSqlDatabase database, String sqlQuery, int fetchSize, Query<T> query) {
-        return () -> new SqlIterator<>(database, sqlQuery, fetchSize, query);
-    }
+    /**
+     * @param database Nonnull.
+     * @param sqlQuery Nonnull.
+     * @param fetchSize Number of objects to fetch at a time. {@code 0} or
+     *                  less to use the default.
+     * @param query Nullable.
+     */
+    public SqlIterator(AbstractSqlDatabase database, String sqlQuery, int fetchSize, Query<T> query) {
+        Preconditions.checkNotNull(database);
+        Preconditions.checkNotNull(sqlQuery);
 
-    private SqlIterator(AbstractSqlDatabase database, String sqlQuery, int fetchSize, Query<T> query) {
         this.database = database;
         this.sqlQuery = sqlQuery;
         this.query = query;
