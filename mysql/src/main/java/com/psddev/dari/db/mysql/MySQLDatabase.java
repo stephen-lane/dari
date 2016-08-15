@@ -3,7 +3,7 @@ package com.psddev.dari.db.mysql;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.psddev.dari.db.CompoundPredicate;
-import com.psddev.dari.db.MetricSqlDatabase;
+import com.psddev.dari.db.MetricAccessDatabase;
 import com.psddev.dari.db.ObjectType;
 import com.psddev.dari.db.Predicate;
 import com.psddev.dari.db.PredicateParser;
@@ -45,7 +45,7 @@ import java.util.stream.Collectors;
  *
  * @see <a href="http://www.mysql.com/">MySQL</a>
  */
-public class MySQLDatabase extends AbstractSqlDatabase implements MetricSqlDatabase {
+public class MySQLDatabase extends AbstractSqlDatabase implements MetricAccessDatabase {
 
     /**
      * Sub-setting name for specifying whether the replication caching should

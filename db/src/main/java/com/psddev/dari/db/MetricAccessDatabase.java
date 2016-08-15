@@ -5,7 +5,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
-public interface MetricSqlDatabase extends Database {
+public interface MetricAccessDatabase extends Database {
 
     SqlVendor getMetricVendor();
 
