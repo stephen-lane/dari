@@ -92,4 +92,24 @@ public class RegionIndexTest extends AbstractIndexTest<RegionIndexModel, Region>
         createCompareTestModels();
         query().where("one <= true").count();
     }
+
+    @Override
+    @Test
+    public void sortAscendingOne() {
+    }
+
+    @Override
+    @Test
+    public void sortAscendingReferenceOneOne() {
+    }
+
+    @Override
+    @Test
+    public void sortAscendingEmbeddedOneOne() {
+    }
+
+    @Override
+    @Test
+    public void sortDescendingOne() {
+    }
 }
