@@ -9,6 +9,21 @@ import java.util.Map;
 public interface StateSerializer {
 
     /**
+     * Key for state's unique ID.
+     */
+    String ID_KEY = "_id";
+
+    /**
+     * Key for state's type ID.
+     */
+    String TYPE_KEY = "_type";
+
+    /**
+     * Key for a reference to an object.
+     */
+    String REFERENCE_KEY = "_ref";
+
+    /**
      * Serializes the given {@code values} map from a {@link State} instance
      * into a byte array that's suitable for storing in a database.
      *
@@ -32,5 +47,9 @@ public interface StateSerializer {
         @SuppressWarnings("unchecked")
         Map<String, Object> dataMap = (Map<String, Object>) ObjectUtils.fromJson(data);
         return dataMap;
+    }
+
+    static Object toJavaValue(Database database, Object object, ObjectField field, String type, Object value) {
+        return StateValueUtils.toJavaValue(database, object, field, type, value);
     }
 }

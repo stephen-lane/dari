@@ -12,7 +12,6 @@ import com.psddev.dari.db.Singleton;
 import com.psddev.dari.db.SqlVendor;
 import com.psddev.dari.db.State;
 import com.psddev.dari.db.StateSerializer;
-import com.psddev.dari.db.StateValueUtils;
 import com.psddev.dari.sql.AbstractSqlDatabase;
 import com.psddev.dari.util.CompactMap;
 import com.psddev.dari.util.ObjectUtils;
@@ -247,7 +246,7 @@ public class MySQLDatabase extends AbstractSqlDatabase implements MetricAccessDa
 
     // Creates a previously saved object from the replication cache.
     <T> T createSavedObjectFromReplicationCache(UUID id, byte[] data, Map<String, Object> dataJson, Query<T> query) {
-        UUID typeId = ObjectUtils.to(UUID.class, dataJson.get(StateValueUtils.TYPE_KEY));
+        UUID typeId = ObjectUtils.to(UUID.class, dataJson.get(StateSerializer.TYPE_KEY));
         T object = createSavedObject(typeId, id, query);
         State state = State.getInstance(object);
         @SuppressWarnings("unchecked")
@@ -380,7 +379,7 @@ public class MySQLDatabase extends AbstractSqlDatabase implements MetricAccessDa
 
                         byte[] data = result.getBytes(2);
                         Map<String, Object> dataJson = StateSerializer.deserialize(data);
-                        UUID typeId = ObjectUtils.to(UUID.class, dataJson.get(StateValueUtils.TYPE_KEY));
+                        UUID typeId = ObjectUtils.to(UUID.class, dataJson.get(StateSerializer.TYPE_KEY));
 
                         if (!UuidUtils.ZERO_UUID.equals(typeId)) {
                             replicationCache.put(id, new Object[] { UuidUtils.toBytes(typeId), data, dataJson });

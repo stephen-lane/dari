@@ -460,11 +460,11 @@ public class State implements Map<String, Object> {
             }
         }
 
-        values.put(StateValueUtils.ID_KEY, getId().toString());
+        values.put(StateSerializer.ID_KEY, getId().toString());
         if (withTypeNames && getType() != null) {
-            values.put(StateValueUtils.TYPE_KEY, getType().getInternalName());
+            values.put(StateSerializer.TYPE_KEY, getType().getInternalName());
         } else {
-            values.put(StateValueUtils.TYPE_KEY, getTypeId().toString());
+            values.put(StateSerializer.TYPE_KEY, getTypeId().toString());
         }
         return values;
     }
@@ -485,8 +485,8 @@ public class State implements Map<String, Object> {
                 values.put(name, toSimpleValue(e.getValue(), field.isEmbedded(), false));
             }
         }
-        values.put(StateValueUtils.ID_KEY, getId().toString());
-        values.put(StateValueUtils.TYPE_KEY, getTypeId().toString());
+        values.put(StateSerializer.ID_KEY, getId().toString());
+        values.put(StateSerializer.TYPE_KEY, getTypeId().toString());
         return values;
     }
 
@@ -536,11 +536,11 @@ public class State implements Map<String, Object> {
             }
 
             Map<String, Object> map = new CompactMap<>();
-            map.put(StateValueUtils.REFERENCE_KEY, valueState.getId().toString());
+            map.put(StateSerializer.REFERENCE_KEY, valueState.getId().toString());
             if (withTypeNames && valueState.getType() != null) {
-                map.put(StateValueUtils.TYPE_KEY, valueState.getType().getInternalName());
+                map.put(StateSerializer.TYPE_KEY, valueState.getType().getInternalName());
             } else {
-                map.put(StateValueUtils.TYPE_KEY, valueState.getTypeId().toString());
+                map.put(StateSerializer.TYPE_KEY, valueState.getTypeId().toString());
             }
             return map;
 
@@ -1645,7 +1645,7 @@ public class State implements Map<String, Object> {
 
             for (Object rawValue : rawValuesValues) {
                 if (rawValue instanceof Map
-                        && ((Map<?, ?>) rawValue).containsKey(StateValueUtils.REFERENCE_KEY)) {
+                        && ((Map<?, ?>) rawValue).containsKey(StateSerializer.REFERENCE_KEY)) {
                     hasPotentialRefs = true;
                     break;
                 }
@@ -2006,9 +2006,9 @@ public class State implements Map<String, Object> {
         }
 
         if (key.startsWith("_")) {
-            if (key.equals(StateValueUtils.ID_KEY)) {
+            if (key.equals(StateSerializer.ID_KEY)) {
                 setId(ObjectUtils.to(UUID.class, value));
-            } else if (key.equals(StateValueUtils.TYPE_KEY)) {
+            } else if (key.equals(StateSerializer.TYPE_KEY)) {
                 UUID valueTypeId = ObjectUtils.to(UUID.class, value);
 
                 if (valueTypeId != null) {

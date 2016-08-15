@@ -18,7 +18,6 @@ import com.psddev.dari.db.ObjectIndex;
 import com.psddev.dari.db.Query;
 import com.psddev.dari.db.State;
 import com.psddev.dari.db.StateSerializer;
-import com.psddev.dari.db.StateValueUtils;
 import com.psddev.dari.db.UpdateNotifier;
 import com.psddev.dari.util.IoUtils;
 import com.psddev.dari.util.Lazy;
@@ -1308,13 +1307,13 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
                     if (ObjectField.RECORD_TYPE.equals(itemType)) {
                         for (Map.Entry<String, Object> entry : rawKeys.entrySet()) {
                             Map<String, Object> ref = new HashMap<>();
-                            ref.put(StateValueUtils.REFERENCE_KEY, entry.getValue());
+                            ref.put(StateSerializer.REFERENCE_KEY, entry.getValue());
                             entry.setValue(ref);
                         }
                     }
 
                     Map<String, Object> rawKeysCopy = new HashMap<>(rawKeys);
-                    Map<?, ?> convertedKeys = (Map<?, ?>) StateValueUtils.toJavaValue(query.getDatabase(), null, field, "map/" + itemType, rawKeys);
+                    Map<?, ?> convertedKeys = (Map<?, ?>) StateSerializer.toJavaValue(query.getDatabase(), null, field, "map/" + itemType, rawKeys);
 
                     for (int j = 0; j < groupingsSize; ++ j) {
                         String jString = String.valueOf(j);

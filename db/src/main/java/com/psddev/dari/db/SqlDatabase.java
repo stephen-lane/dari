@@ -1358,7 +1358,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> implements MetricA
                         UUID id = ObjectUtils.to(UUID.class, result.getBytes(3));
                         byte[] data = result.getBytes(2);
                         Map<String, Object> dataJson = unserializeData(data);
-                        byte[] typeIdBytes = UuidUtils.toBytes(ObjectUtils.to(UUID.class, dataJson.get(StateValueUtils.TYPE_KEY)));
+                        byte[] typeIdBytes = UuidUtils.toBytes(ObjectUtils.to(UUID.class, dataJson.get(StateSerializer.TYPE_KEY)));
 
                         if (!Arrays.equals(typeIdBytes, UuidUtils.ZERO_BYTES) && id != null) {
                             replicationCache.put(id, new Object[] { typeIdBytes, data, dataJson });
@@ -2394,7 +2394,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> implements MetricA
                     if (ObjectField.RECORD_TYPE.equals(itemType)) {
                         for (Map.Entry<String, Object> entry : rawKeys.entrySet()) {
                             Map<String, Object> ref = new HashMap<String, Object>();
-                            ref.put(StateValueUtils.REFERENCE_KEY, entry.getValue());
+                            ref.put(StateSerializer.REFERENCE_KEY, entry.getValue());
                             entry.setValue(ref);
                         }
                     }
