@@ -289,7 +289,11 @@ public class SourceFilter extends AbstractFilter {
             response.sendRedirect(StringUtils.addQueryParameters(
                     getReloaderPath(),
                     RELOADER_CONTEXT_PATH_PARAMETER, request.getContextPath(),
-                    RELOADER_REQUEST_PATH_PARAMETER, StringUtils.addQueryParameters(JspUtils.resolvePath(null, request, ""), "_reload", null),
+                    RELOADER_REQUEST_PATH_PARAMETER, new UrlBuilder(request)
+                            .currentPath()
+                            .currentParameters()
+                            .parameter("_reload", null)
+                            .toString(),
                     RELOADER_ACTION_PARAMETER, RELOADER_RELOAD_ACTION));
             return;
         }
@@ -354,7 +358,10 @@ public class SourceFilter extends AbstractFilter {
                 response.sendRedirect(StringUtils.addQueryParameters(
                         getReloaderPath(),
                         RELOADER_CONTEXT_PATH_PARAMETER, request.getContextPath(),
-                        RELOADER_REQUEST_PATH_PARAMETER, JspUtils.resolvePath(null, request, ""),
+                        RELOADER_REQUEST_PATH_PARAMETER, new UrlBuilder(request)
+                                .currentPath()
+                                .currentParameters()
+                                .toString(),
                         RELOADER_ACTION_PARAMETER, RELOADER_RELOAD_ACTION));
                 return;
 
