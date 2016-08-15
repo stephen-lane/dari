@@ -13,6 +13,7 @@ import com.psddev.dari.db.SqlVendor;
 import com.psddev.dari.db.State;
 import com.psddev.dari.db.StateSerializer;
 import com.psddev.dari.sql.AbstractSqlDatabase;
+import com.psddev.dari.sql.SqlDatabaseException;
 import com.psddev.dari.util.CompactMap;
 import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.Profiler;
@@ -216,6 +217,7 @@ public class MySQLDatabase extends AbstractSqlDatabase implements MetricAccessDa
             }
 
         } catch (SQLException error) {
+            throw new SqlDatabaseException(this, "Can't read MySQL variables!", error);
 
         } finally {
             closeConnection(connection);
@@ -229,7 +231,7 @@ public class MySQLDatabase extends AbstractSqlDatabase implements MetricAccessDa
         if (binaryLogReader != null) {
             LOGGER.info("Stopping MySQL binary log reader");
             binaryLogReader.stop();
-            binaryLogReader= null;
+            binaryLogReader = null;
         }
     }
 
