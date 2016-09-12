@@ -12,6 +12,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.Settings;
 
 public interface Recordable {
@@ -677,11 +678,18 @@ class DisplayNameProcessor implements
     @Override
     public void process(ObjectType type, Recordable.DisplayName annotation) {
         Class<?> objectClass = type.getObjectClass();
+
         if (objectClass != null) {
-            Recordable.DisplayName displayName = objectClass.getAnnotation(Recordable.DisplayName.class);
-            // Only sets the display name if the annotation came from the type being modified.
-            if (displayName != null && displayName.value() != null && displayName.value().equals(annotation.value())) {
-                type.setDisplayName(annotation.value());
+            Recordable.DisplayName typeAnnotation = objectClass.getAnnotation(Recordable.DisplayName.class);
+
+            // Only set the display name if the annotation came from the type
+            // being modified.
+            if (typeAnnotation != null) {
+                String displayName = annotation.value();
+
+                if (!ObjectUtils.isBlank(displayName) && annotation.equals(typeAnnotation)) {
+                    type.setDisplayName(displayName);
+                }
             }
         }
     }
