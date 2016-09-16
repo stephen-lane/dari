@@ -2031,6 +2031,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
 
     private boolean checkReplicationCache(Query<?> query) {
         return query.isCache()
+                && !query.isMaster()
                 && isEnableReplicationCache()
                 && !Boolean.TRUE.equals(query.getOptions().get(DISABLE_REPLICATION_CACHE_QUERY_OPTION))
                 && mysqlBinaryLogReader != null
