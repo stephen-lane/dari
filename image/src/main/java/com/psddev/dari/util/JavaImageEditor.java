@@ -115,11 +115,23 @@ public class JavaImageEditor extends AbstractUrlImageEditor {
     }
 
     @Override
-    public StorageItem edit(StorageItem storageItem, String command, Map<String, Object> options, Object... arguments) {
+    public String getBaseUrl() {
 
-        if (StringUtils.isBlank(this.getBasePath())) {
-            setBaseUrlFromRequest(PageContextFilter.Static.getRequestOrNull());
+        String baseUrl = this.baseUrl;
+
+        if (StringUtils.isBlank(baseUrl)) {
+            baseUrl = getBaseUrlFromRequest(PageContextFilter.Static.getRequestOrNull());
         }
+
+        if (StringUtils.isBlank(baseUrl)) {
+            return super.getBaseUrl();
+        }
+
+        return baseUrl;
+    }
+
+    @Override
+    public StorageItem edit(StorageItem storageItem, String command, Map<String, Object> options, Object... arguments) {
 
         if (ImageEditor.CROP_COMMAND.equals(command)
                 && options != null
@@ -398,7 +410,7 @@ public class JavaImageEditor extends AbstractUrlImageEditor {
         }
     }
 
-    protected void setBaseUrlFromRequest(HttpServletRequest request) {
+    protected String getBaseUrlFromRequest(HttpServletRequest request) {
 
         StringBuilder baseUrlBuilder = new StringBuilder();
 
@@ -418,7 +430,7 @@ public class JavaImageEditor extends AbstractUrlImageEditor {
         }
 
         baseUrlBuilder.append(JavaImageServlet.SERVLET_PATH);
-        setBaseUrl(baseUrlBuilder.toString());
+        return baseUrlBuilder.toString();
     }
 
     protected Scalr.Method findQualityByInteger(Integer quality) {
