@@ -528,7 +528,10 @@ class SqlQuery {
 
             distinctFields.add(recordIdField);
             distinctFields.add(recordTypeIdField);
-            orders.forEach(o -> distinctFields.add(o.field));
+
+            for (int i = 0, size = orders.size(); i < size; ++ i) {
+                distinctFields.add(orders.get(i).field.as("o" + i));
+            }
 
             select = dslContext
                     .selectDistinct(distinctFields)
