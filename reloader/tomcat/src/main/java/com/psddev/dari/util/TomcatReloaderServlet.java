@@ -22,14 +22,19 @@ import org.apache.http.client.methods.RequestBuilder;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Reloads Tomcat web application for {@link SourceFilter}.
  */
 public class TomcatReloaderServlet extends HttpServlet implements ContainerServlet {
 
+    public static final String RELOAD_COMMAND_SETTING = "dari/reloader/reloadCommand";
+
     private static final long serialVersionUID = 1L;
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(TomcatReloaderServlet.class);
     private static final String WAIT_ACTION = "wait";
 
     private Wrapper wrapper;
@@ -107,7 +112,33 @@ public class TomcatReloaderServlet extends HttpServlet implements ContainerServl
                                     // Safe to ignore.
                                 }
 
-                                context.reload();
+                                // Execute the reload command instead of the
+                                // context reload if requested.
+                                String reloadCommand = Settings.get(String.class, RELOAD_COMMAND_SETTING);
+
+                                if (!StringUtils.isBlank(reloadCommand)) {
+                                    LOGGER.info("Reloading by executing [{}]", reloadCommand);
+
+                                    try {
+                                        if (new ProcessBuilder()
+                                                .command(reloadCommand.split("\\s+"))
+                                                .inheritIO()
+                                                .start()
+                                                .waitFor() != 0) {
+
+                                            LOGGER.info("Can't execute reload command so trying to reload context instead");
+                                            context.reload();
+                                        }
+
+                                    } catch (IOException | InterruptedException error) {
+                                        LOGGER.info("Error executing reload command so trying to reload context instead");
+                                        context.reload();
+                                    }
+
+                                } else {
+                                    LOGGER.info("Reloading context");
+                                    context.reload();
+                                }
 
                             } finally {
                                 reloading.compareAndSet(true, false);
