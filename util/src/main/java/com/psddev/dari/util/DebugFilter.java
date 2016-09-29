@@ -21,7 +21,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import javax.naming.ldap.LdapContext;
 import javax.servlet.Filter;
 import javax.servlet.FilterChain;
 import javax.servlet.Servlet;
@@ -49,7 +48,6 @@ import org.ldaptive.auth.AuthenticationResponse;
 import org.ldaptive.auth.Authenticator;
 import org.ldaptive.auth.BindAuthenticationHandler;
 import org.ldaptive.auth.SearchDnResolver;
-import org.ldaptive.control.ResponseControl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
