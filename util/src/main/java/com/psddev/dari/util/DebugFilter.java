@@ -32,6 +32,24 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletRequestWrapper;
 import javax.servlet.http.HttpServletResponse;
 
+import org.ldaptive.BindOperation;
+import org.ldaptive.BindRequest;
+import org.ldaptive.Connection;
+import org.ldaptive.ConnectionConfig;
+import org.ldaptive.Credential;
+import org.ldaptive.DefaultConnectionFactory;
+import org.ldaptive.LdapAttribute;
+import org.ldaptive.LdapEntry;
+import org.ldaptive.LdapException;
+import org.ldaptive.SearchOperation;
+import org.ldaptive.SearchRequest;
+import org.ldaptive.SearchResult;
+import org.ldaptive.auth.AuthenticationRequest;
+import org.ldaptive.auth.AuthenticationResponse;
+import org.ldaptive.auth.Authenticator;
+import org.ldaptive.auth.BindAuthenticationHandler;
+import org.ldaptive.auth.SearchDnResolver;
+import org.ldaptive.control.ResponseControl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,6 +68,40 @@ public class DebugFilter extends AbstractFilter {
 
     public static final String DEFAULT_INTERCEPT_PATH = "/_debug/";
     public static final String INTERCEPT_PATH_SETTING = "dari/debugFilterInterceptPath";
+
+    /**
+     * LDAP server URL.
+     */
+    public static final String LDAP_URL_SETTING = "dari/debug/ldapUrl";
+
+    /**
+     * LDAP Base DN, for example, {@code ou=people,dc=psddev,dc=com}.
+     */
+    public static final String LDAP_BASEDN_SETTING = "dari/debug/ldapBaseDN";
+
+    /**
+     * LDAP Group DN, for example, {@code ou=groups,dc=psddev,dc=com}.
+     *
+     * Used as the base dn when search for groups.
+     */
+    public static final String LDAP_GROUPDN_SETTING = "dari/debug/ldapGroupDN";
+
+    /**
+     * LDAP User Filter, for example, {@code (uid={user})}.
+     *
+     * {user} is filled in with username during authentication.
+     */
+    public static final String LDAP_USER_FILTER_SETTING = "dari/debug/ldapUserFilter";
+
+    /**
+     * LDAP Group Filter, for example, {@code (|(cn=group1)(cn=group2))}.
+     */
+    public static final String LDAP_GROUP_FILTER_SETTING = "dari/debug/ldapGroupFilter";
+
+    /**
+     * Attribute on group with member ids. Defaults to {@code memberUid}.
+     */
+    public static final String LDAP_GROUP_MEMBER_ATTR_SETTING = "dari/debug/ldapGroupMemberAttribute";
 
     public static final String DEBUG_PARAMETER = "_debug";
     public static final String PRODUCTION_PARAMETER = "_prod";
@@ -193,13 +245,80 @@ public class DebugFilter extends AbstractFilter {
         return StringUtils.ensureSurrounding(Settings.getOrDefault(String.class, INTERCEPT_PATH_SETTING, DEFAULT_INTERCEPT_PATH), "/");
     }
 
+    private static boolean authenticateLDAP(String username, String password) {
+        String ldapUrl = Settings.get(String.class, LDAP_URL_SETTING);
+        String ldapBaseDN = Settings.get(String.class, LDAP_BASEDN_SETTING);
+        String ldapUserFilter = Settings.get(String.class, LDAP_USER_FILTER_SETTING);
+
+        if (ObjectUtils.isBlank(ldapUrl) || ObjectUtils.isBlank(ldapBaseDN) || ObjectUtils.isBlank(ldapUserFilter)) {
+            return false;
+        }
+
+        ConnectionConfig connConfig = new ConnectionConfig(ldapUrl);
+        connConfig.setUseStartTLS(true);
+
+        SearchDnResolver dnResolver = new SearchDnResolver(new DefaultConnectionFactory(connConfig));
+        dnResolver.setBaseDn(ldapBaseDN);
+        dnResolver.setUserFilter(ldapUserFilter);
+
+        BindAuthenticationHandler authHandler = new BindAuthenticationHandler(new DefaultConnectionFactory(connConfig));
+
+        Authenticator auth = new Authenticator(dnResolver, authHandler);
+
+        try {
+            AuthenticationResponse response = auth.authenticate(
+                    new AuthenticationRequest(username, new Credential(password), new String[]{"cn"}));
+            if (response.getResult()) {
+                String ldapGroupDN = Settings.get(String.class, LDAP_GROUPDN_SETTING);
+                String ldapGroupFilter = Settings.get(String.class, LDAP_GROUP_FILTER_SETTING);
+                String ldapGroupAttribute = Settings.getOrDefault(String.class, LDAP_GROUP_MEMBER_ATTR_SETTING, "memberUid");
+
+                if (ObjectUtils.isBlank(ldapGroupDN) && ObjectUtils.isBlank(ldapGroupFilter)) {
+                    return true;
+                }
+
+                LdapEntry userEntry = response.getLdapEntry();
+                Connection conn = DefaultConnectionFactory.getConnection(ldapUrl);
+                try {
+                    conn.open();
+
+                    BindOperation bind = new BindOperation(conn);
+                    bind.execute(new BindRequest(userEntry.getDn(), new Credential(password)));
+
+                    SearchOperation search = new SearchOperation(conn);
+                    SearchResult result = search.execute(
+                            new SearchRequest(ldapGroupDN, ldapGroupFilter, "cn", ldapGroupAttribute)).getResult();
+
+                    for (LdapEntry groupEntry : result.getEntries()) {
+                        LdapAttribute attr = groupEntry.getAttribute(ldapGroupAttribute);
+                        if (attr != null) {
+                            if (attr.getStringValues().contains(username)) {
+                                LOGGER.info("Authentication succeeded for dn: {}, User found in authorized group: {}.",
+                                        userEntry.getDn(), groupEntry.getDn());
+                                return true;
+                            }
+                        }
+                    }
+
+                    LOGGER.info("Authentication failed for dn: {}, User is not in an authorized group: {}.",
+                            userEntry.getDn(), ldapGroupFilter);
+                } finally {
+                    conn.close();
+                }
+            } else {
+                LOGGER.info("Authentication failed for user: {}", username, response.getMessage());
+            }
+        } catch (LdapException ex) {
+            LOGGER.error("LDAP authentication failed.", ex);
+        }
+
+        return false;
+    }
+
     private static boolean authenticate(HttpServletRequest request, HttpServletResponse response) {
-        LdapContext context = LdapUtils.createContext();
         String[] credentials = JspUtils.getBasicCredentials(request);
 
-        if (context != null
-                && credentials != null
-                && LdapUtils.authenticate(context, credentials[0], credentials[1])) {
+        if (credentials != null && authenticateLDAP(credentials[0], credentials[1])) {
             return true;
         }
 
@@ -211,9 +330,7 @@ public class DebugFilter extends AbstractFilter {
                 Settings.get(String.class, "dari/debugPassword"),
                 Settings.get(String.class, "servlet/debugPassword"));
 
-        if (context == null
-                && (ObjectUtils.isBlank(username)
-                || ObjectUtils.isBlank(password))) {
+        if ((ObjectUtils.isBlank(username) || ObjectUtils.isBlank(password))) {
             if (!Settings.isProduction()) {
                 return true;
             }
@@ -221,6 +338,7 @@ public class DebugFilter extends AbstractFilter {
         } else if (credentials != null
                 && credentials[0].equals(username)
                 && credentials[1].equals(password)) {
+            LOGGER.info("Authentication succeeded for user: {}", username);
             return true;
         }
 

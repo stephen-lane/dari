@@ -102,6 +102,13 @@
             <optional>true</optional>
         </dependency>
 
+        <!-- LDAP -->
+        <dependency>
+            <groupId>org.ldaptive</groupId>
+            <artifactId>ldaptive</artifactId>
+            <version>1.0</version>
+        </dependency>
+
         <!-- Environmental -->
         <dependency>
             <groupId>javax.servlet</groupId>
