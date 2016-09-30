@@ -12,9 +12,13 @@ import javax.servlet.http.HttpServletResponse;
 
 import com.google.common.base.Preconditions;
 import com.google.common.io.CharStreams;
+import org.apache.catalina.Container;
 import org.apache.catalina.ContainerServlet;
 import org.apache.catalina.Context;
+import org.apache.catalina.Engine;
 import org.apache.catalina.Host;
+import org.apache.catalina.LifecycleException;
+import org.apache.catalina.Server;
 import org.apache.catalina.Wrapper;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -30,6 +34,7 @@ import org.slf4j.LoggerFactory;
  */
 public class TomcatReloaderServlet extends HttpServlet implements ContainerServlet {
 
+    public static final String RELOAD_BY_SHUTDOWN_SETTING = "dari/reloader/reloadByShutdown";
     public static final String RELOAD_COMMAND_SETTING = "dari/reloader/reloadCommand";
 
     private static final long serialVersionUID = 1L;
@@ -39,6 +44,7 @@ public class TomcatReloaderServlet extends HttpServlet implements ContainerServl
 
     private Wrapper wrapper;
     private Host host;
+    private Server server;
     private final AtomicBoolean reloading = new AtomicBoolean();
 
     @Override
@@ -54,7 +60,15 @@ public class TomcatReloaderServlet extends HttpServlet implements ContainerServl
 
         } else {
             this.wrapper = wrapper;
-            this.host = (Host) wrapper.getParent().getParent();
+
+            for (Container parent = wrapper.getParent(); parent != null; parent = parent.getParent()) {
+                if (parent instanceof Host) {
+                    this.host = (Host) parent;
+
+                } else if (parent instanceof Engine) {
+                    this.server = ((Engine) parent).getService().getServer();
+                }
+            }
         }
     }
 
@@ -112,6 +126,19 @@ public class TomcatReloaderServlet extends HttpServlet implements ContainerServl
                                     // Safe to ignore.
                                 }
 
+                                // Reload by shutting down Tomcat.
+                                if (Settings.get(boolean.class, RELOAD_BY_SHUTDOWN_SETTING)) {
+                                    LOGGER.info("Reloading by shutting down");
+
+                                    try {
+                                        server.stop();
+                                        return;
+
+                                    } catch (LifecycleException error) {
+                                        LOGGER.info("Can't stop the server!", error);
+                                    }
+                                }
+
                                 // Execute the reload command instead of the
                                 // context reload if requested.
                                 String reloadCommand = Settings.get(String.class, RELOAD_COMMAND_SETTING);
@@ -120,25 +147,27 @@ public class TomcatReloaderServlet extends HttpServlet implements ContainerServl
                                     LOGGER.info("Reloading by executing [{}]", reloadCommand);
 
                                     try {
-                                        if (new ProcessBuilder()
+                                        int exitValue = new ProcessBuilder()
                                                 .command(reloadCommand.split("\\s+"))
                                                 .inheritIO()
                                                 .start()
-                                                .waitFor() != 0) {
+                                                .waitFor();
 
-                                            LOGGER.info("Can't execute reload command so trying to reload context instead");
-                                            context.reload();
+                                        if (exitValue == 0) {
+                                            return;
+
+                                        } else {
+                                            LOGGER.info("Reload command failed with [{}]!", exitValue);
                                         }
 
                                     } catch (IOException | InterruptedException error) {
-                                        LOGGER.info("Error executing reload command so trying to reload context instead");
-                                        context.reload();
+                                        LOGGER.info("Can't execute the reload command!", error);
                                     }
-
-                                } else {
-                                    LOGGER.info("Reloading context");
-                                    context.reload();
                                 }
+
+                                // Context reload.
+                                LOGGER.info("Reloading context");
+                                context.reload();
 
                             } finally {
                                 reloading.compareAndSet(true, false);
