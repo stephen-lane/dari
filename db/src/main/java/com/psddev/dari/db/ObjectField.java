@@ -906,11 +906,11 @@ public class ObjectField extends Record {
             int valuesSize = values.size();
             Number min = getCollectionMinimum();
             if (min != null && valuesSize < min.intValue()) {
-                state.addError(this, String.format("Must contain at least %s items!", min));
+                state.addError(this, String.format("Must contain at least %s item(s)!", min));
             }
             Number max = getCollectionMaximum();
             if (max != null && valuesSize > max.intValue()) {
-                state.addError(this, String.format("Cannot exceed %s items!", max));
+                state.addError(this, String.format("Cannot exceed %s item(s)!", max));
             }
             for (Object e : values) {
                 validateValue(state, subType, e);
@@ -920,11 +920,11 @@ public class ObjectField extends Record {
             double number = ((Number) value).doubleValue();
             Number min = getMinimum();
             if (min != null && number < min.doubleValue()) {
-                state.addError(this, String.format("Must be larger than or equal to %s!", min));
+                state.addError(this, String.format("Must be greater than or equal to %s!", min));
             }
             Number max = getMaximum();
             if (max != null && number > max.doubleValue()) {
-                state.addError(this, String.format("Must be smaller than or equal to %s!", max));
+                state.addError(this, String.format("Must be less than or equal to %s!", max));
             }
 
         } else if (TEXT_TYPE.equals(internalType)) {
