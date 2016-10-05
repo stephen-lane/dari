@@ -1875,7 +1875,7 @@ public class SolrDatabase extends AbstractDatabase<SolrServer> {
     /** {@link SolrDatabase} utility methods. */
     public static final class Static {
 
-        private static final Pattern ESCAPE_PATTERN = Pattern.compile("([-+&|!(){}\\[\\]^\"~*?:\\\\\\s])");
+        private static final Pattern ESCAPE_PATTERN = Pattern.compile("([-+&|!(){}\\[\\]^\"~*?:\\\\\\s/])");
 
         /**
          * Escapes the given {@code value} so that it's safe to use
