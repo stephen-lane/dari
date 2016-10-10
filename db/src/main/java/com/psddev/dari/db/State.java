@@ -1097,17 +1097,20 @@ public class State implements Map<String, Object> {
     }
 
     public void addError(ObjectField field, String message) {
-
         if (errors == null) {
             errors = new CompactMap<>();
         }
 
         List<String> messages = errors.get(field);
+
         if (messages == null) {
             messages = new ArrayList<>();
             errors.put(field, messages);
         }
-        messages.add(message);
+
+        if (!messages.contains(message)) {
+            messages.add(message);
+        }
     }
 
     public boolean isResolveToReferenceOnly() {
