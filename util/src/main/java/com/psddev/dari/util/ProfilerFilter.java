@@ -7,6 +7,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import javax.servlet.FilterChain;
 import javax.servlet.ServletException;
@@ -259,6 +260,7 @@ public class ProfilerFilter extends AbstractFilter {
         writer.writeEnd();
     }
 
+    @SuppressWarnings("unchecked")
     private void writeEvent(
             HtmlWriter writer,
             MarkingProfiler profiler,
@@ -291,6 +293,10 @@ public class ProfilerFilter extends AbstractFilter {
                 writer.writeEnd();
 
                 for (Object item : event.getObjects()) {
+                    if (item instanceof Supplier) {
+                        item = ((Supplier<Object>) item).get();
+                    }
+
                     writer.writeHtml(" \u2192 ");
                     writer.writeObject(item);
                 }

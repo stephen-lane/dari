@@ -73,7 +73,7 @@ class MySQLBinaryLogEventListener implements EventListener {
             value[1] = data;
             Map<String, Object> jsonData = SqlDatabase.unserializeData(data);
             value[2] = jsonData;
-            value[0] = UuidUtils.toBytes(ObjectUtils.to(UUID.class, jsonData.get(StateValueUtils.TYPE_KEY)));
+            value[0] = UuidUtils.toBytes(ObjectUtils.to(UUID.class, jsonData.get(StateSerializer.TYPE_KEY)));
 
             database.notifyUpdate(database.createSavedObjectFromReplicationCache((byte[]) value[0], bid, (byte[]) value[1], jsonData, null));
 
