@@ -6,6 +6,8 @@ import java.beans.Introspector;
 import java.beans.PropertyDescriptor;
 import java.beans.SimpleBeanInfo;
 import java.lang.reflect.Method;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -16,6 +18,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,6 +57,7 @@ public class DatabaseEnvironment implements ObjectStruct {
                         refreshTypes();
                         Introspector.flushCaches();
                         dynamicProperties.reset();
+                        adaptersBySourceTypeId.reset();
                         break;
                     }
                 }
@@ -809,6 +813,64 @@ public class DatabaseEnvironment implements ObjectStruct {
         }
 
         return permanentTypes.byClassName.get(className);
+    }
+
+    private final transient Lazy<Map<UUID, Map<UUID, StateValueAdapter<Object, Object>>>> adaptersBySourceTypeId = new Lazy<Map<UUID, Map<UUID, StateValueAdapter<Object, Object>>>>() {
+
+        @Override
+        protected Map<UUID, Map<UUID, StateValueAdapter<Object, Object>>> create() {
+            bootstrapOnce.ensure();
+
+            Map<UUID, Map<UUID, StateValueAdapter<Object, Object>>> adaptersBySourceTypeId = new ConcurrentHashMap<>();
+
+            for (Class<?> c : ClassFinder.findConcreteClasses(StateValueAdapter.class)) {
+                for (Type i : c.getGenericInterfaces()) {
+                    if (i instanceof ParameterizedType) {
+                        ParameterizedType pt = (ParameterizedType) i;
+                        Type rt = pt.getRawType();
+
+                        if (rt instanceof Class
+                                && StateValueAdapter.class.isAssignableFrom((Class<?>) rt)) {
+
+                            Type[] args = pt.getActualTypeArguments();
+
+                            if (args.length == 2) {
+                                Type source = args[0];
+                                Type target = args[1];
+
+                                if (source instanceof Class && target instanceof Class) {
+                                    ObjectType sourceType = getTypeByClass((Class<?>) source);
+
+                                    if (sourceType != null) {
+                                        ObjectType targetType = getTypeByClass((Class<?>) target);
+
+                                        if (targetType != null) {
+                                            UUID sourceTypeId = sourceType.getId();
+                                            UUID targetTypeId = targetType.getId();
+                                            Map<UUID, StateValueAdapter<Object, Object>> adapters = adaptersBySourceTypeId.get(sourceTypeId);
+
+                                            if (adapters == null) {
+                                                adapters = new ConcurrentHashMap<>();
+                                                adaptersBySourceTypeId.put(sourceTypeId, adapters);
+                                            }
+
+                                            adapters.put(targetTypeId, (StateValueAdapter<Object, Object>) TypeDefinition.getInstance(c).newInstance());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            return adaptersBySourceTypeId;
+        }
+    };
+
+    public StateValueAdapter<Object, Object> getStateValueAdapter(UUID sourceTypeId, UUID targetTypeId) {
+        Map<UUID, StateValueAdapter<Object, Object>> adapters = adaptersBySourceTypeId.get().get(sourceTypeId);
+        return adapters != null ? adapters.get(targetTypeId) : null;
     }
 
     /**
