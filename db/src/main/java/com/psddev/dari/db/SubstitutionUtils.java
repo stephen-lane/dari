@@ -1,15 +1,23 @@
 package com.psddev.dari.db;
 
+import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Multimap;
 import com.psddev.dari.util.ClassFinder;
 import com.psddev.dari.util.CodeUtils;
 import com.psddev.dari.util.Lazy;
 import com.psddev.dari.util.TypeDefinition;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.util.Collection;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 class SubstitutionUtils {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(SubstitutionUtils.class);
 
     private static final Lazy<Cache> CACHE = new Lazy<Cache>() {
 
@@ -45,16 +53,35 @@ class SubstitutionUtils {
         public final Map<Class<?>, Class<?>> substitutionClasses;
 
         public Cache() {
+            Multimap<Class<?>, Class<?>> substitutions = ArrayListMultimap.create();
+
+            for (Class<?> c : ClassFinder.findConcreteClasses(Substitution.class)) {
+                substitutions.put(c.getSuperclass(), c);
+            }
+
             ImmutableMap.Builder<String, String> originalNamesBuilder = new ImmutableMap.Builder<>();
             ImmutableMap.Builder<Class<?>, Class<?>> originalClassesBuilder = new ImmutableMap.Builder<>();
             ImmutableMap.Builder<Class<?>, Class<?>> substitutionClassesBuilder = new ImmutableMap.Builder<>();
 
-            for (Class<?> c : ClassFinder.findConcreteClasses(Substitution.class)) {
-                Class<?> s = c.getSuperclass();
+            for (Map.Entry<Class<?>, Collection<Class<?>>> entry : substitutions.asMap().entrySet()) {
+                Class<?> s = entry.getKey();
+                Collection<Class<?>> cs = entry.getValue();
 
-                originalNamesBuilder.put(c.getName().toLowerCase(Locale.ENGLISH), s.getName().toLowerCase(Locale.ENGLISH));
-                originalClassesBuilder.put(c, s);
-                substitutionClassesBuilder.put(s, c);
+                if (cs.size() != 1) {
+                    LOGGER.warn(
+                            "Can't substitute [{}] because there are multiple candidates!{}",
+                            s.getName(),
+                            cs.stream()
+                                    .map(c -> "\n\t" + c.getName())
+                                    .collect(Collectors.joining()));
+
+                } else {
+                    Class<?> c = cs.iterator().next();
+
+                    originalNamesBuilder.put(c.getName().toLowerCase(Locale.ENGLISH), s.getName().toLowerCase(Locale.ENGLISH));
+                    originalClassesBuilder.put(c, s);
+                    substitutionClassesBuilder.put(s, c);
+                }
             }
 
             originalNames = originalNamesBuilder.build();
