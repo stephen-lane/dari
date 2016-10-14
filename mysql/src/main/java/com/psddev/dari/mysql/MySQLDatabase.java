@@ -240,7 +240,16 @@ public class MySQLDatabase extends AbstractSqlDatabase implements MetricAccessDa
         T object = super.createSavedObjectUsingResultSet(resultSet, query);
 
         if (object instanceof Singleton) {
-            singletonIds.put(object.getClass(), State.getInstance(object).getId());
+            State objectState = State.getInstance(object);
+            ObjectType objectType = objectState.getType();
+
+            if (objectType != null) {
+                Class<?> objectClass = objectType.getObjectClass();
+
+                if (objectClass != null) {
+                    singletonIds.put(objectClass, objectState.getId());
+                }
+            }
         }
 
         return object;
