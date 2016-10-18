@@ -8,6 +8,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -309,6 +310,17 @@ public class ClassFinder {
 
         if (!ObjectUtils.isBlank(classPath)) {
             for (String path : StringUtils.split(classPath, Pattern.quote(File.pathSeparator))) {
+
+                // Skip current working directories.
+                try {
+                    if (Paths.get(path).toRealPath().equals(Paths.get("").toRealPath())) {
+                        continue;
+                    }
+
+                } catch (IOException error) {
+                    continue;
+                }
+
                 try {
                     processUrl(classNames, new File(path).toURI().toURL());
 
