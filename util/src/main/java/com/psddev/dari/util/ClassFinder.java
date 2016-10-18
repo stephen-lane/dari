@@ -15,6 +15,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.ExecutionException;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
@@ -28,6 +29,7 @@ import javax.tools.JavaFileObject;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Throwables;
 import com.psddev.dari.util.reflections.Reflections;
 import com.psddev.dari.util.reflections.serializers.JsonSerializer;
 import com.psddev.dari.util.reflections.util.ConfigurationBuilder;
@@ -128,6 +130,40 @@ public class ClassFinder {
     static {
         CodeUtils.addRedefineClassesListener(classes -> CLASSES_BY_BASE_CLASS_BY_LOADER_BY_FINDER.invalidateAll());
     }
+
+    private static final LoadingCache<String, Set<String>> JAR_CLASS_NAMES = CacheBuilder.newBuilder()
+            .build(new CacheLoader<String, Set<String>>() {
+
+                @Override
+                public Set<String> load(String url) throws IOException {
+                    try (InputStream urlInput = new URL(url).openStream()) {
+                        Set<String> classNames = new TreeSet<>();
+                        JarInputStream jarInput = new JarInputStream(urlInput);
+                        Manifest manifest = jarInput.getManifest();
+
+                        if (manifest != null) {
+                            Attributes attributes = manifest.getMainAttributes();
+
+                            if (attributes != null
+                                    && Boolean.parseBoolean(attributes.getValue(INCLUDE_ATTRIBUTE))) {
+
+                                for (JarEntry entry; (entry = jarInput.getNextJarEntry()) != null;) {
+                                    String name = entry.getName();
+
+                                    if (name.endsWith(CLASS_FILE_SUFFIX)) {
+                                        String className = name.substring(0, name.length() - CLASS_FILE_SUFFIX.length());
+                                        className = className.replace('/', '.');
+
+                                        classNames.add(className);
+                                    }
+                                }
+                            }
+                        }
+
+                        return classNames;
+                    }
+                }
+            });
 
     private Set<String> classLoaderExclusions = new HashSet<>(Arrays.asList(
             "sun.misc.Launcher$ExtClassLoader",
@@ -322,33 +358,20 @@ public class ClassFinder {
     // given classNames.
     private void processUrl(Set<String> classNames, URL url) {
         if (url.getPath().endsWith(".jar")) {
-            try (InputStream urlInput = url.openStream()) {
-                JarInputStream jarInput = new JarInputStream(urlInput);
-                Manifest manifest = jarInput.getManifest();
+            try {
+                classNames.addAll(JAR_CLASS_NAMES.get(url.toString()));
 
-                if (manifest != null) {
-                    Attributes attributes = manifest.getMainAttributes();
+            } catch (ExecutionException error) {
+                Throwable cause = error.getCause();
 
-                    if (attributes != null
-                            && Boolean.parseBoolean(attributes.getValue(INCLUDE_ATTRIBUTE))) {
+                if (cause instanceof IOException) {
+                    LOGGER.debug(String.format(
+                            "Can't read [%s] to scan its classes!", url),
+                            error);
 
-                        for (JarEntry entry; (entry = jarInput.getNextJarEntry()) != null;) {
-                            String name = entry.getName();
-
-                            if (name.endsWith(CLASS_FILE_SUFFIX)) {
-                                String className = name.substring(0, name.length() - CLASS_FILE_SUFFIX.length());
-                                className = className.replace('/', '.');
-
-                                classNames.add(className);
-                            }
-                        }
-                    }
+                } else {
+                    throw Throwables.propagate(cause);
                 }
-
-            } catch (IOException error) {
-                LOGGER.debug(String.format(
-                        "Can't read [%s] to scan its classes!", url),
-                        error);
             }
 
         } else {
