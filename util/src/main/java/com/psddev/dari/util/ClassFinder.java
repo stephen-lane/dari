@@ -130,9 +130,6 @@ public class ClassFinder {
                 }
             });
 
-    static {
-        CodeUtils.addRedefineClassesListener(classes -> CLASSES_BY_BASE_CLASS_BY_LOADER_BY_FINDER.invalidateAll());
-    }
     private static final LoadingCache<ClassLoader, LoadingCache<String, Class<?>>> CLASSES_BY_LOADER = CacheBuilder.newBuilder()
             .weakKeys()
             .build(new CacheLoader<ClassLoader, LoadingCache<String, Class<?>>>() {
@@ -183,6 +180,24 @@ public class ClassFinder {
                     }
                 }
             });
+
+    private static final LoadingCache<File, Set<String>> FILE_CLASS_NAMES = CacheBuilder.newBuilder()
+            .build(new CacheLoader<File, Set<String>>() {
+
+                @Override
+                public Set<String> load(File file) {
+                    Set<String> classNames = new LinkedHashSet<>();
+                    processFile(classNames, file, "");
+                    return classNames;
+                }
+            });
+
+    static {
+        CodeUtils.addRedefineClassesListener(classes -> {
+            CLASSES_BY_BASE_CLASS_BY_LOADER_BY_FINDER.invalidateAll();
+            FILE_CLASS_NAMES.invalidateAll();
+        });
+    }
 
     private Set<String> classLoaderExclusions = new HashSet<>(Arrays.asList(
             "sun.misc.Launcher$ExtClassLoader",
@@ -416,14 +431,14 @@ public class ClassFinder {
             File file = IoUtils.toFile(url, StandardCharsets.UTF_8);
 
             if (file != null && file.isDirectory()) {
-                processFile(classNames, file, "");
+                classNames.addAll(FILE_CLASS_NAMES.getUnchecked(file));
             }
         }
     }
 
     // Processes the given path under the given root and adds all associated
     // class files to the given classNames.
-    private void processFile(Set<String> classNames, File root, String path) {
+    private static void processFile(Set<String> classNames, File root, String path) {
         File file = new File(root, path);
 
         if (file.isDirectory()) {
