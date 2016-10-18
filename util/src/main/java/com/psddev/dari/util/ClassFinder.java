@@ -31,6 +31,8 @@ import javax.tools.JavaFileObject;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
+import com.google.common.util.concurrent.ExecutionError;
+import com.google.common.util.concurrent.UncheckedExecutionException;
 import com.psddev.dari.util.reflections.Reflections;
 import com.psddev.dari.util.reflections.serializers.JsonSerializer;
 import com.psddev.dari.util.reflections.util.ConfigurationBuilder;
@@ -131,6 +133,22 @@ public class ClassFinder {
     static {
         CodeUtils.addRedefineClassesListener(classes -> CLASSES_BY_BASE_CLASS_BY_LOADER_BY_FINDER.invalidateAll());
     }
+    private static final LoadingCache<ClassLoader, LoadingCache<String, Class<?>>> CLASSES_BY_LOADER = CacheBuilder.newBuilder()
+            .weakKeys()
+            .build(new CacheLoader<ClassLoader, LoadingCache<String, Class<?>>>() {
+
+                @Override
+                public LoadingCache<String, Class<?>> load(ClassLoader loader) {
+                    return CacheBuilder.newBuilder()
+                            .build(new CacheLoader<String, Class<?>>() {
+
+                                @Override
+                                public Class<?> load(String className) throws ClassNotFoundException {
+                                    return Class.forName(className, false, loader);
+                                }
+                            });
+                }
+            });
 
     private static final LoadingCache<String, Set<String>> JAR_CLASS_NAMES = CacheBuilder.newBuilder()
             .build(new CacheLoader<String, Set<String>>() {
@@ -347,7 +365,7 @@ public class ClassFinder {
 
         for (String className : classNames) {
             try {
-                Class<?> c = Class.forName(className, false, loader);
+                Class<?> c = CLASSES_BY_LOADER.getUnchecked(loader).get(className);
 
                 if (!baseClass.equals(c) && baseClass.isAssignableFrom(c)) {
                     @SuppressWarnings("unchecked")
@@ -356,10 +374,18 @@ public class ClassFinder {
                     classes.add(tc);
                 }
 
-            } catch (ClassNotFoundException
-                    | NoClassDefFoundError error) {
+            } catch (ExecutionError
+                    | ExecutionException
+                    | UncheckedExecutionException error) {
 
                 // Ignore classes that can't be somehow resolved at runtime.
+                Throwable cause = error.getCause();
+
+                if (!(cause instanceof ClassNotFoundException
+                        || cause instanceof NoClassDefFoundError)) {
+
+                    throw Throwables.propagate(cause);
+                }
             }
         }
 
