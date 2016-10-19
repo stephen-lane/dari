@@ -19,6 +19,7 @@ import com.psddev.dari.db.shyiko.DariQueryEventDataDeserializer;
 import com.psddev.dari.db.shyiko.DariUpdateRowsEventDataDeserializer;
 import com.psddev.dari.db.shyiko.DariWriteRowsEventDataDeserializer;
 import com.psddev.dari.util.ObjectUtils;
+import com.psddev.dari.util.StringUtils;
 import com.zaxxer.hikari.HikariDataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,70 +47,85 @@ class MySQLBinaryLogReader {
     private final AtomicBoolean running = new AtomicBoolean();
 
     public MySQLBinaryLogReader(MySQLDatabase database, Cache<UUID, Object[]> cache, DataSource dataSource, String recordTableName) {
-        Class<?> dataSourceClass = dataSource.getClass();
-        String dataSourceClassName = dataSourceClass.getName();
-        String jdbcUrl = null;
-        String username = null;
-        String password = null;
-        Throwable dataSourceError = null;
+        String host = database.getReplicationCacheHost();
+        Integer port;
+        String schema;
+        String username;
+        String password;
 
-        try {
-            if (dataSourceClassName.equals("com.jolbox.bonecp.BoneCPDataSource")) {
-                jdbcUrl = (String) dataSourceClass.getMethod("getJdbcUrl").invoke(dataSource);
-                username = (String) dataSourceClass.getMethod("getUsername").invoke(dataSource);
-                password = (String) dataSourceClass.getMethod("getPassword").invoke(dataSource);
+        if (!StringUtils.isBlank(host)) {
+            port = database.getReplicationCachePort();
+            schema = database.getReplicationCacheSchema();
+            username = database.getReplicationCacheUsername();
+            password = database.getReplicationCachePassword();
 
-            } else if (dataSource instanceof HikariDataSource) {
+        } else {
+            String jdbcUrl;
+
+            if (dataSource instanceof HikariDataSource) {
                 HikariDataSource hikari = (HikariDataSource) dataSource;
                 jdbcUrl = hikari.getJdbcUrl();
                 username = hikari.getUsername();
                 password = hikari.getPassword();
 
-            } else if (dataSourceClassName.equals("org.apache.tomcat.jdbc.pool.DataSource")) {
-                jdbcUrl = (String) dataSourceClass.getMethod("getUrl").invoke(dataSource);
-                Properties dbProperties = (Properties) dataSourceClass.getMethod("getDbProperties").invoke(dataSource);
-                username = dbProperties.getProperty("user");
-                password = dbProperties.getProperty("password");
-
             } else {
-                jdbcUrl = (String) dataSourceClass.getMethod("getUrl").invoke(dataSource);
-                username = (String) dataSourceClass.getMethod("getUsername").invoke(dataSource);
-                password = (String) dataSourceClass.getMethod("getPassword").invoke(dataSource);
+                Class<?> dataSourceClass = dataSource.getClass();
+                String dataSourceClassName = dataSourceClass.getName();
+                Throwable dataSourceError = null;
+                jdbcUrl = null;
+                username = null;
+                password = null;
+
+                try {
+                    if (dataSourceClassName.equals("com.jolbox.bonecp.BoneCPDataSource")) {
+                        jdbcUrl = (String) dataSourceClass.getMethod("getJdbcUrl").invoke(dataSource);
+                        username = (String) dataSourceClass.getMethod("getUsername").invoke(dataSource);
+                        password = (String) dataSourceClass.getMethod("getPassword").invoke(dataSource);
+
+                    } else if (dataSourceClassName.equals("org.apache.tomcat.jdbc.pool.DataSource")) {
+                        jdbcUrl = (String) dataSourceClass.getMethod("getUrl").invoke(dataSource);
+                        Properties dbProperties = (Properties) dataSourceClass.getMethod("getDbProperties").invoke(dataSource);
+                        username = dbProperties.getProperty("user");
+                        password = dbProperties.getProperty("password");
+                    }
+
+                } catch (IllegalAccessException | NoSuchMethodException error) {
+                    dataSourceError = error;
+
+                } catch (InvocationTargetException error) {
+                    dataSourceError = error.getCause();
+                }
+
+                if (jdbcUrl == null) {
+                    throw new IllegalArgumentException(
+                            String.format(
+                                    "Can't extract MySQL information from data source [%s]!",
+                                    dataSourceClassName),
+                            dataSourceError);
+                }
             }
 
-        } catch (IllegalAccessException | NoSuchMethodException error) {
-            dataSourceError = error;
+            Matcher jdbcUrlMatcher = MYSQL_JDBC_URL_PATTERN.matcher(jdbcUrl);
 
-        } catch (InvocationTargetException error) {
-            dataSourceError = error.getCause();
+            if (!jdbcUrlMatcher.matches()) {
+                throw new IllegalArgumentException(String.format(
+                        "[%s] isn't a valid MySQL JDBC URL!",
+                        jdbcUrl));
+            }
+
+            host = jdbcUrlMatcher.group(1);
+            port = ObjectUtils.to(Integer.class, jdbcUrlMatcher.group(2));
+            schema = jdbcUrlMatcher.group(3);
+            username = ObjectUtils.firstNonNull(username, "");
+            password = ObjectUtils.firstNonNull(password, "");
         }
 
-        if (dataSourceError != null) {
-            throw new IllegalArgumentException(String.format(
-                    "Can't extract MySQL information from data source [%s]!",
-                    dataSource.getClass().getName()),
-                    dataSourceError);
-        }
-
-        Matcher jdbcUrlMatcher = MYSQL_JDBC_URL_PATTERN.matcher(jdbcUrl);
-
-        if (!jdbcUrlMatcher.matches()) {
-            throw new IllegalArgumentException(String.format(
-                    "[%s] isn't a valid MySQL JDBC URL!",
-                    jdbcUrl));
-        }
-
-        String host = jdbcUrlMatcher.group(1);
-        int port = ObjectUtils.firstNonNull(ObjectUtils.to(Integer.class, jdbcUrlMatcher.group(2)), 3306);
-        String catalog = jdbcUrlMatcher.group(3);
-        username = ObjectUtils.firstNonNull(username, "");
-        password = ObjectUtils.firstNonNull(password, "");
-        this.client = new BinaryLogClient(host, port, catalog, username, password);
+        this.client = new BinaryLogClient(host, port != null ? port : 3306, schema, username, password);
         this.lifecycleListener = new MySQLBinaryLogLifecycleListener(cache);
 
         client.setServerId(RANDOM.nextLong());
         client.registerLifecycleListener(lifecycleListener);
-        client.registerEventListener(new MySQLBinaryLogEventListener(database, cache, catalog, recordTableName));
+        client.registerEventListener(new MySQLBinaryLogEventListener(database, cache, schema, recordTableName));
 
         @SuppressWarnings("rawtypes")
         Map<EventType, EventDataDeserializer> eventDataDeserializers = new HashMap<>();
