@@ -824,40 +824,29 @@ public class DatabaseEnvironment implements ObjectStruct {
             Map<UUID, Map<UUID, StateValueAdapter<Object, Object>>> adaptersBySourceTypeId = new ConcurrentHashMap<>();
 
             for (Class<?> c : ClassFinder.findConcreteClasses(StateValueAdapter.class)) {
-                for (Type i : c.getGenericInterfaces()) {
-                    if (i instanceof ParameterizedType) {
-                        ParameterizedType pt = (ParameterizedType) i;
-                        Type rt = pt.getRawType();
+                TypeDefinition<?> d = TypeDefinition.getInstance(c);
+                Class<?> source = d.getInferredGenericTypeArgumentClass(StateValueAdapter.class, 0);
 
-                        if (rt instanceof Class
-                                && StateValueAdapter.class.isAssignableFrom((Class<?>) rt)) {
+                if (source != null) {
+                    Class<?> target = d.getInferredGenericTypeArgumentClass(StateValueAdapter.class, 1);
 
-                            Type[] args = pt.getActualTypeArguments();
+                    if (target != null) {
+                        ObjectType sourceType = getTypeByClass(source);
 
-                            if (args.length == 2) {
-                                Type source = args[0];
-                                Type target = args[1];
+                        if (sourceType != null) {
+                            ObjectType targetType = getTypeByClass(target);
 
-                                if (source instanceof Class && target instanceof Class) {
-                                    ObjectType sourceType = getTypeByClass((Class<?>) source);
+                            if (targetType != null) {
+                                UUID sourceTypeId = sourceType.getId();
+                                UUID targetTypeId = targetType.getId();
+                                Map<UUID, StateValueAdapter<Object, Object>> adapters = adaptersBySourceTypeId.get(sourceTypeId);
 
-                                    if (sourceType != null) {
-                                        ObjectType targetType = getTypeByClass((Class<?>) target);
-
-                                        if (targetType != null) {
-                                            UUID sourceTypeId = sourceType.getId();
-                                            UUID targetTypeId = targetType.getId();
-                                            Map<UUID, StateValueAdapter<Object, Object>> adapters = adaptersBySourceTypeId.get(sourceTypeId);
-
-                                            if (adapters == null) {
-                                                adapters = new ConcurrentHashMap<>();
-                                                adaptersBySourceTypeId.put(sourceTypeId, adapters);
-                                            }
-
-                                            adapters.put(targetTypeId, (StateValueAdapter<Object, Object>) TypeDefinition.getInstance(c).newInstance());
-                                        }
-                                    }
+                                if (adapters == null) {
+                                    adapters = new ConcurrentHashMap<>();
+                                    adaptersBySourceTypeId.put(sourceTypeId, adapters);
                                 }
+
+                                adapters.put(targetTypeId, (StateValueAdapter<Object, Object>) TypeDefinition.getInstance(c).newInstance());
                             }
                         }
                     }
