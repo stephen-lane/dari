@@ -6,8 +6,6 @@ import java.beans.Introspector;
 import java.beans.PropertyDescriptor;
 import java.beans.SimpleBeanInfo;
 import java.lang.reflect.Method;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
