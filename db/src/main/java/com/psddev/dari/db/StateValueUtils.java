@@ -13,6 +13,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -431,10 +432,7 @@ abstract class StateValueUtils {
                     String subType,
                     Object value) {
 
-                if (value instanceof Recordable) {
-                    return value;
-
-                } else if (value instanceof Map) {
+                if (value instanceof Map) {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> valueMap = (Map<String, Object>) value;
                     Object typeId = valueMap.get(StateSerializer.TYPE_KEY);
@@ -456,19 +454,43 @@ abstract class StateValueUtils {
                             valueState.setResolveToReferenceOnly(objectState.isResolveToReferenceOnly());
                             valueState.setResolveInvisible(objectState.isResolveInvisible());
                             valueState.putAll(valueMap);
-
-                            return value;
                         }
                     }
 
-                } else {
+                } else if (!(value instanceof Recordable)) {
                     UUID id = ObjectUtils.to(UUID.class, value);
+
                     if (id != null) {
-                        return Query.findById(Object.class, id);
+                        value = Query.fromAll().where("_id = ?", id).first();
                     }
                 }
 
-                throw new IllegalArgumentException();
+                if (value == null) {
+                    throw new IllegalArgumentException();
+                }
+
+                ObjectType valueType = State.getInstance(value).getType();
+                UUID valueTypeId = valueType.getId();
+                Set<ObjectType> fieldTypes = field.findConcreteTypes();
+
+                if (!fieldTypes.isEmpty()
+                        && !fieldTypes.stream().anyMatch(type -> type.getId().equals(valueTypeId))) {
+
+                    Object source = value;
+                    Object target = fieldTypes.stream()
+                            .map(type -> database.getEnvironment().getStateValueAdapter(valueTypeId, type.getId()))
+                            .filter(Objects::nonNull)
+                            .map(adapter -> adapter.adapt(source))
+                            .filter(Objects::nonNull)
+                            .findFirst()
+                            .orElse(null);
+
+                    if (target != null) {
+                        value = target;
+                    }
+                }
+
+                return value;
             }
         });
 
