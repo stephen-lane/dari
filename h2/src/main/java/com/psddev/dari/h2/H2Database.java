@@ -1,14 +1,23 @@
 package com.psddev.dari.h2;
 
+import com.psddev.dari.db.ComparisonPredicate;
+import com.psddev.dari.db.PredicateParser;
 import com.psddev.dari.sql.AbstractSqlDatabase;
 import com.psddev.dari.sql.SqlDatabaseException;
+import com.psddev.dari.util.ObjectUtils;
+import org.jooq.Condition;
 import org.jooq.Converter;
 import org.jooq.DataType;
+import org.jooq.Field;
+import org.jooq.Operator;
 import org.jooq.SQLDialect;
+import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 public class H2Database extends AbstractSqlDatabase {
 
@@ -71,5 +80,41 @@ public class H2Database extends AbstractSqlDatabase {
     @Override
     protected String getSetUpResourcePath() {
         return "schema-12.sql";
+    }
+
+    @Override
+    protected Condition compare(String recordTableAlias, ComparisonPredicate comparison) {
+        String operator = comparison.getOperator();
+        Operator compoundOperator;
+
+        if (PredicateParser.MATCHES_ANY_OPERATOR.equals(operator)
+                || PredicateParser.MATCHES_EXACT_ANY_OPERATOR.equals(operator)) {
+
+            compoundOperator = Operator.OR;
+
+        } else if (PredicateParser.MATCHES_ALL_OPERATOR.equals(operator)
+                || PredicateParser.MATCHES_EXACT_ALL_OPERATOR.equals(operator)) {
+
+            compoundOperator = Operator.AND;
+
+        } else {
+            return super.compare(recordTableAlias, comparison);
+        }
+
+        String key = comparison.getKey();
+        int lastSlashAt = key.lastIndexOf('/');
+        String fieldName = lastSlashAt > -1 ? key.substring(lastSlashAt + 1) : key;
+        Field<UUID> aliasedRecordIdField = DSL.field(DSL.name(recordTableAlias, recordIdField.getName()), uuidType());
+
+        return DSL.condition(
+                compoundOperator,
+                comparison.getValues().stream()
+                        .filter(value -> !ObjectUtils.isBlank(value))
+                        .map(value -> aliasedRecordIdField.in(
+                                DSL.select(DSL.field("KEYS[1]", uuidType()))
+                                    .from(DSL.table("FT_SEARCH_DATA(?, 0, 0)", value))
+                                    .where(DSL.field(DSL.name("TABLE"), String.class).eq(SearchUpdateTrigger.TABLE.getName()))
+                                    .and(DSL.field("KEYS[0]", String.class).eq(fieldName))))
+                        .collect(Collectors.toList()));
     }
 }
