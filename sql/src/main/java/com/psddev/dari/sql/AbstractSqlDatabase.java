@@ -27,6 +27,8 @@ import com.psddev.dari.util.Profiler;
 import com.psddev.dari.util.Settings;
 import com.psddev.dari.util.SettingsException;
 import com.psddev.dari.util.Stats;
+import com.psddev.dari.util.StringUtils;
+import com.psddev.dari.util.TypeDefinition;
 import org.jooq.BatchBindStep;
 import org.jooq.Condition;
 import org.jooq.Converter;
@@ -51,8 +53,13 @@ import org.slf4j.LoggerFactory;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
 import javax.sql.DataSource;
+import java.beans.IntrospectionException;
+import java.beans.Introspector;
+import java.beans.PropertyDescriptor;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
@@ -835,11 +842,83 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
             if (dataSourceObject instanceof DataSource) {
                 return (DataSource) dataSourceObject;
 
-            } else {
-                throw new SettingsException(
-                        dataSourceSetting,
-                        String.format("[%s] isn't a data source!", dataSourceObject));
+            } else if (dataSourceObject instanceof Map) {
+                Map<?, ?> dataSourceMap = (Map<?, ?>) dataSourceObject;
+                String className = ObjectUtils.to(String.class, dataSourceMap.get("class"));
+
+                if (!StringUtils.isBlank(className)) {
+                    Class<?> dataSourceClass = ObjectUtils.getClassByName(className);
+
+                    if (dataSourceClass == null) {
+                        throw new SettingsException(
+                                dataSourceSetting + "/class",
+                                String.format("[%s] isn't a valid class name!", className));
+                    }
+
+                    if (!(DataSource.class.isAssignableFrom(dataSourceClass))) {
+                        throw new SettingsException(
+                                dataSourceSetting + "/class",
+                                String.format(
+                                        "[%s] doesn't implement [%s]!",
+                                        className,
+                                        DataSource.class.getName()));
+                    }
+
+                    DataSource dataSource = (DataSource) TypeDefinition.getInstance(dataSourceClass).newInstance();
+                    Map<String, Method> setters = new HashMap<>();
+
+                    try {
+                        for (PropertyDescriptor desc : Introspector.getBeanInfo(dataSourceClass).getPropertyDescriptors()) {
+                            Method setter = desc.getWriteMethod();
+
+                            if (setter != null) {
+                                setters.put(desc.getName(), setter);
+                            }
+                        }
+
+                    } catch (IntrospectionException error) {
+                        throw new IllegalStateException(String.format(
+                                "Can't introspect [%s]!",
+                                className));
+                    }
+
+                    for (Map.Entry<?, ?> entry : dataSourceMap.entrySet()) {
+                        String key = ObjectUtils.to(String.class, entry.getKey());
+                        Object value = entry.getValue();
+
+                        if (key != null && !"class".equals(key)) {
+                            Method setter = setters.get(key);
+                            boolean setterCalled = false;
+                            Throwable setterError = null;
+
+                            if (setter != null) {
+                                try {
+                                    setter.invoke(dataSource, ObjectUtils.to(setter.getGenericParameterTypes()[0], value));
+                                    setterCalled = true;
+
+                                } catch (IllegalAccessException error) {
+                                    setterError = error;
+
+                                } catch (InvocationTargetException error) {
+                                    setterError = error.getCause();
+                                }
+                            }
+
+                            if (!setterCalled) {
+                                LOGGER.warn(
+                                        String.format("Can't set [%s] to [%s] on [%s]!", key, value, dataSource),
+                                        setterError);
+                            }
+                        }
+                    }
+
+                    return dataSource;
+                }
             }
+
+            throw new SettingsException(
+                    dataSourceSetting,
+                    String.format("[%s] isn't a data source!", dataSourceObject));
         }
 
         return null;
