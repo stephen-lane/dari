@@ -246,6 +246,12 @@ class SqlQuery {
 
         } else if (predicate instanceof ComparisonPredicate) {
             ComparisonPredicate comparisonPredicate = (ComparisonPredicate) predicate;
+            Condition condition = database.compare(recordTableAlias, comparisonPredicate);
+
+            if (condition != null) {
+                return condition;
+            }
+
             String queryKey = comparisonPredicate.getKey();
             Query.MappedKey mappedKey = mappedKeys.get(queryKey);
             boolean isFieldCollection = mappedKey.isInternalCollectionType();

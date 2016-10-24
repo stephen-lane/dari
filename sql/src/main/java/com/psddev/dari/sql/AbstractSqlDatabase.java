@@ -11,6 +11,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.UncheckedExecutionException;
 import com.psddev.dari.db.AbstractDatabase;
 import com.psddev.dari.db.AtomicOperation;
+import com.psddev.dari.db.ComparisonPredicate;
 import com.psddev.dari.db.DatabaseException;
 import com.psddev.dari.db.Grouping;
 import com.psddev.dari.db.ObjectField;
@@ -547,7 +548,24 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
     }
 
     /**
+     * Returns a jOOQ condition that represents the given {@code comparison}
+     * using the given {@code recordTableAlias}.
+     *
+     * <p>This is used to override how a comparison should be handled in a
+     * specific database implementation, and by default, it returns
+     * {@code null} to indicate that it shouldn't do anything special.</p>
+     *
+     * @param recordTableAlias Nonnull.
+     * @param comparison Nonnull.
+     * @return Nullable.
+     */
+    protected Condition compare(String recordTableAlias, ComparisonPredicate comparison) {
+        return null;
+    }
+
+    /**
      * Returns a jOOQ field that represents {@code ST_MakeLine(x, y)} function.
+     *
      * @param x Nullable.
      * @param y Nullable.
      * @return Nonnull.
