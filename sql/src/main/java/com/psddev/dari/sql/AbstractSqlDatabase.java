@@ -17,6 +17,7 @@ import com.psddev.dari.db.Grouping;
 import com.psddev.dari.db.ObjectField;
 import com.psddev.dari.db.ObjectIndex;
 import com.psddev.dari.db.Query;
+import com.psddev.dari.db.Sorter;
 import com.psddev.dari.db.State;
 import com.psddev.dari.db.StateSerializer;
 import com.psddev.dari.db.UpdateNotifier;
@@ -43,6 +44,7 @@ import org.jooq.Record1;
 import org.jooq.Record2;
 import org.jooq.ResultQuery;
 import org.jooq.SQLDialect;
+import org.jooq.SortField;
 import org.jooq.Table;
 import org.jooq.conf.ParamType;
 import org.jooq.exception.DataAccessException;
@@ -560,6 +562,22 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
      * @return Nullable.
      */
     protected Condition compare(String recordTableAlias, ComparisonPredicate comparison) {
+        return null;
+    }
+
+    /**
+     * Returns a jOOQ sort field that represents the given {@code sorter}
+     * using the given {@code recordTableAlias}.
+     *
+     * <p>This is used ot override how a sorter should be handled in a specific
+     * database implementation, and by default, it returns {@code null} to
+     * indicate that it shouldn't do anything special.</p>
+     *
+     * @param recordTableAlias Nonnull.
+     * @param sorter Nonnull.
+     * @return Nullable.
+     */
+    protected SortField<?> sort(String recordTableAlias, Sorter sorter) {
         return null;
     }
 

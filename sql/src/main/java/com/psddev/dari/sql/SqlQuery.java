@@ -148,6 +148,13 @@ class SqlQuery {
 
         // Creates jOOQ SortField from Dari Sorter.
         for (Sorter sorter : query.getSorters()) {
+            SortField<?> sortField = database.sort(recordTableAlias, sorter);
+
+            if (sortField != null) {
+                orderByFields.add(sortField);
+                continue;
+            }
+
             SqlSorter sqlSorter = SqlSorter.find(sorter.getOperator());
             String queryKey = (String) sorter.getOptions().get(0);
             SqlJoin join = SqlJoin.findOrCreate(this, queryKey);
