@@ -5,6 +5,7 @@ import org.junit.After;
 import org.junit.Test;
 
 import java.util.List;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.*;
@@ -20,7 +21,7 @@ public class SearchTest extends AbstractTest {
     }
 
     @Test
-    public void searchOne() {
+    public void oneMatches() {
         Stream.of(FOO, "bar", "qux").forEach(string -> {
             SearchModel model = new SearchModel();
             model.one = string;
@@ -40,7 +41,7 @@ public class SearchTest extends AbstractTest {
     }
 
     @Test
-    public void searchSet() {
+    public void setMatches() {
         Stream.of(FOO, "bar", "qux").forEach(string -> {
             SearchModel model = new SearchModel();
             model.one = FOO;
@@ -61,7 +62,7 @@ public class SearchTest extends AbstractTest {
     }
 
     @Test
-    public void searchList() {
+    public void listMatches() {
         Stream.of(FOO, "bar", "qux").forEach(string -> {
             SearchModel model = new SearchModel();
             model.one = FOO;
@@ -82,7 +83,7 @@ public class SearchTest extends AbstractTest {
     }
 
     @Test
-    public void searchMap() {
+    public void mapMatches() {
         Stream.of(FOO, "bar", "qux").forEach(string -> {
             SearchModel model = new SearchModel();
             model.one = FOO;
@@ -103,7 +104,7 @@ public class SearchTest extends AbstractTest {
     }
 
     @Test
-    public void searchAny() {
+    public void anyMatches() {
         Stream.of(FOO, "bar", "qux").forEach(string -> {
             SearchModel model = new SearchModel();
             model.one = string;
@@ -117,5 +118,24 @@ public class SearchTest extends AbstractTest {
                 .selectAll();
 
         assertThat(fooResult, hasSize(3));
+    }
+
+    @Test
+    public void sortRelevant() {
+        IntStream.range(0, 3).forEach(i -> {
+            SearchModel model = new SearchModel();
+            model.one = FOO;
+            model.save();
+        });
+
+        List<SearchModel> fooResult = Query
+                .from(SearchModel.class)
+                .where("_any matches ?", FOO)
+                .sortRelevant(1.0, "_any matches ?", FOO)
+                .selectAll();
+
+        assertThat(fooResult, hasSize(3));
+        assertThat(fooResult.get(0).getId().toString(), greaterThan(fooResult.get(1).getId().toString()));
+        assertThat(fooResult.get(1).getId().toString(), greaterThan(fooResult.get(2).getId().toString()));
     }
 }

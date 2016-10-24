@@ -2,6 +2,7 @@ package com.psddev.dari.h2;
 
 import com.psddev.dari.db.ComparisonPredicate;
 import com.psddev.dari.db.PredicateParser;
+import com.psddev.dari.db.Sorter;
 import com.psddev.dari.sql.AbstractSqlDatabase;
 import com.psddev.dari.sql.SqlDatabaseException;
 import com.psddev.dari.util.ObjectUtils;
@@ -11,6 +12,7 @@ import org.jooq.DataType;
 import org.jooq.Field;
 import org.jooq.Operator;
 import org.jooq.SQLDialect;
+import org.jooq.SortField;
 import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
 
@@ -116,5 +118,15 @@ public class H2Database extends AbstractSqlDatabase {
                                     .where(DSL.field(DSL.name("TABLE"), String.class).eq(SearchUpdateTrigger.TABLE.getName()))
                                     .and(DSL.field("KEYS[0]", String.class).eq(fieldName))))
                         .collect(Collectors.toList()));
+    }
+
+    @Override
+    protected SortField<?> sort(String recordTableAlias, Sorter sorter) {
+        if (Sorter.RELEVANT_OPERATOR.equals(sorter.getOperator())) {
+            return DSL.field(DSL.name(recordTableAlias, recordIdField.getName()), uuidType()).desc();
+
+        } else {
+            return super.sort(recordTableAlias, sorter);
+        }
     }
 }
