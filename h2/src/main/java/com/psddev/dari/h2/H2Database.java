@@ -112,11 +112,13 @@ public class H2Database extends AbstractSqlDatabase {
                 compoundOperator,
                 comparison.getValues().stream()
                         .filter(value -> !ObjectUtils.isBlank(value))
-                        .map(value -> aliasedRecordIdField.in(
-                                DSL.select(DSL.field("KEYS[1]", uuidType()))
-                                    .from(DSL.table("FT_SEARCH_DATA(?, 0, 0)", value))
-                                    .where(DSL.field(DSL.name("TABLE"), String.class).eq(SearchUpdateTrigger.TABLE.getName()))
-                                    .and(DSL.field("KEYS[0]", String.class).eq(fieldName))))
+                        .map(value -> "*".equals(value)
+                                ? DSL.trueCondition()
+                                : aliasedRecordIdField.in(
+                                        DSL.select(DSL.field("KEYS[1]", uuidType()))
+                                                .from(DSL.table("FT_SEARCH_DATA(?, 0, 0)", value))
+                                                .where(DSL.field(DSL.name("TABLE"), String.class).eq(SearchUpdateTrigger.TABLE.getName()))
+                                                .and(DSL.field("KEYS[0]", String.class).eq(fieldName))))
                         .collect(Collectors.toList()));
     }
 
