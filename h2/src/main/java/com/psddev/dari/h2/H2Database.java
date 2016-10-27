@@ -8,18 +8,23 @@ import com.psddev.dari.sql.SqlDatabaseException;
 import com.psddev.dari.util.ObjectUtils;
 import org.jooq.Condition;
 import org.jooq.Converter;
+import org.jooq.DSLContext;
 import org.jooq.DataType;
 import org.jooq.Field;
 import org.jooq.Operator;
+import org.jooq.Record;
 import org.jooq.SQLDialect;
 import org.jooq.SortField;
+import org.jooq.Table;
 import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class H2Database extends AbstractSqlDatabase {
 
@@ -49,6 +54,9 @@ public class H2Database extends AbstractSqlDatabase {
             return String.class;
         }
     });
+
+    private static final Table<Record> FT_WORDS_TABLE = DSL.table(DSL.name("FT", "WORDS"));
+    private static final Field<String> FT_WORDS_NAME_FIELD = DSL.field(DSL.name("NAME"), String.class);
 
     @Override
     protected SQLDialect getDialect() {
@@ -108,10 +116,42 @@ public class H2Database extends AbstractSqlDatabase {
         String fieldName = lastSlashAt > -1 ? key.substring(lastSlashAt + 1) : key;
         Field<UUID> aliasedRecordIdField = DSL.field(DSL.name(recordTableAlias, recordIdField.getName()), uuidType());
 
+        boolean exact = PredicateParser.MATCHES_EXACT_ANY_OPERATOR.equals(operator)
+                || PredicateParser.MATCHES_EXACT_ALL_OPERATOR.equals(operator);
+
         return DSL.condition(
                 compoundOperator,
                 comparison.getValues().stream()
                         .filter(value -> !ObjectUtils.isBlank(value))
+                        .map(Object::toString)
+
+                        .flatMap(value -> {
+                            if (!exact && value.length()> 1) {
+                                value += "*";
+                            }
+
+                            if (value.contains("*") && value.length() > 1) {
+                                Connection connection = openConnection();
+
+                                try (DSLContext context = DSL.using(connection, getDialect())) {
+                                    return context.select(FT_WORDS_NAME_FIELD)
+                                            .from(FT_WORDS_TABLE)
+                                            .where(FT_WORDS_NAME_FIELD.like(value
+                                                    .replace("%", "\\%")
+                                                    .replace("_", "\\_")
+                                                    .replace("*", "%")
+                                                    .toUpperCase(Locale.ENGLISH) + "%"))
+                                            .fetch(FT_WORDS_NAME_FIELD)
+                                            .stream();
+
+                                } finally {
+                                    closeConnection(connection);
+                                }
+                            }
+
+                            return Stream.of(value);
+                        })
+
                         .map(value -> "*".equals(value)
                                 ? DSL.trueCondition()
                                 : aliasedRecordIdField.in(
@@ -119,6 +159,7 @@ public class H2Database extends AbstractSqlDatabase {
                                                 .from(DSL.table("FT_SEARCH_DATA(?, 0, 0)", value))
                                                 .where(DSL.field(DSL.name("TABLE"), String.class).eq(SearchUpdateTrigger.TABLE.getName()))
                                                 .and(DSL.field("KEYS[0]", String.class).eq(fieldName))))
+
                         .collect(Collectors.toList()));
     }
 

@@ -121,6 +121,19 @@ public class SearchTest extends AbstractTest {
     }
 
     @Test
+    public void wildcard() {
+        Stream.of("f", "fo", "foo").forEach(string -> {
+            SearchModel model = new SearchModel();
+            model.one = string;
+            model.save();
+        });
+
+        assertThat(Query.from(SearchModel.class).where("one matches ?", "f*").count(), equalTo(3L));
+        assertThat(Query.from(SearchModel.class).where("one matches ?", "fo*").count(), equalTo(2L));
+        assertThat(Query.from(SearchModel.class).where("one matches ?", "foo*").count(), equalTo(1L));
+    }
+
+    @Test
     public void sortRelevant() {
         IntStream.range(0, 3).forEach(i -> {
             SearchModel model = new SearchModel();
