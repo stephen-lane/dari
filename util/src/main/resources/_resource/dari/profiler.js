@@ -325,7 +325,11 @@
                 }));
             });
 
-            $profileBody.on('click', '#_profile-overview tr', function() {
+            $profileBody.on('click', '#_profile-overview tr', function(event) {
+                if ($(event.target).is(':checkbox')) {
+                    return true;
+                }
+
                 var $checkbox = $(this).find(':checkbox');
 
                 $checkbox.prop('checked', !$checkbox.prop('checked'));
