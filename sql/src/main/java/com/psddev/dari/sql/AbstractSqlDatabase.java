@@ -551,33 +551,31 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
 
     /**
      * Returns a jOOQ condition that represents the given {@code comparison}
-     * using the given {@code recordTableAlias}.
+     * using the given {@code options}.
      *
      * <p>This is used to override how a comparison should be handled in a
      * specific database implementation, and by default, it returns
      * {@code null} to indicate that it shouldn't do anything special.</p>
      *
-     * @param recordTableAlias Nonnull.
-     * @param comparison Nonnull.
+     * @param options Nonnull.
      * @return Nullable.
      */
-    protected Condition compare(String recordTableAlias, ComparisonPredicate comparison) {
+    protected Condition compare(ComparisonPredicate comparison, SqlCompareOptions options) {
         return null;
     }
 
     /**
      * Returns a jOOQ sort field that represents the given {@code sorter}
-     * using the given {@code recordTableAlias}.
+     * using the given {@code options}.
      *
      * <p>This is used ot override how a sorter should be handled in a specific
      * database implementation, and by default, it returns {@code null} to
      * indicate that it shouldn't do anything special.</p>
      *
-     * @param recordTableAlias Nonnull.
-     * @param sorter Nonnull.
+     * @param options Nonnull.
      * @return Nullable.
      */
-    protected SortField<?> sort(String recordTableAlias, Sorter sorter) {
+    protected SortField<?> sort(Sorter sorter, SqlSortOptions options) {
         return null;
     }
 

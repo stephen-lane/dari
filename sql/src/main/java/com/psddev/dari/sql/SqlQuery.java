@@ -148,7 +148,7 @@ class SqlQuery {
 
         // Creates jOOQ SortField from Dari Sorter.
         for (Sorter sorter : query.getSorters()) {
-            SortField<?> sortField = database.sort(recordTableAlias, sorter);
+            SortField<?> sortField = database.sort(sorter, new SqlSortOptions(recordTableAlias));
 
             if (sortField != null) {
                 orderByFields.add(sortField);
@@ -253,7 +253,7 @@ class SqlQuery {
 
         } else if (predicate instanceof ComparisonPredicate) {
             ComparisonPredicate comparisonPredicate = (ComparisonPredicate) predicate;
-            Condition condition = database.compare(recordTableAlias, comparisonPredicate);
+            Condition condition = database.compare(comparisonPredicate, new SqlCompareOptions(recordTableAlias));
 
             if (condition != null) {
                 return condition;
