@@ -126,7 +126,7 @@ public class H2Database extends AbstractSqlDatabase {
                         .map(Object::toString)
 
                         .flatMap(value -> {
-                            if (!exact && value.length()> 1) {
+                            if (!exact && value.length() > 1) {
                                 value += "*";
                             }
 
