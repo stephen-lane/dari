@@ -7,6 +7,7 @@ import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -45,6 +46,7 @@ import com.psddev.dari.util.Profiler;
 import com.psddev.dari.util.Settings;
 import com.psddev.dari.util.SettingsException;
 import com.psddev.dari.util.Stats;
+import com.psddev.dari.util.StringUtils;
 import com.psddev.dari.util.UuidUtils;
 
 /**
@@ -188,6 +190,9 @@ public class SolrDatabase extends AbstractDatabase<SolrServer> {
         private SolrField defaultType;
         private final Map<String, SolrField> types = new HashMap<String, SolrField>();
 
+        private SolrField defaultStoredType;
+        private final Map<String, SolrField> storedTypes = new HashMap<String, SolrField>();
+
         public SolrSchema(int version) {
             this.version = version;
         }
@@ -207,6 +212,23 @@ public class SolrDatabase extends AbstractDatabase<SolrServer> {
         public SolrField getField(String internalType) {
             SolrField type = types.get(internalType);
             return type != null ? type : defaultType;
+        }
+
+        public void setDefaultStoredField(SolrField defaultStoredType) {
+            this.defaultStoredType = defaultStoredType;
+        }
+
+        public void mapStoredFields(SolrField type, String... internalTypes) {
+            if (internalTypes != null) {
+                for (String internalType : internalTypes) {
+                    storedTypes.put(internalType, type);
+                }
+            }
+        }
+
+        public SolrField getStoredField(String internalType) {
+            SolrField type = storedTypes.get(internalType);
+            return type != null ? type : defaultStoredType;
         }
     }
 
@@ -257,7 +279,24 @@ public class SolrDatabase extends AbstractDatabase<SolrServer> {
 
             SolrSchema schema;
 
-            if (query("_e_test:1") == null) {
+            if (query("_bw_test:1") == null) {
+                schema = new SolrSchema(11);
+
+                schema.setDefaultField(new SolrField("_sl_", "_t_", "_ss_"));
+                schema.mapFields(new SolrField("_b_", "_b_", "_bs_"), ObjectField.BOOLEAN_TYPE);
+                schema.mapFields(new SolrField("_d_", "_d_", "_ds_"), ObjectField.NUMBER_TYPE);
+                schema.mapFields(new SolrField("_l_", "_l_", "_ls_"), ObjectField.DATE_TYPE);
+                schema.mapFields(new SolrField("_u_", "_u_", "_us_"), ObjectField.RECORD_TYPE, ObjectField.UUID_TYPE);
+                schema.mapFields(new SolrField("_g_", "_g_", "_g_"), ObjectField.LOCATION_TYPE);
+
+                schema.setDefaultStoredField(new SolrField("_tw_", "_tw_", "_tw_"));
+                schema.mapStoredFields(new SolrField("_bw_", "_bw_", "_bsw_"), ObjectField.BOOLEAN_TYPE);
+                schema.mapStoredFields(new SolrField("_dw_", "_dw_", "_dsw_"), ObjectField.NUMBER_TYPE);
+                schema.mapStoredFields(new SolrField("_lw_", "_lw_", "_lsw_"), ObjectField.DATE_TYPE);
+                schema.mapStoredFields(new SolrField("_uw_", "_uw_", "_usw_"), ObjectField.RECORD_TYPE, ObjectField.UUID_TYPE);
+                schema.mapStoredFields(new SolrField("_gw_", "_gw_", "_gw_"), ObjectField.LOCATION_TYPE);
+
+            } else if (query("_e_test:1") == null) {
                 schema = new SolrSchema(10);
 
                 schema.setDefaultField(new SolrField("_sl_", "_t_", "_ss_"));
@@ -327,6 +366,10 @@ public class SolrDatabase extends AbstractDatabase<SolrServer> {
 
     private SolrField getSolrField(String internalType) {
         return schema.get().getField(internalType);
+    }
+
+    private SolrField getSolrStoredField(String internalType) {
+        return schema.get().getStoredField(internalType);
     }
 
     private Query.MappedKey mapFullyDenormalizedKey(Query<?> query, String key) {
@@ -1813,6 +1856,48 @@ public class SolrDatabase extends AbstractDatabase<SolrServer> {
             allBuilder.append(' ');
         }
 
+        //Stored Field
+        if (schema.get().version >= 11) {
+
+            Throwable error = null;
+            try {
+                String fieldClassName = field.getJavaDeclaringClassName();
+                if (!StringUtils.isBlank(fieldClassName) && !StringUtils.isBlank(field.getJavaFieldName())) {
+                    Class fieldClass = Class.forName(fieldClassName);
+                    if (fieldClass != null) {
+                        Field javaField = fieldClass.getDeclaredField(field.getJavaFieldName());
+
+                        if (javaField != null && javaField.getAnnotation(Stored.class) != null) {
+                            Stored stored = javaField.getAnnotation(Stored.class);
+
+                            if (stored != null) {
+                                if (stored.value()) {
+
+                                    SolrField solrStoredField = getSolrStoredField(field.getInternalItemType());
+                                    for (String prefix : solrStoredField.addPrefixes) {
+                                        document.addField(prefix + name, value);
+                                    }
+                                    for (String prefix : solrStoredField.setPrefixes) {
+                                        document.setField(prefix + name, value);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (NoSuchFieldException e) {
+                error = e;
+            } catch (ClassNotFoundException e) {
+                error = e;
+            }
+
+            if (error != null) {
+                LOGGER.info("Can't get ObjectField instance! [{}: {}]",
+                        error.getClass().getName(),
+                        error.getMessage());
+            }
+        }
+
         if (value instanceof String && schema.get().version >= 8) {
             value = ((String) value).trim().toLowerCase(Locale.ENGLISH);
         }
@@ -2008,6 +2093,14 @@ public class SolrDatabase extends AbstractDatabase<SolrServer> {
         public void setExcludeFromAny(boolean excludeFromAny) {
             this.excludeFromAny = excludeFromAny;
         }
+    }
+
+    @Documented
+    @Inherited
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.FIELD)
+    public @interface Stored {
+        boolean value() default true;
     }
 
     // --- Deprecated ---
