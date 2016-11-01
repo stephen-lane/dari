@@ -505,10 +505,10 @@ class SqlQuery {
     }
 
     /**
-     * Returns an SQL statement that can be used to list all rows
+     * Returns an an SQL statement that can be used to list a subset of rows
      * matching the query.
      */
-    public String selectStatement() {
+    public String select(int offset, int limit) {
         Table<?> table = initialize(recordTable);
         List<SelectField<?>> selectFields = new ArrayList<>();
 
@@ -537,7 +537,9 @@ class SqlQuery {
                     .selectDistinct(distinctFields)
                     .from(table)
                     .where(whereCondition)
-                    .orderBy(orderByFields);
+                    .orderBy(orderByFields)
+                    .offset(offset)
+                    .limit(limit);
 
             if (!referenceOnly) {
                 String distinctAlias = aliasPrefix + "d";
@@ -555,7 +557,9 @@ class SqlQuery {
                     .select(selectFields)
                     .from(table)
                     .where(whereCondition)
-                    .orderBy(orderByFields);
+                    .orderBy(orderByFields)
+                    .offset(offset)
+                    .limit(limit);
         }
 
         return tableRenderContext.render(select);

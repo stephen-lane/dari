@@ -4,14 +4,9 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.base.Throwables;
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
 import com.google.common.collect.ImmutableList;
-import com.google.common.util.concurrent.UncheckedExecutionException;
 import com.psddev.dari.db.AbstractDatabase;
 import com.psddev.dari.db.AtomicOperation;
-import com.psddev.dari.db.DatabaseException;
 import com.psddev.dari.db.Grouping;
 import com.psddev.dari.db.ObjectField;
 import com.psddev.dari.db.ObjectIndex;
@@ -335,19 +330,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
             }
         }
     };
-
-    // Cache that stores select statements.
-    private final LoadingCache<Query<?>, String> selectStatements = CacheBuilder
-            .newBuilder()
-            .maximumSize(5000)
-            .concurrencyLevel(20)
-            .build(new CacheLoader<Query<?>, String>() {
-
-                @Override
-                public String load(Query<?> query) {
-                    return new SqlQuery(AbstractSqlDatabase.this, query).selectStatement();
-                }
-            });
 
     /**
      * Returns the JDBC data source that should be used for writes and
@@ -887,27 +869,19 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
     }
 
     /**
-     * Builds an SQL statement that can be used to select all objects
+     * Builds an SQL statement that can be used to select a subset of objects
      * matching the given {@code query}.
      *
      * @param query Nonnull.
+     * @param offset Greater than or equal to {@code 0}.
+     * @param limit Greater than {@code 0}.
      * @return Nonnull.
      */
-    public String buildSelectStatement(Query<?> query) {
+    public String buildSelectStatement(Query<?> query, long offset, int limit) {
         Preconditions.checkNotNull(query);
-
-        try {
-            Query<?> strippedQuery = query.clone();
-            strippedQuery.setDatabase(this);
-            strippedQuery.getOptions().remove(State.REFERENCE_RESOLVING_QUERY_OPTION);
-            return addComment(selectStatements.getUnchecked(strippedQuery), query);
-
-        } catch (UncheckedExecutionException error) {
-            Throwable cause = error.getCause();
-
-            Throwables.propagateIfPossible(cause);
-            throw new DatabaseException(this, cause);
-        }
+        Preconditions.checkArgument(offset >= 0L);
+        Preconditions.checkArgument(limit > 0);
+        return addComment(new SqlQuery(this, query).select((int) offset, limit), query);
     }
 
     // Adds comment to the SQL to improve debugging.
@@ -921,6 +895,17 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
         }
 
         return sql;
+    }
+
+    /**
+     * Builds an SQL statement that can be used to select all objects
+     * matching the given {@code query}.
+     *
+     * @param query Nonnull.
+     * @return Nonnull.
+     */
+    public String buildSelectStatement(Query<?> query) {
+        return buildSelectStatement(query, 0L, Integer.MAX_VALUE);
     }
 
     /**
@@ -1118,12 +1103,6 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
     public <T> T selectFirst(String sqlQuery, Query<T> query) {
         Preconditions.checkNotNull(sqlQuery);
 
-        sqlQuery = DSL.using(getDialect())
-                .selectFrom(DSL.table("(" + sqlQuery + ")").as("q"))
-                .offset(0)
-                .limit(1)
-                .getSQL(ParamType.INLINED);
-
         return select(sqlQuery, query, result -> result.next()
                 ? createSavedObjectUsingResultSet(result, query)
                 : null);
@@ -1131,7 +1110,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
 
     @Override
     public <T> T readFirst(Query<T> query) {
-        return selectFirst(buildSelectStatement(query), query);
+        return selectFirst(buildSelectStatement(query, 0L, 1), query);
     }
 
     /**
@@ -1189,12 +1168,7 @@ public abstract class AbstractSqlDatabase extends AbstractDatabase<Connection> {
         }
 
         // 2. Select one more item than requested.
-        String sqlQuery = DSL.using(getDialect())
-                .selectFrom(DSL.table("(" + buildSelectStatement(query) + ")").as("q"))
-                .offset((int) offset)
-                .limit(limit + 1)
-                .getSQL(ParamType.INLINED);
-
+        String sqlQuery = buildSelectStatement(query, offset, limit + 1);
         List<T> items = selectList(sqlQuery, query);
         int size = items.size();
 
