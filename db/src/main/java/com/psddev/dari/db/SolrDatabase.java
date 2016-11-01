@@ -45,6 +45,7 @@ import com.psddev.dari.util.Profiler;
 import com.psddev.dari.util.Settings;
 import com.psddev.dari.util.SettingsException;
 import com.psddev.dari.util.Stats;
+import com.psddev.dari.util.StringUtils;
 import com.psddev.dari.util.UuidUtils;
 
 /**
@@ -77,6 +78,14 @@ public class SolrDatabase extends AbstractDatabase<SolrServer> {
 
     public static final String SCORE_EXTRA = "solr.score";
     public static final String NORMALIZED_SCORE_EXTRA = "solr.normalizedScore";
+
+    public static final String EXTRA_QUERY_PARAMETERS_OPTION = "solr.extraParameters";
+    public static final String HIGHLIGHT_FIELDS = "solr.highlight";
+    public static final String HIGHLIGHT_PRE = "solr.highlight.pre";
+    public static final String HIGHLIGHT_POST = "solr.highlight.post";
+    public static final String HIGHLIGHT_CONTIGUOUS = "solr.highlight.contiguous";
+    public static final String HIGHLIGHT_MAX_ALRENATE_FIELD_LENGTH = "solr.highlight.maxAlternateFieldLength";
+    public static final String HIGHLIGHT_SNIPPETS = "solr.highlight.snippets";
 
     private static final int INITIAL_FETCH_SIZE = 100;
     private static final Logger LOGGER = LoggerFactory.getLogger(SolrDatabase.class);
@@ -663,7 +672,76 @@ public class SolrDatabase extends AbstractDatabase<SolrServer> {
         }
 
         solrQuery.setQuery(queryBuilder.toString());
+
+        //Extra Parameters
+        Object extraParameters = query.getOptions().get(EXTRA_QUERY_PARAMETERS_OPTION);
+        if (!ObjectUtils.isBlank(extraParameters)) {
+            Map<String, Object> extraParameterMap = (Map<String, Object>) extraParameters;
+            for (Map.Entry<String, Object> mapEntry : extraParameterMap.entrySet()) {
+                if (mapEntry.getValue() instanceof String) {
+                    solrQuery.add(mapEntry.getKey(), (String) mapEntry.getValue());
+                } else if (mapEntry.getValue() instanceof String[]) {
+                    solrQuery.add(mapEntry.getKey(), (String[]) mapEntry.getValue());
+                }
+            }
+        }
+
+        //Highlight
+        Object highlight = query.getOptions().get(HIGHLIGHT_FIELDS);
+        if (!ObjectUtils.isBlank(highlight)) {
+            solrQuery.add("hl", "true");
+            solrQuery.add("hl.mergeContiguous", query.getOptions().containsKey(HIGHLIGHT_CONTIGUOUS) ? (String) query.getOptions().get(HIGHLIGHT_CONTIGUOUS) : "true");
+            solrQuery.add("hl.maxAlternateFieldLength",  query.getOptions().containsKey(HIGHLIGHT_MAX_ALRENATE_FIELD_LENGTH) ? (String) query.getOptions().get(HIGHLIGHT_MAX_ALRENATE_FIELD_LENGTH) : "600");
+            solrQuery.add("hl.snippets",  query.getOptions().containsKey(HIGHLIGHT_SNIPPETS) ? (String) query.getOptions().get(HIGHLIGHT_SNIPPETS) : "10");
+
+            if (!ObjectUtils.isBlank(query.getOptions().get(HIGHLIGHT_PRE))) {
+                solrQuery.add("hl.simple.pre", (String) query.getOptions().get(HIGHLIGHT_PRE));
+            }
+            if (!ObjectUtils.isBlank(query.getOptions().get(HIGHLIGHT_POST))) {
+                solrQuery.add("hl.simple.post", (String) query.getOptions().get(HIGHLIGHT_POST));
+            }
+
+            Map highlightFields = (Map) query.getOptions().get(HIGHLIGHT_FIELDS);
+
+            List<String> highlightFieldList = new ArrayList<>();
+
+            for (Object key : highlightFields.keySet()) {
+                ObjectType type = (ObjectType) key;
+                List fieldSet = (List) highlightFields.get(key);
+                for (Object highlightField : fieldSet) {
+                    ObjectField objectField = null;
+                    if (highlightField instanceof String) {
+                        objectField = type.getField((String) highlightField);
+                    } else if (highlightField instanceof ObjectField) {
+                        objectField = (ObjectField) highlightField;
+                    }
+                    highlightFieldList.add(getStoredFieldName(type, objectField));
+                }
+            }
+
+            solrQuery.add("hl.fl", StringUtils.join(highlightFieldList, ","));
+
+        }
+
         return addComment(solrQuery, query);
+    }
+
+    public String getStoredFieldName(ObjectType type, ObjectField field) {
+        Set<ObjectField> typeStoredFields = type.as(TypeModification.class).getStoredFields();
+        if (!ObjectUtils.isBlank(typeStoredFields)) {
+            for (ObjectField typeStoreField : typeStoredFields) {
+                if (ObjectUtils.equals(field, typeStoreField)) {
+                    SolrField solrStoredField = getSolrStoredField(field.getInternalItemType());
+                    for (String prefix : solrStoredField.setPrefixes) {
+                        return prefix + field.getUniqueName();
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -1191,7 +1269,8 @@ public class SolrDatabase extends AbstractDatabase<SolrServer> {
                 response.getLimitingFacets(),
                 response.getFacetRanges(),
                 query != null ? query.getClass() : null,
-                Settings.isDebug() ? solrQuery : null);
+                solrQuery,
+                response);
     }
 
     /**

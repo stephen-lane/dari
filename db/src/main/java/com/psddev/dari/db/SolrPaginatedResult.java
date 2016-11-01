@@ -6,15 +6,17 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import org.apache.solr.client.solrj.SolrQuery;
-import org.apache.solr.client.solrj.response.FacetField;
+import java.util.UUID;
 
 import com.psddev.dari.util.HtmlObject;
 import com.psddev.dari.util.HtmlWriter;
+import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.PaginatedResult;
 import com.psddev.dari.util.Settings;
 import com.psddev.dari.util.StringUtils;
+import org.apache.solr.client.solrj.SolrQuery;
+import org.apache.solr.client.solrj.response.FacetField;
+import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.client.solrj.response.RangeFacet;
 
 /**
@@ -61,6 +63,18 @@ public class SolrPaginatedResult<E> extends PaginatedResult<E> implements HtmlOb
         this.solrQuery = solrQuery;
     }
 
+    public SolrPaginatedResult(
+            long offset, int limit, long count, List<E> items, List<FacetField> facetedFields, List<RangeFacet> rangeFacets,
+            Class<?> klass, SolrQuery solrQuery, QueryResponse queryResponse) {
+        super(offset, limit, count, items);
+
+        this.klass = klass;
+        this.facetedFields = facetedFields;
+        this.rangeFacets = rangeFacets;
+        this.solrQuery = solrQuery;
+        this.queryResponse = queryResponse;
+    }
+
     public List<DariFacetField> getFacetedFields() {
         List<DariFacetField> fields = new ArrayList<DariFacetField>();
         if (this.facetedFields != null) {
@@ -83,7 +97,26 @@ public class SolrPaginatedResult<E> extends PaginatedResult<E> implements HtmlOb
         return ranges;
     }
 
+    public List<String> getHighlights(ObjectType type, ObjectField field, UUID id) {
+        SolrDatabase solrDatabase = Database.Static.getFirst(SolrDatabase.class);
+        return getHighlights(solrDatabase, type, field, id);
+    }
+
+    public List<String> getHighlights(SolrDatabase solrDatabase, ObjectType type, ObjectField field, UUID id) {
+        if (!ObjectUtils.isBlank(queryResponse.getHighlighting())) {
+            if (solrQuery != null && solrDatabase != null) {
+                Map<String, List<String>> recordHighlight = queryResponse.getHighlighting().get(id.toString());
+                if (!ObjectUtils.isBlank(recordHighlight)) {
+                    return recordHighlight.get(solrDatabase.getStoredFieldName(type, field));
+                }
+            }
+        }
+
+        return null;
+    }
+
     private transient SolrQuery solrQuery;
+    private transient QueryResponse queryResponse;
 
     public SolrQuery getSolrQuery() {
         return solrQuery;
@@ -91,6 +124,14 @@ public class SolrPaginatedResult<E> extends PaginatedResult<E> implements HtmlOb
 
     public void setSolrQuery(SolrQuery solrQuery) {
         this.solrQuery = solrQuery;
+    }
+
+    public QueryResponse getQueryResponse() {
+        return queryResponse;
+    }
+
+    public void setQueryResponse(QueryResponse queryResponse) {
+        this.queryResponse = queryResponse;
     }
 
     @Override
