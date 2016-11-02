@@ -112,6 +112,7 @@ public class SolrPaginatedResult<E> extends PaginatedResult<E> implements HtmlOb
     /**
    * <pre>
     *    Method to retrieve highlights for a particular Record in a {@link com.psddev.dari.db.SolrPaginatedResult}
+    *    Requires field to be annotated {@link com.psddev.dari.db.SolrDatabase.Stored} and solr configured to use <code><a href="https://github.com/perfectsense/dari/blob/release/3.2/etc/solr/schema-13.xml">schema-13.xml</a></code> or greater
     *    Requires highlighted fields to be set in {@link com.psddev.dari.db.Query#options} using the key {@link com.psddev.dari.db.SolrDatabase#HIGHLIGHT_FIELDS}
     *
     *    Example usage:
