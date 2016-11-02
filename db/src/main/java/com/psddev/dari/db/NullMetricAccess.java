@@ -2,6 +2,7 @@ package com.psddev.dari.db;
 
 import com.psddev.dari.util.CompactMap;
 import com.psddev.dari.util.Task;
+import com.psddev.dari.util.UuidUtils;
 import org.joda.time.DateTime;
 
 import java.sql.SQLException;
@@ -98,6 +99,6 @@ class NullMetricAccess extends MetricAccess {
 
     @Override
     public UUID getDimensionId(String dimensionValue) throws SQLException {
-        return UUID.randomUUID();
+        return UuidUtils.createVersion3Uuid(dimensionValue);
     }
 }
