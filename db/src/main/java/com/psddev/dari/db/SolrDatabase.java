@@ -78,6 +78,8 @@ public class SolrDatabase extends AbstractDatabase<SolrServer> {
     public static final String SCORE_EXTRA = "solr.score";
     public static final String NORMALIZED_SCORE_EXTRA = "solr.normalizedScore";
 
+    public static final String EXTRA_QUERY_PARAMETERS_OPTION = "solr.extraParameters";
+
     private static final int INITIAL_FETCH_SIZE = 100;
     private static final Logger LOGGER = LoggerFactory.getLogger(SolrDatabase.class);
     private static final Pattern UUID_PATTERN = Pattern.compile("([A-Fa-f0-9]{8})-([A-Fa-f0-9]{4})-([A-Fa-f0-9]{4})-([A-Fa-f0-9]{4})-([A-Fa-f0-9]{12})");
@@ -663,6 +665,20 @@ public class SolrDatabase extends AbstractDatabase<SolrServer> {
         }
 
         solrQuery.setQuery(queryBuilder.toString());
+
+        //Extra Parameters
+        Object extraParameters = query.getOptions().get(EXTRA_QUERY_PARAMETERS_OPTION);
+        if (!ObjectUtils.isBlank(extraParameters)) {
+            Map<String, Object> extraParameterMap = (Map<String, Object>) extraParameters;
+            for (Map.Entry<String, Object> mapEntry : extraParameterMap.entrySet()) {
+                if (mapEntry.getValue() instanceof String) {
+                    solrQuery.add(mapEntry.getKey(), (String) mapEntry.getValue());
+                } else if (mapEntry.getValue() instanceof String[]) {
+                    solrQuery.add(mapEntry.getKey(), (String[]) mapEntry.getValue());
+                }
+            }
+        }
+
         return addComment(solrQuery, query);
     }
 
@@ -1191,7 +1207,8 @@ public class SolrDatabase extends AbstractDatabase<SolrServer> {
                 response.getLimitingFacets(),
                 response.getFacetRanges(),
                 query != null ? query.getClass() : null,
-                Settings.isDebug() ? solrQuery : null);
+                solrQuery,
+                response);
     }
 
     /**
