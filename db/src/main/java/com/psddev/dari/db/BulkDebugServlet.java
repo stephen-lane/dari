@@ -335,6 +335,9 @@ public class BulkDebugServlet extends HttpServlet {
                     writeEnd();
                 writeEnd();
 
+                includeStylesheet("/_resource/chosen/chosen.css");
+                includeScript("/_resource/chosen/chosen.jquery.min.js");
+
                 writeStart("script", "type", "text/javascript");
                     write("$(document).ready(function() {");
                         write("$('#" + resumableControlId + "').hide();");
@@ -352,7 +355,12 @@ public class BulkDebugServlet extends HttpServlet {
                             write("} else {");
                                 write("$('#" + resumeIdControlId + "').hide();");
                             write("}");
-                        write("})");
+                        write("});");
+
+                        //Initialize chosen select
+                        write("$('select[name=typeId]').chosen({ 'search_contains': true });");
+                        write("$('.chzn-drop').css({'width': 'auto', 'white-space': 'nowrap', 'border-top': '1px solid #aaa'});");
+
                     write("})");
                 writeEnd();
 
