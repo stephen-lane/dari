@@ -308,6 +308,12 @@ public class CodeDebugServlet extends HttpServlet {
                                         "name", "isSave",
                                         "type", "submit",
                                         "value", "Save");
+                                writeElement("input",
+                                        "class", "btn pull-right",
+                                        "style", "margin-right: 10px;",
+                                        "name", "clearCode",
+                                        "type", "submit",
+                                        "value", "Clear");
                             writeEnd();
                         writeEnd();
 
@@ -349,10 +355,42 @@ public class CodeDebugServlet extends HttpServlet {
                                     write("}");
                                 write("})");
                             write("});");
-                            write("$('input[name=_vim]').change(function() {");
-                                write("codeMirror.setOption('vimMode', $(this).is(':checked'));");
+
+                            //Save code to local storage when the user stops typing for 1 second
+                            write("if (window.localStorage !== undefined) {");
+                                write("var baseCode = $('textarea[name=code]').text();");
+
+                                write("var windowStorageCodeKey = 'bsp.codeDebugServlet.code';");
+                                write("if (window.localStorage.getItem(windowStorageCodeKey) !== null && window.localStorage.getItem(windowStorageCodeKey).trim()) {");
+                                    write("codeMirror.getDoc().setValue(window.localStorage.getItem(windowStorageCodeKey))");
+                                write("}");
+
+                                write("var typingTimer;");
+                                write("codeMirror.on('keydown', function() {");
+                                    write("clearTimeout(typingTimer);");
+                                write("});");
+                                write("codeMirror.on('keyup', function() {");
+                                    write("clearTimeout(typingTimer);");
+                                    write("typingTimer = setTimeout(function(){");
+                                        write("window.localStorage.setItem(windowStorageCodeKey, codeMirror.getDoc().getValue());},");
+                                    write("1000);");
+                                write("});");
+                                write("$('input[name=_vim]').change(function() {");
+                                    write("codeMirror.setOption('vimMode', $(this).is(':checked'));");
+                                write("});");
+                                write("$('input[name=_vim]').change();");
+                            write("}");
+
+                            //Reset code to original page load value and clear window storage
+                            write("$('.form-actions input[name=clearCode]').on('click', function(e) {");
+                                write("e.preventDefault();");
+                                write("if (baseCode !== undefined && baseCode.trim()) {");
+                                    write("codeMirror.getDoc().setValue(baseCode);");
+                                    write("if (window.localStorage !== undefined) {");
+                                        write("window.localStorage.removeItem(windowStorageCodeKey);");
+                                    write("}");
+                                write("}");
                             write("});");
-                            write("$('input[name=_vim]').change();");
 
                             int line = page.param(int.class, "line");
                             if (line > 0) {
