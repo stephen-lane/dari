@@ -475,14 +475,16 @@ public class Metric extends Record {
         }
 
         public static Iterator<DistinctIds> getDistinctIdsBetween(Database database, ObjectType type, ObjectField field, DateTime start, DateTime end) {
-            if (database == null) {
-                return Collections.emptyListIterator();
-            }
-
             Long startTimestamp = (start == null ? null : start.getMillis());
             Long endTimestamp = (end == null ? null : end.getMillis());
             MetricAccess mdb = MetricAccess.Static.getMetricAccess(database, null, field);
-            return MetricAccess.Static.getDistinctIds(mdb.getDatabase(), type != null ? type.getId() : null, mdb.getSymbolId(), startTimestamp, endTimestamp);
+            MetricAccessDatabase mdbDatabase = mdb.getDatabase();
+
+            if (mdbDatabase == null) {
+                return Collections.emptyIterator();
+            }
+
+            return MetricAccess.Static.getDistinctIds(mdbDatabase, type != null ? type.getId() : null, mdb.getSymbolId(), startTimestamp, endTimestamp);
         }
     }
 
