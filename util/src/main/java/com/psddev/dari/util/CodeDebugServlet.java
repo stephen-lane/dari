@@ -348,12 +348,7 @@ public class CodeDebugServlet extends HttpServlet {
                                 write("'lineNumbers': true,");
                                 write("'lineWrapping': true,");
                                 write("'matchBrackets': true,");
-                                write("'mode': 'text/x-java',");
-                                write("'onChange': $.throttle(1000, function() {");
-                                    write("if ($codeForm.find(':checkbox[name=isLiveResult]').is(':checked')) {");
-                                        write("$codeForm.submit();");
-                                    write("}");
-                                write("})");
+                                write("'mode': 'text/x-java'");
                             write("});");
 
                             //Save code to local storage when the user stops typing for 1 second
@@ -390,6 +385,15 @@ public class CodeDebugServlet extends HttpServlet {
                                         write("window.localStorage.removeItem(windowStorageCodeKey);");
                                     write("}");
                                 write("}");
+                            write("});");
+
+                            write("codeMirror.on('change', $.throttle(1000, function() {");
+                                write("if ($codeForm.find(':checkbox[name=isLiveResult]').is(':checked')) {");
+                                   write("$codeForm.submit();");
+                                write("}");
+                            write("}));");
+                            write("$('input[name=_vim]').change(function() {");
+                                write("codeMirror.setOption('vimMode', $(this).is(':checked'));");
                             write("});");
 
                             int line = page.param(int.class, "line");
