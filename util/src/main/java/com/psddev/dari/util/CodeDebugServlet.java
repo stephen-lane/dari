@@ -370,10 +370,6 @@ public class CodeDebugServlet extends HttpServlet {
                                         write("window.localStorage.setItem(windowStorageCodeKey, codeMirror.getDoc().getValue());},");
                                     write("1000);");
                                 write("});");
-                                write("$('input[name=_vim]').change(function() {");
-                                    write("codeMirror.setOption('vimMode', $(this).is(':checked'));");
-                                write("});");
-                                write("$('input[name=_vim]').change();");
                             write("}");
 
                             //Reset code to original page load value and clear window storage
@@ -392,9 +388,11 @@ public class CodeDebugServlet extends HttpServlet {
                                    write("$codeForm.submit();");
                                 write("}");
                             write("}));");
+
                             write("$('input[name=_vim]').change(function() {");
                                 write("codeMirror.setOption('vimMode', $(this).is(':checked'));");
                             write("});");
+                            write("$('input[name=_vim]').change();");
 
                             int line = page.param(int.class, "line");
                             if (line > 0) {
