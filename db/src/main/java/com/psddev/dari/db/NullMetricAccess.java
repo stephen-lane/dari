@@ -99,6 +99,8 @@ class NullMetricAccess extends MetricAccess {
 
     @Override
     public UUID getDimensionId(String dimensionValue) throws SQLException {
-        return UuidUtils.createVersion3Uuid(dimensionValue);
+        return dimensionValue == null || dimensionValue.equals("")
+                ? UuidUtils.ZERO_UUID
+                : UuidUtils.createVersion3Uuid(dimensionValue);
     }
 }
