@@ -1002,7 +1002,15 @@ public class SqlDatabase extends AbstractDatabase<Connection> implements MetricA
         State objectState = State.getInstance(object);
 
         if (object instanceof Singleton) {
-            singletonIds.put(object.getClass(), objectState.getId());
+            ObjectType objectType = objectState.getType();
+
+            if (objectType != null) {
+                Class<?> objectClass = objectType.getObjectClass();
+
+                if (objectClass != null) {
+                    singletonIds.put(objectClass, objectState.getId());
+                }
+            }
         }
 
         if (!objectState.isReferenceOnly()) {

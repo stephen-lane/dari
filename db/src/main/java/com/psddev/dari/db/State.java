@@ -37,7 +37,6 @@ import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.Profiler;
 import com.psddev.dari.util.StorageItem;
 import com.psddev.dari.util.StringUtils;
-import com.psddev.dari.util.TypeDefinition;
 import com.psddev.dari.util.UuidUtils;
 
 import javax.annotation.Nonnull;
@@ -118,7 +117,7 @@ public class State implements Map<String, Object> {
      */
     public void linkObject(Object object) {
         if (object != null) {
-            linkedObjects.put(object.getClass(), object);
+            linkedObjects.put(SubstitutionUtils.getOriginalClass(object.getClass()), object);
         }
     }
 
@@ -128,7 +127,7 @@ public class State implements Map<String, Object> {
      */
     public void unlinkObject(Object object) {
         if (object != null) {
-            linkedObjects.remove(object.getClass());
+            linkedObjects.remove(SubstitutionUtils.getOriginalClass(object.getClass()));
         }
     }
 
@@ -1338,7 +1337,7 @@ public class State implements Map<String, Object> {
         @SuppressWarnings("unchecked")
         T object = (T) linkedObjects.get(objectClass);
         if (object == null) {
-            object = TypeDefinition.getInstance(objectClass).newInstance();
+            object = SubstitutionUtils.newInstance(objectClass);
             ((Recordable) object).setState(this);
             copyRawValuesToJavaFields(object);
         }
@@ -1475,9 +1474,10 @@ public class State implements Map<String, Object> {
         if (LOGGER.isTraceEnabled()) {
             LOGGER.trace(
                     "Firing trigger [{}] from [{}] on [{}]",
-                    trigger,
-                    modClass.getName(),
-                    State.getInstance(modObject));
+                    new Object[] {
+                            trigger,
+                            modClass.getName(),
+                            State.getInstance(modObject) });
         }
         trigger.execute(modObject);
     }
@@ -1529,9 +1529,9 @@ public class State implements Map<String, Object> {
                 objectClass = Record.class;
             }
 
-            for (Object object : linkedObjects.values()) {
-                if (objectClass.equals(object.getClass())) {
-                    return object;
+            for (Map.Entry<Class<?>, Object> entry : linkedObjects.entrySet()) {
+                if (objectClass.equals(entry.getKey())) {
+                    return entry.getValue();
                 }
             }
 
@@ -1772,8 +1772,9 @@ public class State implements Map<String, Object> {
     private void copyJavaFieldsToRawValues() {
         DatabaseEnvironment environment = getDatabase().getEnvironment();
 
-        for (Object object : linkedObjects.values()) {
-            Class<?> objectClass = object.getClass();
+        for (Map.Entry<Class<?>, Object> entry : linkedObjects.entrySet()) {
+            Class<?> objectClass = entry.getKey();
+            Object object = entry.getValue();
             ObjectType type = environment.getTypeByClass(objectClass);
             if (type == null) {
                 continue;
@@ -1903,8 +1904,9 @@ public class State implements Map<String, Object> {
 
         DatabaseEnvironment environment = getDatabase().getEnvironment();
 
-        for (Object object : linkedObjects.values()) {
-            Class<?> objectClass = object.getClass();
+        for (Map.Entry<Class<?>, Object> entry : linkedObjects.entrySet()) {
+            Class<?> objectClass = entry.getKey();
+            Object object = entry.getValue();
             ObjectType type = environment.getTypeByClass(objectClass);
             if (type == null) {
                 continue;
@@ -1953,8 +1955,9 @@ public class State implements Map<String, Object> {
 
         Object originalObject = getOriginalObjectOrNull();
 
-        for (Object object : linkedObjects.values()) {
-            Class<?> objectClass = object.getClass();
+        for (Map.Entry<Class<?>, Object> entry : linkedObjects.entrySet()) {
+            Class<?> objectClass = entry.getKey();
+            Object object = entry.getValue();
 
             ObjectType type = getDatabase().getEnvironment().getTypeByClass(objectClass);
             if (type == null) {
@@ -2030,7 +2033,9 @@ public class State implements Map<String, Object> {
         }
 
         boolean first =  true;
-        for (Object object : linkedObjects.values()) {
+        for (Map.Entry<Class<?>, Object> entry : linkedObjects.entrySet()) {
+            Class<?> objectClass = entry.getKey();
+            Object object = entry.getValue();
             ObjectField field = State.getInstance(object).getField(key);
             if (first) {
                 value = StateValueUtils.toJavaValue(getDatabase(), object, field, field != null ? field.getInternalType() : null, value);
@@ -2038,7 +2043,7 @@ public class State implements Map<String, Object> {
             }
 
             if (field != null) {
-                Field javaField = field.getJavaField(object.getClass());
+                Field javaField = field.getJavaField(objectClass);
                 if (javaField != null) {
                     setJavaField(field, javaField, object, key, value);
                 }
