@@ -7,6 +7,21 @@ CREATE TABLE IF NOT EXISTS "Record" (
 
 CREATE INDEX IF NOT EXISTS "k_Record_id" ON "Record" ("id");
 
+CREATE TRIGGER IF NOT EXISTS "t_Record_searchUpdate" BEFORE INSERT, UPDATE, DELETE ON "Record" FOR EACH ROW CALL "com.psddev.dari.h2.SearchUpdateTrigger";
+
+CREATE TABLE IF NOT EXISTS "RecordSearch" (
+    "id" UUID NOT NULL,
+    "fieldName" VARCHAR(100) NOT NULL,
+    "value" LONGVARCHAR NOT NULL,
+    PRIMARY KEY ("id", "fieldName")
+);
+
+CREATE ALIAS IF NOT EXISTS FT_INIT FOR "org.h2.fulltext.FullText.init";
+
+CALL FT_INIT();
+
+CALL FT_CREATE_INDEX('PUBLIC', 'RecordSearch', 'value');
+
 CREATE TABLE IF NOT EXISTS "RecordLocation3" (
     "id" UUID NOT NULL,
     "typeId" UUID NOT NULL,

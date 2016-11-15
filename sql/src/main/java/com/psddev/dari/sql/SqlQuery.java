@@ -148,6 +148,13 @@ class SqlQuery {
 
         // Creates jOOQ SortField from Dari Sorter.
         for (Sorter sorter : query.getSorters()) {
+            SortField<?> sortField = database.sort(sorter, new SqlSortOptions(recordTableAlias));
+
+            if (sortField != null) {
+                orderByFields.add(sortField);
+                continue;
+            }
+
             SqlSorter sqlSorter = SqlSorter.find(sorter.getOperator());
             String queryKey = (String) sorter.getOptions().get(0);
             SqlJoin join = SqlJoin.findOrCreate(this, queryKey);
@@ -246,6 +253,12 @@ class SqlQuery {
 
         } else if (predicate instanceof ComparisonPredicate) {
             ComparisonPredicate comparisonPredicate = (ComparisonPredicate) predicate;
+            Condition condition = database.compare(comparisonPredicate, new SqlCompareOptions(recordTableAlias));
+
+            if (condition != null) {
+                return condition;
+            }
+
             String queryKey = comparisonPredicate.getKey();
             Query.MappedKey mappedKey = mappedKeys.get(queryKey);
             boolean isFieldCollection = mappedKey.isInternalCollectionType();
