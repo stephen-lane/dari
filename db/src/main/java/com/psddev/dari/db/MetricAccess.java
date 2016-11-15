@@ -1611,6 +1611,9 @@ class MetricAccess {
             MetricAccess ma = iter.next();
             UUID typeId = ma.getTypeId();
             MetricAccessDatabase db = ma.getDatabase();
+            if (db == null) {
+                return;
+            }
             Map<Integer, MetricAccess> maBySymbolId = new HashMap<Integer, MetricAccess>();
             StringBuilder symbolIdsString = new StringBuilder();
             do {
@@ -1710,7 +1713,12 @@ class MetricAccess {
                     METRIC_ACCESSES.put(maKey, metricAccess);
                 }
             }
-            return metricAccess;
+            return metricAccess != null
+                    ? metricAccess
+                    : new NullMetricAccess(
+                            type != null ? type.getId() : UuidUtils.ZERO_UUID,
+                            field,
+                            field.as(MetricAccess.FieldData.class).getEventDateProcessor());
         }
 
         public static CachingDatabase getCachingDatabase() {

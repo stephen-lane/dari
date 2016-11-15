@@ -109,14 +109,14 @@
         var $profile = $('<iframe src="' + javaContextPath + '/_resource/cms/profile.html" />');
         $profile.css({
             'border': 'none',
-            'height': 1,
+            'bottom': 0,
+            'height': '40px',
             'margin': 0,
             'padding': 0,
-            'position': 'relative',
-            'top': '0',
+            'position': 'fixed',
             'left': '0',
             'width': '100%',
-            'z-index': 1000000
+            'z-index': 10000000
         });
 
         $profile.load(function() {
@@ -124,7 +124,24 @@
             var $profileBody = $(this.contentDocument.body);
 
             $profileBody.html($('#_profile-result').remove().html());
-            $profile.height($profileBody.height() + 30);
+
+            var $navbar = $profileBody.find('> .navbar');
+            var expanded;
+
+            $navbar.css('cursor', 'pointer');
+            $navbar.click(function () {
+                expanded = !expanded;
+
+                if (expanded) {
+                    $('html, body').css('overflow', 'hidden');
+                    $profile.css('height', '100%');
+
+                } else {
+                    $('html, body').css('overflow', '');
+                    $profile.css('height', '40px');
+                }
+            });
+
             var $events = $profileBody.find('#_profile-eventTimeline tbody tr');
 
             var lastHoverElement;
@@ -325,7 +342,11 @@
                 }));
             });
 
-            $profileBody.on('click', '#_profile-overview tr', function() {
+            $profileBody.on('click', '#_profile-overview tr', function(event) {
+                if ($(event.target).is(':checkbox')) {
+                    return true;
+                }
+
                 var $checkbox = $(this).find(':checkbox');
 
                 $checkbox.prop('checked', !$checkbox.prop('checked'));

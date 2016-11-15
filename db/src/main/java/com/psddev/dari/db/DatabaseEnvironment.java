@@ -313,7 +313,7 @@ public class DatabaseEnvironment implements ObjectStruct {
                         Class<? extends Recordable> objectClass = i.next();
 
                         try {
-                            if (objectClass.isAnonymousClass()) {
+                            if (objectClass.isAnonymousClass() || Substitution.class.isAssignableFrom(objectClass)) {
                                 i.remove();
                             }
 
@@ -745,6 +745,7 @@ public class DatabaseEnvironment implements ObjectStruct {
 
         if (name != null) {
             name = name.toLowerCase(Locale.ENGLISH);
+            name = SubstitutionUtils.getOriginalName(name);
         }
 
         TypesCache temporaryTypes = temporaryTypesLocal.get();
@@ -767,6 +768,7 @@ public class DatabaseEnvironment implements ObjectStruct {
 
         if (group != null) {
             group = group.toLowerCase(Locale.ENGLISH);
+            group = SubstitutionUtils.getOriginalName(group);
         }
 
         TypesCache temporaryTypes = temporaryTypesLocal.get();
@@ -800,6 +802,7 @@ public class DatabaseEnvironment implements ObjectStruct {
     public ObjectType getTypeByClass(Class<?> objectClass) {
         bootstrapOnce.ensure();
 
+        objectClass = SubstitutionUtils.getOriginalClass(objectClass);
         String className = objectClass.getName().toLowerCase(Locale.ENGLISH);
         TypesCache temporaryTypes = temporaryTypesLocal.get();
 
@@ -890,7 +893,7 @@ public class DatabaseEnvironment implements ObjectStruct {
             hasClass = false;
         }
 
-        Object object = TypeDefinition.getInstance(objectClass).newInstance();
+        Object object = SubstitutionUtils.newInstance(objectClass);
         State state;
 
         try {

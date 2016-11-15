@@ -57,6 +57,51 @@ public class MySQLDatabase extends AbstractSqlDatabase implements MetricAccessDa
     public static final String ENABLE_REPLICATION_CACHE_SUB_SETTING = "enableReplicationCache";
 
     /**
+     * Sub-setting name for specifying the MySQL host used by replication
+     * caching.
+     *
+     * @see #getReplicationCacheHost()
+     * @see #setReplicationCacheHost(String)
+     */
+    public static final String REPLICATION_CACHE_HOST_SUB_SETTING = "replicationCacheHost";
+
+    /**
+     * Sub-setting name for specifying the MySQL port used by replication
+     * caching.
+     *
+     * @see #getReplicationCachePort()
+     * @see #setReplicationCachePort(Integer)
+     */
+    public static final String REPLICATION_CACHE_PORT_SUB_SETTING = "replicationCachePort";
+
+    /**
+     * Sub-setting name for specifying the MySQL schema used by replication
+     * caching.
+     *
+     * @see #getReplicationCacheSchema()
+     * @see #setReplicationCacheSchema(String)
+     */
+    public static final String REPLICATION_CACHE_SCHEMA_SUB_SETTING = "replicationCacheSchema";
+
+    /**
+     * Sub-setting name for specifying the MySQL username used by replication
+     * caching.
+     *
+     * @see #getReplicationCacheUsername()
+     * @see #setReplicationCacheUsername(String)
+     */
+    public static final String REPLICATION_CACHE_USERNAME_SUB_SETTING = "replicationCacheUsername";
+
+    /**
+     * Sub-setting name for specifying the MySQL password used by replication
+     * caching.
+     *
+     * @see #getReplicationCachePassword()
+     * @see #setReplicationCachePassword(String)
+     */
+    public static final String REPLICATION_CACHE_PASSWORD_SUB_SETTING = "replicationCachePassword";
+
+    /**
      * Sub-setting name for specifying the maximum number of items to hold in
      * the replication cache.
      *
@@ -91,6 +136,11 @@ public class MySQLDatabase extends AbstractSqlDatabase implements MetricAccessDa
     });
 
     private volatile boolean enableReplicationCache;
+    private volatile String replicationCacheHost;
+    private volatile Integer replicationCachePort;
+    private volatile String replicationCacheSchema;
+    private volatile String replicationCacheUsername;
+    private volatile String replicationCachePassword;
     private volatile long replicationCacheMaximumSize;
 
     private volatile Cache<UUID, Object[]> replicationCache;
@@ -115,6 +165,101 @@ public class MySQLDatabase extends AbstractSqlDatabase implements MetricAccessDa
      */
     public void setEnableReplicationCache(boolean enableReplicationCache) {
         this.enableReplicationCache = enableReplicationCache;
+    }
+
+    /**
+     * Returns the MySQL host used by replication caching.
+     *
+     * @see #REPLICATION_CACHE_HOST_SUB_SETTING
+     */
+    public String getReplicationCacheHost() {
+        return replicationCacheHost;
+    }
+
+    /**
+     * Sets the MySQL host used by replication caching.
+     *
+     * @param replicationCacheHost Nullable.
+     * @see #REPLICATION_CACHE_HOST_SUB_SETTING
+     */
+    public void setReplicationCacheHost(String replicationCacheHost) {
+        this.replicationCacheHost = replicationCacheHost;
+    }
+
+    /**
+     * Returns the MySQL port used by replication caching.
+     *
+     * @see #REPLICATION_CACHE_PORT_SUB_SETTING
+     */
+    public Integer getReplicationCachePort() {
+        return replicationCachePort;
+    }
+
+    /**
+     * Sets the MySQL port used by replication caching.
+     *
+     * @param replicationCachePort Nullable.
+     * @see #REPLICATION_CACHE_PORT_SUB_SETTING
+     */
+    public void setReplicationCachePort(Integer replicationCachePort) {
+        this.replicationCachePort = replicationCachePort;
+    }
+
+    /**
+     * Returns the MySQL schema used by replication caching.
+     *
+     * @see #REPLICATION_CACHE_SCHEMA_SUB_SETTING
+     */
+    public String getReplicationCacheSchema() {
+        return replicationCacheSchema;
+    }
+
+    /**
+     * Sets the MySQL schema used by replication caching.
+     *
+     * @param replicationCacheSchema Nullable.
+     * @see #REPLICATION_CACHE_SCHEMA_SUB_SETTING
+     */
+    public void setReplicationCacheSchema(String replicationCacheSchema) {
+        this.replicationCacheSchema = replicationCacheSchema;
+    }
+
+    /**
+     * Returns the MySQL username used by replication caching.
+     *
+     * @see #REPLICATION_CACHE_USERNAME_SUB_SETTING
+     */
+    public String getReplicationCacheUsername() {
+        return replicationCacheUsername;
+    }
+
+    /**
+     * Sets the MySQL username used by replication caching.
+     *
+     * @param replicationCacheUsername Nullable.
+     * @see #REPLICATION_CACHE_USERNAME_SUB_SETTING
+     */
+    public void setReplicationCacheUsername(String replicationCacheUsername) {
+        this.replicationCacheUsername = replicationCacheUsername;
+    }
+
+    /**
+     * Returns the MySQL password used by replication caching.
+     *
+     * @see #REPLICATION_CACHE_PASSWORD_SUB_SETTING
+     */
+    public String getReplicationCachePassword() {
+        return replicationCachePassword;
+    }
+
+    /**
+     * Sets the MySQL password used by replication caching.
+     *
+     * @param replicationCachePassword Nullable.
+     * @see #REPLICATION_CACHE_PASSWORD_SUB_SETTING
+     */
+    public void setReplicationCachePassword(String replicationCachePassword) {
+        this.replicationCachePassword = replicationCachePassword;
     }
 
     /**
@@ -164,6 +309,11 @@ public class MySQLDatabase extends AbstractSqlDatabase implements MetricAccessDa
 
         // Initialize replication caching?
         setEnableReplicationCache(ObjectUtils.to(boolean.class, settings.get(ENABLE_REPLICATION_CACHE_SUB_SETTING)));
+        setReplicationCacheHost(ObjectUtils.to(String.class, settings.get(REPLICATION_CACHE_HOST_SUB_SETTING)));
+        setReplicationCachePort(ObjectUtils.to(Integer.class, settings.get(REPLICATION_CACHE_PORT_SUB_SETTING)));
+        setReplicationCacheSchema(ObjectUtils.to(String.class, settings.get(REPLICATION_CACHE_SCHEMA_SUB_SETTING)));
+        setReplicationCacheUsername(ObjectUtils.to(String.class, settings.get(REPLICATION_CACHE_USERNAME_SUB_SETTING)));
+        setReplicationCachePassword(ObjectUtils.to(String.class, settings.get(REPLICATION_CACHE_PASSWORD_SUB_SETTING)));
         setReplicationCacheMaximumSize(ObjectUtils.firstNonNull(ObjectUtils.to(Long.class, settings.get(REPLICATION_CACHE_SIZE_SUB_SETTING)), 10000L));
 
         if (isEnableReplicationCache()
@@ -240,7 +390,16 @@ public class MySQLDatabase extends AbstractSqlDatabase implements MetricAccessDa
         T object = super.createSavedObjectUsingResultSet(resultSet, query);
 
         if (object instanceof Singleton) {
-            singletonIds.put(object.getClass(), State.getInstance(object).getId());
+            State objectState = State.getInstance(object);
+            ObjectType objectType = objectState.getType();
+
+            if (objectType != null) {
+                Class<?> objectClass = objectType.getObjectClass();
+
+                if (objectClass != null) {
+                    singletonIds.put(objectClass, objectState.getId());
+                }
+            }
         }
 
         return object;
