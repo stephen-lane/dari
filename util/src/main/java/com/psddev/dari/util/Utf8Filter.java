@@ -25,8 +25,8 @@ public class Utf8Filter extends AbstractFilter implements AbstractFilter.Auto {
 
     @Override
     public void updateDependencies(Class<? extends AbstractFilter> filterClass, List<Class<? extends Filter>> dependencies) {
-        if (!Utf8Filter.class.isAssignableFrom(filterClass)) {
-            dependencies.add(Utf8Filter.class);
+        if (!getClass().isAssignableFrom(filterClass)) {
+            dependencies.add(getClass());
         }
     }
 
