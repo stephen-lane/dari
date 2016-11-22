@@ -1,5 +1,6 @@
+*****************
 Database Backends
------------------
+*****************
 
 Dari is designed in such a way that it can have multiple storage
 backends. It can, and usually does, use several of them at once. For
@@ -11,16 +12,17 @@ Dari will automatically handle saving to all configured storage backends
 when the ``save()`` method is called on a record.
 
 Supported databases
-~~~~~~~~~~~~~~~~~~~
+===================
 
 -  MySQL
 -  PostgreSQL
 -  Oracle
 -  Solr
 -  H2
+-  ElasticSearch
 
 SQL-based Storage Backends
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+==========================
 
 MySQL, PostgreSQL and Oracle are implemented using the same underlying
 table structure and indexing strategy.
@@ -38,7 +40,7 @@ and Oracle this is ``binary(16)``. On PostgreSQL the native ``UUID`` is
 used.
 
 Creating a SQL Database
-^^^^^^^^^^^^^^^^^^^^^^^
+-----------------------
 
 Due to the subtle differences between database vendors MySQL, PostgreSQL
 and Oracle each have their own DDL that is used to setup a Dari
@@ -52,7 +54,7 @@ database. They can be found in the following locations:
 `etc/oracle/3-grants.sql`_
 
 Indexing
-^^^^^^^^
+--------
 
 Since records are stored as a JSON text blob Dari cannot use traditional
 SQL indexes. To implement indexing Dari uses several additional tables
@@ -65,7 +67,7 @@ When fields of an object are indexed the field’s value along with its
 object id will be stored in the appropriate index table.
 
 Tables
-^^^^^^
+------
 
 ``Record``
 

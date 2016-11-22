@@ -1,11 +1,10 @@
 .. toctree::
-    :hidden:
 
     Dari Documentation <self>
-    overview/index.rst
-    data-modeling/index.rst
-    query/index.rst
-    advanced/index.rst
-    configuration/index.rst
-    reference/index.rst
+    overview/index
+    data-modeling/index
+    query/index
+    advanced/index
+    configuration/index
+    reference/index
 

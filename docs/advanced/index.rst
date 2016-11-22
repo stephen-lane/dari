@@ -1,5 +1,5 @@
 .. toctree::
 
-    database-transactions.rst
-    background-tasks.rst
-    server-stats.rst
+    database-transactions
+    background-tasks
+    server-stats

@@ -1,29 +1,17 @@
-************
-Introduction
-************
-
-We believe that working with data, whether they're simple blog posts or
-something much more complex, is the most critical part of building any
-application. It's also the most difficult and frustrating, because the
-current generation of data access frameworks don't do enough to provide
-you with all the information necessary to let you be productive as
-possible.
-
-Dari was created at `PERFECT SENSE digital`_ to make our work in
-handling data for a variety of clients in different industries easier
-and more efficient. We wanted to create a comprehensive toolset that
-spans every aspect of how data flows throughout your application.
-
-This is the fruit of our work so far, and we wanted to share it with the
-world. We hope you enjoy working with it as much as we do.
+********
+Tutorial
+********
 
 Getting Started
 ===============
 
 Dari provides a Maven archetype to help you quickly set up a new web
 application. Replace the value for ``groupId`` with your company name,
-and the value for ``artifactId`` with your project's name. *Note, your
-``artifactId`` should not contain spaces.*
+and the value for ``artifactId`` with your project's name. 
+
+.. note:: 
+
+    Your ``artifactId`` should not contain spaces.
 
 After running the following command in a terminal, you'll have a project
 directory named after the ``artifactId`` you provided.
@@ -61,33 +49,30 @@ Dari reads all its configuration information from the
 ``settings.properties`` file, and it's pre-configured to use the `H2
 database engine`_ as its default database.
 
-Tutorial
-========
-
 As part of the Dari distribution you are provided with a suite of
 debugging tools that will aide you in the development process. They can
 all be accessed from your browser at
-\*\*http://localhost:8080/\_debug/\*\* and individually by appending the
+**http://localhost:8080/\_debug/** and individually by appending the
 tool name to the end of the URL. A few key ones referenced in this
 tutorial are outlined below. To get back to the debugging tools landing
 page, click the Dari logo in the top left corner of page.
 
-code : Execute arbitrary blocks of code, create new Java files, and edit
+**code** : Execute arbitrary blocks of code, create new Java files, and edit
 existing Java and JSP files.
 
-db-bulk : Run bulk operations such as copying one database to another
+**db-bulk** : Run bulk operations such as copying one database to another
 and index existing databases.
 
-db-schema : A visualization of the object model.
+**db-schema** : A visualization of the object model.
 
-query : Database agnostic query interface, coupled with an object data
+**query** : Database agnostic query interface, coupled with an object data
 editor.
 
-task : Background task monitoring with controls to stop, start, and
+**task** : Background task monitoring with controls to stop, start, and
 pause taks.
 
-Writing Your First Dari Application
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Writing Your First Dari App
+===========================
 
 Now let's build a simple Polls application. At the end of this tutorial
 you should have a basic understanding of how to model and query data
@@ -114,11 +99,11 @@ for our Polls application.
     the dropdown in the header, pasting the code into the editor and clicking
     Save.
 
-::
+.. code-block:: java
 
-    import com.psddev.dari.db.\ *;
+    import com.psddev.dari.db.*;
     import com.psddev.dari.util.*;
-    import java.util.\*;
+    import java.util.*;
 
     public class Answer extends Record { 
 
@@ -133,11 +118,11 @@ for our Polls application.
 
     }
 
-::
+.. code-block:: java
 
-    import com.psddev.dari.db.\ *;
+    import com.psddev.dari.db.*;
     import com.psddev.dari.util.*;
-    import java.util.\*;
+    import java.util.*;
 
     public class Poll extends Record { 
         private String question; 
@@ -157,11 +142,11 @@ for our Polls application.
         }
     }
 
-::
+.. code-block:: java
 
-    import com.psddev.dari.db.\ *; 
+    import com.psddev.dari.db.*; 
     import com.psddev.dari.util.*; 
-    importjava.util.\*;
+    import java.util.*;
 
     public class User extends Record { 
         private String userName; 
@@ -189,9 +174,9 @@ User class to do just that.
 
 .. note::
 
-    You can also edit existing Java classes directly from your browser by using the <strong>code</strong> debug tool. Select the class you want to edit from the dropdown, make changes, and click Save.
+    You can also edit existing Java classes directly from your browser by using the **code** debug tool. Select the class you want to edit from the dropdown, make changes, and click Save.
 
-::
+.. code-block:: java
 
     public class User extends Record { 
         // ... fields, getters, setters...
@@ -230,12 +215,14 @@ and click **Run**:
 
 .. note::
 
-When executing arbitrary code within the code servlet always make sure PLAYGROUND is selected from the dropdown menu, to ensure you are not editing a file.
+    When executing arbitrary code within the code servlet always make sure PLAYGROUND is selected from the dropdown menu, to ensure you are not editing a file.
 
-::
+.. code-block:: java
 
-    import com.psddev.dari.db.\ *; import
-    com.psddev.dari.util.*; import demo.poll.\ *; import java.util.*;
+    import com.psddev.dari.db.*; 
+    import com.psddev.dari.util.*;
+    import demo.poll.*; 
+    import java.util.*;
 
     public class Code { public static Object main() throws Throwable {
         String[] names = {"Hyoo", "Jeremy", "Kelly", "Dan", "David"};
@@ -257,8 +244,13 @@ below:
 Let's test the other method we wrote and query for a specific user.
 Paste the following snippet into the code editor and click **Run**.
 
-{% highlight java %} public class Code { public static Object main()
-throws Throwable { return User.getUser("David"); } } {% endhighlight %}
+.. code-block:: java
+
+    public class Code { 
+        public static Object main() throws Throwable { 
+            return User.getUser("David"); 
+        } 
+    }
 
 |Poll Example 3|
 
@@ -281,7 +273,7 @@ Dari, any time you query on a specific field or fields, those fields
 must be annotated with ``@Indexed``. Let's go back and update all of our
 classes to have this annotation.
 
-::
+.. code-block:: java
 
     public class Poll extends Record { 
         @Indexed private String question; 
@@ -291,7 +283,7 @@ classes to have this annotation.
 
     }
 
-::
+.. code-block:: java
 
     public class Answer extends Record { 
         @Indexed private String answer;
@@ -300,7 +292,7 @@ classes to have this annotation.
 
     }
 
-::
+.. code-block:: java
 
     public class User extends Record { 
         @Indexed private String userName;
@@ -357,7 +349,7 @@ creating that Poll application. We're going to create a new method on
 Poll ``createPoll(String, List<String>)`` and also go back and merge our
 two User methods into one method ``getOrCreateUser(String)``. 
 
-::
+.. code-block:: java
 
     public class Poll extends Record { 
         // ... fields, getters, setters ...
@@ -380,7 +372,7 @@ two User methods into one method ``getOrCreateUser(String)``.
         }
     }
 
-::
+.. code-block:: java
 
     public class User extends Record { 
     
@@ -412,12 +404,11 @@ we'll create a brand new object ``UserResponse`` remembering this time
 to include the ``@Indexed`` annotation. Then create an instance method
 on Poll called ``submit(User, Answer)``. 
 
-::
+.. code-block:: java
 
-    package demo.poll;
-
-    import com.psddev.dari.db.\ *; import com.psddev.dari.util.*; import
-    java.util.\*;
+    import com.psddev.dari.db.*;
+    import com.psddev.dari.util.*; 
+    import java.util.*;
 
     public class UserResponse extends Record {
 
@@ -439,7 +430,7 @@ on Poll called ``submit(User, Answer)``.
 
     }
 
-::
+.. code-block:: java
 
     public class Poll extends Record { 
         // ... fields, getters, setters, other methods ...
@@ -469,7 +460,7 @@ Now that we have a full working model lets create some polls and
 responses that we can play with. Back to the **code** editor! Execute
 the following code in the PLAYGROUND: 
 
-::
+.. code-block:: java
 
     public class Code { 
         public static Object main() throws Throwable {
@@ -508,9 +499,10 @@ responses we got for our poll as well as the distribution of answers.
 We'll start with the first one and try to get the total count, which in
 our example should be 5. 
 
-::
+.. code-block:: java
 
-    public class Code { public static Object main() throws Throwable {
+    public class Code { 
+        public static Object main() throws Throwable {
 
             Poll poll = Query.from(Poll.class)
                     .where("question = ?", "What is Dari?")
@@ -523,7 +515,6 @@ our example should be 5.
                 .count();
             return responseCount;
         }
-
     }
 
 Perfect, 5 responses as expected. This query is particularly interesting
@@ -544,7 +535,7 @@ model. Here are the updated methods along with a new ``getAnswers()``
 method that relies on a query instead of the instance variable we just
 removed. Here are the updated class files.
 
-::
+.. code-block:: java
 
     public class Poll extends Record {
     
@@ -593,7 +584,7 @@ removed. Here are the updated class files.
 
     } 
 
-::
+.. code-block:: java
 
     public class Answer extends Record { 
         private String answer; 
@@ -625,7 +616,7 @@ after we changed the model. Dari provides a convenient way to recover
 the data with the new model but that is covered in a later tutorial. Run
 the code below to delete and re-create our poll data.
 
-::
+.. code-block:: java
 
     public class Code { 
         public static Object main() throws Throwable {
@@ -673,7 +664,7 @@ inherited from Record and it works exactly as you would expect.
 Lets write our response count query again. To do so, we'll make use of
 Dari sub-queries like so:
 
-::
+.. code-block:: java
 
     public class Code { 
         public static Object main() throws Throwable {
@@ -703,7 +694,7 @@ Dealing with sub-queries like this often times makes our code difficult
 to read so Dari provides a clean, concise syntax that we can use to
 achieve the same effect.
 
-::
+.. code-block:: java
 
     public class Code {
         public static Object main() throws Throwable {
@@ -725,7 +716,7 @@ the distribution of answers are for the poll. This is done using
 `Querying section`_ of the documentation. Let's roll this method, along
 with our previous one into our Poll class to complete the example.
 
-::
+.. code-block:: java
 
     public class Poll extends Record {
 
@@ -764,7 +755,7 @@ with our previous one into our Poll class to complete the example.
 
 Finally, let's test it out in the **code** tool playground.
 
-::
+.. code-block:: java
 
     public class Code { 
         public static Object main() throws Throwable {
@@ -809,23 +800,22 @@ more Dari concepts such as validation and transactions. Stay Tuned!
 For more information on Dari please refer to the rest of the
 documentation. Thanks! Enjoy!
 
-.. |Poll Example 1| image:: img/tutorial/poll01.png
-.. |Poll Example 2| image:: img/tutorial/poll02.png
-.. |Poll Example 3| image:: img/tutorial/poll03.png
-.. |Poll Example 4| image:: img/tutorial/poll04.png
-.. |Poll Example 5| image:: img/tutorial/poll05.png
-.. |Poll Example 6| image:: img/tutorial/poll06.png
-.. |Poll Example 7| image:: img/tutorial/poll07.png
-.. |Poll Example 8| image:: img/tutorial/poll08.png
-.. |Poll Example 9| image:: img/tutorial/poll09.png
-.. |Poll Example 10| image:: img/tutorial/poll10.png
-.. |Poll Example 11| image:: img/tutorial/poll11.png
-.. |Poll Example 12| image:: img/tutorial/poll12.png
-.. |Poll Example 13| image:: img/tutorial/poll13.png
+.. |Poll Example 1| image:: images/poll01.png
+.. |Poll Example 2| image:: images/poll02.png
+.. |Poll Example 3| image:: images/poll03.png
+.. |Poll Example 4| image:: images/poll04.png
+.. |Poll Example 5| image:: images/poll05.png
+.. |Poll Example 6| image:: images/poll06.png
+.. |Poll Example 7| image:: images/poll07.png
+.. |Poll Example 8| image:: images/poll08.png
+.. |Poll Example 9| image:: images/poll09.png
+.. |Poll Example 10| image:: images/poll10.png
+.. |Poll Example 11| image:: images/poll11.png
+.. |Poll Example 12| image:: images/poll12.png
+.. |Poll Example 13| image:: images/poll13.png
 
-.. _Querying section: querying.html
-.. _full demo here: /assets/dari-poll-demo1.tar.gz
-.. _PERFECT SENSE digital: http://www.perfectsensedigital.com/
+.. _Querying section: /dari/query/index.html
+.. _full demo here: /dari/overview/files/dari-poll-demo1.tar.gz
 .. _Apache Tomcat: http://tomcat.apache.org
 .. _Cargo Maven plugin: http://cargo.codehaus.org/Maven2+plugin
 .. _H2 database engine: http://www.h2database.com/html/main.html

@@ -1,4 +1,4 @@
-### Server Status
+### Server Stats
 
 Dari provides an server status tool which provides insight into
 how many queries are being performed their latency. It will also provide
