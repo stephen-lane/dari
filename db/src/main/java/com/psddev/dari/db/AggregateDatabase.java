@@ -425,13 +425,10 @@ public class AggregateDatabase implements Database, Iterable<Database> {
         }
     }
 
-    private void writeOne(ObjectType type, Consumer<Database> consumer) {
+    private void write(Collection<ObjectType> types, Consumer<Database> consumer) {
         consumer.accept(getDefaultDelegate());
 
-        for (Database delegate : findDelegatesByTypes(
-                getDelegates().values(),
-                Collections.singletonList(type))) {
-
+        for (Database delegate : findDelegatesByTypes(getDelegates().values(), types)) {
             try {
                 consumer.accept(delegate);
 
@@ -441,51 +438,44 @@ public class AggregateDatabase implements Database, Iterable<Database> {
         }
     }
 
+    private void writeOne(State state, Consumer<Database> consumer) {
+        write(Collections.singleton(state.getType()), consumer);
+    }
+
     @Override
     public void saveUnsafely(State state) {
-        writeOne(state.getType(), delegate -> delegate.saveUnsafely(state));
+        writeOne(state, delegate -> delegate.saveUnsafely(state));
     }
 
     @Override
     public void index(State state) {
-        writeOne(state.getType(), delegate -> delegate.index(state));
+        writeOne(state, delegate -> delegate.index(state));
     }
 
     @Override
     public void recalculate(State state, ObjectIndex... indexes) {
-        writeOne(state.getType(), delegate -> delegate.recalculate(state, indexes));
+        writeOne(state, delegate -> delegate.recalculate(state, indexes));
     }
 
     @Override
     public void delete(State state) {
-        writeOne(state.getType(), delegate -> delegate.delete(state));
-    }
-
-    private void writeAll(Consumer<Database> consumer) {
-        Database defaultDelegate = getDefaultDelegate();
-
-        consumer.accept(defaultDelegate);
-
-        getDelegates().values().stream()
-                .filter(delegate -> !delegate.equals(defaultDelegate))
-                .forEach(delegate -> {
-                    try {
-                        consumer.accept(delegate);
-
-                    } catch (Exception error) {
-                        LOGGER.warn(String.format("Can't write to [%s]", delegate), error);
-                    }
-                });
+        writeOne(state, delegate -> delegate.delete(state));
     }
 
     @Override
     public void indexAll(ObjectIndex index) {
-        writeAll(delegate -> delegate.indexAll(index));
+        ObjectStruct parent = index.getParent();
+        write(
+                parent instanceof ObjectType ? Collections.singleton((ObjectType) parent) : null,
+                delegate -> delegate.indexAll(index));
     }
 
     @Override
     public void deleteByQuery(Query<?> query) {
-        writeAll(delegate -> delegate.deleteByQuery(query));
+        String group = query.getGroup();
+        write(
+                group != null ? getEnvironment().getTypesByGroup(query.getGroup()) : null,
+                delegate -> delegate.deleteByQuery(query));
     }
 
     /**
