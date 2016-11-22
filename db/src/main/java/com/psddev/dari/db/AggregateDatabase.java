@@ -492,19 +492,25 @@ public class AggregateDatabase implements Database, Iterable<Database> {
      * Finds all non-default delegates that should be used for the given
      * {@code types} based on their groups.
      *
-     * @param delegates
-     *        Can't be {@code null}.
+     * <p>If the given {@code types} is {@code null}, returns all non-default
+     * delegates.</p>
      *
-     * @param types
-     *        Can't be {@code null}.
-     *
-     * @return Never {@code null}.
+     * @param delegates Nonnull.
+     * @param types Nullable.
+     * @return Nonnull.
      */
     public List<Database> findDelegatesByTypes(
             Collection<Database> delegates,
             Collection<ObjectType> types) {
 
         Database defaultDelegate = getDefaultDelegate();
+
+        if (types == null) {
+            return delegates.stream()
+                    .filter(d -> !d.equals(defaultDelegate))
+                    .collect(Collectors.toList());
+        }
+
         List<Database> found = new ArrayList<>();
         for (Database delegate : delegates) {
 
