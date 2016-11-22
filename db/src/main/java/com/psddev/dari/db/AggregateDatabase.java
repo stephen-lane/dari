@@ -499,10 +499,7 @@ public class AggregateDatabase implements Database, Iterable<Database> {
      * @param types Nullable.
      * @return Nonnull.
      */
-    public List<Database> findDelegatesByTypes(
-            Collection<Database> delegates,
-            Collection<ObjectType> types) {
-
+    public List<Database> findDelegatesByTypes(Collection<Database> delegates, Collection<ObjectType> types) {
         Database defaultDelegate = getDefaultDelegate();
 
         if (types == null) {
@@ -512,16 +509,16 @@ public class AggregateDatabase implements Database, Iterable<Database> {
         }
 
         List<Database> found = new ArrayList<>();
-        for (Database delegate : delegates) {
 
+        for (Database delegate : delegates) {
             if (delegate.equals(defaultDelegate)) {
                 continue;
             }
 
             boolean isAllMatch = true;
             Set<String> delegateGroups = delegateGroupsMap.get(delegate);
-            for (ObjectType type : types) {
 
+            for (ObjectType type : types) {
                 if (type != null && !type.isConcrete()) {
                     continue;
                 }
@@ -529,8 +526,10 @@ public class AggregateDatabase implements Database, Iterable<Database> {
                 // If the database groups allows any of the type groups,
                 // the delegate database can be used.
                 boolean isMatch = false;
+
                 if (type != null) {
                     Set<String> typeGroups = type.getGroups();
+
                     for (String typeGroup : typeGroups) {
                         if (delegateGroups.contains(typeGroup)) {
                             isMatch = true;
