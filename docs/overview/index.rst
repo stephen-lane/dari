@@ -1,4 +1,5 @@
-.. toctree:: 
+.. toctree::
+    :caption:
 
     introduction.rst
     database-support.rst

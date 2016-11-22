@@ -1,6 +1,6 @@
-**********
-Contribute
-**********
+************
+Contributing
+************
 
 Report Bugs
 ===========

@@ -1,10 +1,3 @@
----
-layout: documentation
-title: Annotations
-id: annotations
-section: documentation
----
-
 ## Annotations
 
 Annotations provide information on how a particular field or model class

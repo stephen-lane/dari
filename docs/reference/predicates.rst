@@ -1,6 +1,6 @@
-************************
-Predicates String Syntax
-************************
+**********
+Predicates
+**********
 
 Basic Comparisons
 =================
