@@ -1,5 +1,6 @@
+**************************
 Miscellenous Configuration
-==========================
+**************************
 
 **Key:** ``dari/cookieSecret`` **Type:** ``java.lang.String``
 
