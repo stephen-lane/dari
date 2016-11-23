@@ -1,98 +1,101 @@
-## Annotations
+***********
+Annotations
+***********
 
 Annotations provide information on how a particular field or model class
-should behave. The most commonly used annotations are `@Indexed` and
-`@Embedded`.
+should behave. The most commonly used annotations are ``@Indexed`` and
+``@Embedded``.
 
-### Field Annotations
+Field Annotations
+=================
 
-`@InternalNamePrefix(String)`
+**@InternalNamePrefix(String)**
 
-> Specifies the prefix for the internal names of all fields in the target type.
+Specifies the prefix for the internal names of all fields in the target type.
 
-`@CollectionMaximum(int)`
+**@CollectionMaximum(int)**
 
-> Specifies the maximum number of items in the target field.
+Specifies the maximum number of items in the target field.
 
-`@CollectionMinimum(int)`
+**@CollectionMinimum(int)**
 
-> Specifies the minimum number of items in the target field.
+Specifies the minimum number of items in the target field.
 
-`@DisplayName(String)`
+**@DisplayName(String)**
 
-> Specifies the target field's display name.
+Specifies the target field's display name.
 
-`@Embedded`
+**@Embedded**
 
-> Specifies whether the target field value is embedded.
+Specifies whether the target field value is embedded.
 
-`@Ignored`
+**@Ignored**
 
-> Specifies whether the target field is ignored.
+Specifies whether the target field is ignored.
 
-`@Indexed`
+**@Indexed**
 
-> Specifies whether the target field value is indexed.
+Specifies whether the target field value is indexed.
 
-`@InternalName(String)`
+**@InternalName(String)**
 
-> Specifies the target field's internal name.
+Specifies the target field's internal name.
 
-`@Maximum(double)`
+**@Maximum(double)**
 
-> Specifies either the maximum numeric value or string length of the target field. Our example uses a 5 Star review option.
+Specifies either the maximum numeric value or string length of the target field. Our example uses a 5 Star review option.
 
-`@Minimum(double)`
+**@Minimum(double)**
 
-> Specifies either the minimum numeric value or string length of the target field. The user can input 0 out of 5 for the review.
+Specifies either the minimum numeric value or string length of the target field. The user can input 0 out of 5 for the review.
 
-`@Step(double)`
+**@Step(double)**
 
-> Specifies the margin between entries in the target field, in the example below every 0.5 is allowed. 0.5, 1.0, 1.5 etc.
+Specifies the margin between entries in the target field, in the example below every 0.5 is allowed. 0.5, 1.0, 1.5 etc.
 
-`@Regex(String)`
+**@Regex(String)**
 
-> Specifies the regular expression pattern that the target field value must match.
+Specifies the regular expression pattern that the target field value must match.
 
-`@Required`
+**@Required**
 
-> Specifies whether the target field value is required.
+Specifies whether the target field value is required.
 	
-`@FieldTypes(Class<Recordable>[])`
+**@FieldTypes(Class<Recordable>[])**
 
-> Specifies the valid types for the target field value.
+Specifies the valid types for the target field value.
 
-`@FieldUnique`
+**@FieldUnique**
 
-> Deprecated. Use `Recordable.FieldIndexed` with isUnique instead.
+Deprecated. Use **Recordable.FieldIndexed** with isUnique instead.
 
-`@Values`
+**@Values**
 
-> Specifies the valid values for the target field value.
+Specifies the valid values for the target field value.
 
-### Class Annotations
+Class Annotations
+=================
 
-`@Abstract`
+**@Abstract**
 
-> Specifies whether the target type is abstract and can't be used to create a concrete instance.
+Specifies whether the target type is abstract and can't be used to create a concrete instance.
 
-`@DisplayName(String)`
+**@DisplayName(String)**
 
-> Specifies the target type's display name.
+Specifies the target type's display name.
 
-`@Embedded`
+**@Embedded**
 
-> Specifies whether the target type data is always embedded within another type data.
+Specifies whether the target type data is always embedded within another type data.
 
-`@InternalName(String)`
+**@InternalName(String)**
 
-> Specifies the target type's internal name.
+Specifies the target type's internal name.
 
-`@LabelFields(String[])`
+**@LabelFields(String[])**
 
-> Specifies the field names that are used to retrieve the labels of the objects represented by the target type.
+Specifies the field names that are used to retrieve the labels of the objects represented by the target type.
 
-`@PreviewField`
+**@PreviewField**
 
-> Specifies the field name used to retrieve the previews of the objects represented by the target type.
-
+Specifies the field name used to retrieve the previews of the objects represented by the target type.
