@@ -18,7 +18,7 @@ to query objects in Dari.
     limit
     where
     relationships
-    bind-variables
+    binding-variables
     order
     group
     tool
