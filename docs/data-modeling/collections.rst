@@ -35,8 +35,6 @@ For example we can add a ``Tag`` model and add a list of tags to the
 
     }
 
-.. raw:: html
-
 .. note:: 
 
     Indexes on collections are also supported. However, performance should be
