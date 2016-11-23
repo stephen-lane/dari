@@ -3,7 +3,7 @@ Database Configuration
 **********************
 
 All database specific configuration parameters are prefixed with
-**``dari/database/{databaseName}/``**.
+**dari/database/{databaseName}/**.
 
 **Key:** ``dari/defaultDatabase`` **Type:** ``java.lang.String``
 
@@ -70,7 +70,7 @@ Enable or disable compression of Dari object data in the database.
 Dari uses the Snappy compression library for compression. To use
 this you must include Snappy in your pom.xml file as follows:
 
-    org.iq80.snappy snappy 0.2
+org.iq80.snappy snappy 0.2
 
 *The default is false.* We recommend only enabling compression if
 you know your dataset is large (over 50GB).
@@ -114,8 +114,8 @@ The database resource. All writes will go the database configured by
 .. note::
 
        To use Tomcat connection pooling define a JNDI Resource in
-       ```<code>context.xml</code>``` with the name
-       ```<code>dari/database/{databaseName}/dataSource</code>```
+       ``<code>context.xml</code>`` with the name
+       ``<code>dari/database/{databaseName}/dataSource</code>``
 
 Aggregate Database Configuration
 ================================
