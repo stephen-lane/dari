@@ -1633,53 +1633,58 @@ public class State implements Map<String, Object> {
         */
 
         synchronized (this) {
-            if ((flags & ALL_RESOLVED_FLAG) != 0) {
-                return;
-            }
-
-            if (linkedObjects.isEmpty()) {
-                return;
-            }
-
-            boolean hasPotentialRefs = false;
-            Collection<Object> rawValuesValues = rawValues.values();
-
-            for (Object rawValue : rawValuesValues) {
-                if (rawValue instanceof Map
-                        && ((Map<?, ?>) rawValue).containsKey(StateSerializer.REFERENCE_KEY)) {
-                    hasPotentialRefs = true;
-                    break;
-                }
-            }
-
-            if (!hasPotentialRefs) {
-                return;
-            }
-
-            Profiler.Static.startThreadEvent(RESOLVE_REFERENCE_PROFILER_EVENT, this);
 
             try {
-                Object object = linkedObjects.values().iterator().next();
-                Map<UUID, Object> references = StateValueUtils.resolveReferences(getDatabase(), object, rawValuesValues, field);
-                Map<String, Object> resolved = new HashMap<>();
-                resolveMetricReferences(resolved);
 
-                for (Map.Entry<? extends String, ?> e : rawValues.entrySet()) {
-                    UUID id = StateValueUtils.toIdIfReference(e.getValue());
-                    if (id != null) {
-                        resolved.put(e.getKey(), references.get(id));
+                if ((flags & ALL_RESOLVED_FLAG) != 0) {
+                    return;
+                }
+
+                if (linkedObjects.isEmpty()) {
+                    return;
+                }
+
+                boolean hasPotentialRefs = false;
+                Collection<Object> rawValuesValues = rawValues.values();
+
+                for (Object rawValue : rawValuesValues) {
+                    if (rawValue instanceof Map
+                            && ((Map<?, ?>) rawValue).containsKey(StateSerializer.REFERENCE_KEY)) {
+                        hasPotentialRefs = true;
+                        break;
                     }
                 }
 
-                for (Map.Entry<String, Object> e : resolved.entrySet()) {
-                    put(e.getKey(), e.getValue());
+                if (!hasPotentialRefs) {
+                    return;
+                }
+
+                Profiler.Static.startThreadEvent(RESOLVE_REFERENCE_PROFILER_EVENT, this);
+
+                try {
+                    Object object = linkedObjects.values().iterator().next();
+                    Map<UUID, Object> references = StateValueUtils.resolveReferences(getDatabase(), object, rawValuesValues, field);
+                    Map<String, Object> resolved = new HashMap<>();
+                    resolveMetricReferences(resolved);
+
+                    for (Map.Entry<? extends String, ?> e : rawValues.entrySet()) {
+                        UUID id = StateValueUtils.toIdIfReference(e.getValue());
+                        if (id != null) {
+                            resolved.put(e.getKey(), references.get(id));
+                        }
+                    }
+
+                    for (Map.Entry<String, Object> e : resolved.entrySet()) {
+                        put(e.getKey(), e.getValue());
+                    }
+
+                } finally {
+                    Profiler.Static.stopThreadEvent();
                 }
 
             } finally {
-                Profiler.Static.stopThreadEvent();
+                flags |= ALL_RESOLVED_FLAG;
             }
-
-            flags |= ALL_RESOLVED_FLAG;
         }
     }
 
