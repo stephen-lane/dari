@@ -1637,8 +1637,6 @@ public class State implements Map<String, Object> {
                 return;
             }
 
-            flags |= ALL_RESOLVED_FLAG;
-
             if (linkedObjects.isEmpty()) {
                 return;
             }
@@ -1680,6 +1678,8 @@ public class State implements Map<String, Object> {
             } finally {
                 Profiler.Static.stopThreadEvent();
             }
+
+            flags |= ALL_RESOLVED_FLAG;
         }
     }
 
