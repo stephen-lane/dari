@@ -32,16 +32,13 @@ public class StateTest extends AbstractTest {
         model1.save();
         model2.save();
 
-        final UuidIndexModel dbModel1 = Query.from(UuidIndexModel.class).noCache().master().where("_id = ?", model1).first();
-
-        final CyclicBarrier gate = new CyclicBarrier(numThreads);
-
-        final CyclicBarrier end = new CyclicBarrier(numThreads + 1);
-
         List<Thread> threads = new ArrayList<>();
-
+        final CyclicBarrier gate = new CyclicBarrier(numThreads);
+        final CyclicBarrier end = new CyclicBarrier(numThreads + 1);
         final List<Object> references = Collections.synchronizedList(new ArrayList<>());
         final List<String> errors = Collections.synchronizedList(new ArrayList<>());
+
+        final UuidIndexModel dbModel1 = Query.from(UuidIndexModel.class).noCache().master().where("_id = ?", model1.getId()).first();
 
         for (int i = 0; i < numThreads; i += 1) {
             threads.add(new Thread(() -> {
@@ -53,7 +50,9 @@ public class StateTest extends AbstractTest {
                     return;
                 }
 
-                references.add(dbModel1.getReferenceOne());
+                UuidIndexModel dbModel1ReferenceOne = dbModel1.getReferenceOne();
+
+                references.add(dbModel1ReferenceOne);
 
                 try {
                     end.await();
