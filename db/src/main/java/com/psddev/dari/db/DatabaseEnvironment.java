@@ -51,7 +51,6 @@ public class DatabaseEnvironment implements ObjectStruct {
             public void redefined(Set<Class<?>> classes) {
                 for (Class<?> c : classes) {
                     if (Recordable.class.isAssignableFrom(c)) {
-                        TypeDefinition.Static.invalidateAll();
                         refreshTypes();
                         Introspector.flushCaches();
                         dynamicProperties.reset();
