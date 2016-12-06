@@ -1676,7 +1676,7 @@ public class State implements Map<String, Object> {
                 for (Map.Entry<String, Object> e : resolved.entrySet()) {
                     put(e.getKey(), e.getValue());
                 }
-                
+
                 flags |= ALL_RESOLVED_FLAG;
 
             } finally {
