@@ -1633,7 +1633,6 @@ public class State implements Map<String, Object> {
         */
 
         synchronized (this) {
-
             if ((flags & ALL_RESOLVED_FLAG) != 0) {
                 return;
             }
