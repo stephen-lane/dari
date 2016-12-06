@@ -97,7 +97,7 @@
                             <goal>java</goal>
                         </goals>
                         <configuration>
-                            <classpathScope>compile</classpathScope>
+                            <classpathScope>test</classpathScope>
                             <includePluginDependencies>true</includePluginDependencies>
                             <mainClass>com.psddev.dari.util.ClassEnhancer$Static</mainClass>
                             <arguments>
