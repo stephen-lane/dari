@@ -60,6 +60,7 @@ import javax.tools.SimpleJavaFileObject;
 import javax.tools.StandardLocation;
 import javax.tools.ToolProvider;
 
+import com.google.common.base.Throwables;
 import com.psddev.dari.util.asm.ClassReader;
 import com.psddev.dari.util.asm.ClassVisitor;
 import com.psddev.dari.util.asm.ClassWriter;
@@ -579,6 +580,23 @@ public final class CodeUtils {
     private static final ClassFileTransformer JSP_CLASS_RECORDER = new JspTransformer();
 
     private static class JspTransformer implements ClassFileTransformer {
+
+        // Preload the classes used in the transform method to prevent
+        // infinite recursion.
+        static {
+            preload(ClassReader.class);
+            preload(ClassWriter.class);
+            preload(SmapAdapter.class);
+        }
+
+        private static void preload(Class<?> c) {
+            try {
+                Class.forName(c.getName());
+
+            } catch (ClassNotFoundException error) {
+                throw Throwables.propagate(error);
+            }
+        }
 
         @Override
         public byte[] transform(
