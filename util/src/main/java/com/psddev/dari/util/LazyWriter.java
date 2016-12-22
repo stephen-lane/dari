@@ -41,6 +41,12 @@ public class LazyWriter extends Writer {
         this.delegate = delegate;
     }
 
+    public LazyWriter(Writer delegate, boolean inBody) {
+        this.request = null;
+        this.delegate = delegate;
+        this.inBody = inBody;
+    }
+
     private boolean isInBody() {
         return inBody
                 || (request != null

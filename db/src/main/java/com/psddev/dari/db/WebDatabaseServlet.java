@@ -92,7 +92,7 @@ public class WebDatabaseServlet extends HttpServlet {
             Object key = entry.getKey();
             Object value = entry.getValue();
 
-            if (StateValueUtils.TYPE_KEY.equals(key)) {
+            if (StateSerializer.TYPE_KEY.equals(key)) {
                 if (value != null) {
                     ObjectType type = environment.getTypeByName(value.toString());
                     if (type != null) {
@@ -160,8 +160,8 @@ public class WebDatabaseServlet extends HttpServlet {
 
         @SuppressWarnings("unchecked")
         Map<String, Object> stateMap = (Map<String, Object>) stateObject;
-        UUID typeId = ObjectUtils.to(UUID.class, stateMap.get(StateValueUtils.TYPE_KEY));
-        UUID id = ObjectUtils.to(UUID.class, stateMap.get(StateValueUtils.ID_KEY));
+        UUID typeId = ObjectUtils.to(UUID.class, stateMap.get(StateSerializer.TYPE_KEY));
+        UUID id = ObjectUtils.to(UUID.class, stateMap.get(StateSerializer.ID_KEY));
         Object object = database.getEnvironment().createObject(typeId, id);
         State state = State.getInstance(object);
         state.putAll(stateMap);

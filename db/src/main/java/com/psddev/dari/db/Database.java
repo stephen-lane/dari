@@ -23,7 +23,7 @@ import com.psddev.dari.util.SettingsBackedObject;
 import com.psddev.dari.util.SettingsException;
 
 /** Database of objects. */
-public interface Database extends SettingsBackedObject {
+public interface Database extends AutoCloseable, SettingsBackedObject {
 
     public static final String CREATOR_EXTRA = "dari.creatorDatabase";
     public static final String DEFAULT_DATABASE_SETTING = "dari/defaultDatabase";
@@ -216,6 +216,14 @@ public interface Database extends SettingsBackedObject {
 
     default void removeUpdateNotifier(UpdateNotifier<?> notifier) {
         throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Closes the database.
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    default void close() throws Exception {
     }
 
     /** {@link Database} utility methods. */
