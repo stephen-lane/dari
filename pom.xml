@@ -205,13 +205,13 @@
             <dependency>
                 <groupId>com.psddev</groupId>
                 <artifactId>dari-mysql</artifactId>
-                <version>3.2-SNAPSHOT</version>
+                <version>3.3-SNAPSHOT</version>
             </dependency>
 
             <dependency>
                 <groupId>com.psddev</groupId>
                 <artifactId>dari-reflections</artifactId>
-                <version>3.2-SNAPSHOT</version>
+                <version>3.3-SNAPSHOT</version>
             </dependency>
 
             <dependency>
@@ -223,7 +223,7 @@
             <dependency>
                 <groupId>com.psddev</groupId>
                 <artifactId>dari-sql</artifactId>
-                <version>3.2-SNAPSHOT</version>
+                <version>3.3-SNAPSHOT</version>
             </dependency>
 
             <dependency>
