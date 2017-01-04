@@ -356,9 +356,13 @@ public class CodeDebugServlet extends HttpServlet {
                                 write("var baseCode = $('textarea[name=code]').text();");
 
                                 write("var windowStorageCodeKey = 'bsp.codeDebugServlet.code';");
-                                write("if (window.localStorage.getItem(windowStorageCodeKey) !== null && window.localStorage.getItem(windowStorageCodeKey).trim()) {");
+
+                                //Don't load code from localStorage when parameters are passed
+                                if (ObjectUtils.isBlank(page.getRequest().getParameterMap())) {
+                                    write("if (window.localStorage.getItem(windowStorageCodeKey) !== null && window.localStorage.getItem(windowStorageCodeKey).trim()) {");
                                     write("codeMirror.getDoc().setValue(window.localStorage.getItem(windowStorageCodeKey))");
-                                write("}");
+                                    write("}");
+                                }
 
                                 write("var typingTimer;");
                                 write("codeMirror.on('keydown', function() {");
