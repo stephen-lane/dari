@@ -189,6 +189,18 @@ public interface Recordable {
         boolean value() default true;
     }
 
+    /**
+     * Specifies whether the target field should be ignored when the object
+     * is embedded in another.
+     */
+    @Documented
+    @ObjectField.AnnotationProcessorClass(IgnoredIfEmbeddedProcessor.class)
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target({ ElementType.FIELD, ElementType.METHOD })
+    @interface IgnoredIfEmbedded {
+        boolean value() default true;
+    }
+
     /** Specifies whether the target field value is indexed. */
     @Documented
     @Retention(RetentionPolicy.RUNTIME)
@@ -725,6 +737,13 @@ class GroupsProcessor implements
     @Override
     public void process(ObjectType type, Recordable.Groups annotation) {
         Collections.addAll(type.getGroups(), annotation.value());
+    }
+}
+
+class IgnoredIfEmbeddedProcessor implements ObjectField.AnnotationProcessor<Recordable.IgnoredIfEmbedded> {
+    @Override
+    public void process(ObjectType type, ObjectField field, Recordable.IgnoredIfEmbedded annotation) {
+        field.setIgnoredIfEmbedded(annotation.value());
     }
 }
 
