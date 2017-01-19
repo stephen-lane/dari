@@ -386,6 +386,17 @@ public interface Recordable {
     }
 
     /**
+     * Specifies the type ID of the target type during initial bootstrap. It
+     * has no effect if one has already been assigned.
+     */
+    @Documented
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    public @interface TypeId {
+        String value();
+    }
+
+    /**
      * Specifies the processor class(es) to run after the type is initialized.
      */
     @Documented
