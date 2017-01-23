@@ -41,7 +41,7 @@ public class JavaImageServlet extends HttpServlet {
 
             String imageType = "png";
             if (imageUrl.endsWith(".jpg") || imageUrl.endsWith(".jpeg")) {
-                imageType = "jpg";
+                imageType = "jpeg";
             } else if (imageUrl.endsWith(".gif")) {
                 imageType = "gif";
             }
