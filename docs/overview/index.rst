@@ -2,27 +2,38 @@
 Overview
 ########
 
-We believe that working with data, whether they're simple blog posts or
-something much more complex, is the most critical part of building any
-application. It's also the most difficult and frustrating, because the
-current generation of data access frameworks don't do enough to provide
-you with all the information necessary to let you be productive as
-possible.
+Dari is a data access framework that powers Brightspot applications. 
+Used to build complex content types and persist them to one or more SQL databases, Dari simplifies data handling, providing a single API to all databases and to local or remote storage.
 
-Dari was created at `PERFECT SENSE digital`_ to make our work in
-handling data for a variety of clients in different industries easier
-and more efficient. We wanted to create a comprehensive toolset that
-spans every aspect of how data flows throughout your application.
+Unlike other data frameworks, Dari is a comprehensive toolset that spans every aspect of how data flows throughout your application. Features include:
 
-This is the fruit of our work so far, and we wanted to share it with the
-world. We hope you enjoy working with it as much as we do.
+- Support for multiple databases. You can delegate to specific databases for specific needs, for example, Solr for text matching.
+
+- Data modeling with standard Java types and simple annotations. With Dari, anything can be modeled and accessed with a web view or through an API. A data model can be altered by modifying the Java classes that define it, without regard to database schema or other configurations. 
+
+- Debugging tools, including diagrammatic views of data models, on-the-fly code compiling with immediate updates to the runtime environment, database and reindexing tools, and webpage metrics and Dari performance stats.
+
+- Query API for retrieving data models from databases. 
+
+- File Storage tool for bulk movement of objects in CDN (Content Delivery Network) storage.
+
+- Background tasks system for creating tasks, and a management tool for monitoring, starting, and stopping tasks.
+
+Dari is open source and freely available for use under the BSD license.
+
+**See also:**
+
+- |javadoc_link|
+
+.. |javadoc_link| raw:: html
+
+     <a href="http://www.dariframework.org/javadocs/" target="_blank">Dari Javadocs</a>
+
+
 
 .. toctree::
     :hidden:
 
-    tutorial
-    database-support
     contribute
     license
 
-.. _PERFECT SENSE digital: http://www.perfectsensedigital.com/
