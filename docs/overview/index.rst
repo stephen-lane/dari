@@ -2,10 +2,11 @@
 Overview
 ########
 
-Dari is a data access framework that powers Brightspot applications. 
-Used to build complex content types and persist them to one or more SQL databases, Dari simplifies data handling, providing a single API to all databases and to local or remote storage.
+Dari is a data framework that powers the Brightspot digital experience platform. "Dari" means "bridge" in Korean, and its data modeling and access features are leveraged by our Brightspot content and asset management applications. Dari was created at `PERFECT SENSE`_ to make data handling easier and more efficient for clients in a variety of industries .
 
-Unlike other data frameworks, Dari is a comprehensive toolset that spans every aspect of how data flows throughout your application. Features include:
+
+Dari can be leveraged by any application that requires seemless database access and rapid evolution of data models. 
+Unlike other data frameworks, Dari provides a comprehensive toolset that spans every aspect of how data flows throughout your application. Features include:
 
 - Support for multiple databases. You can delegate to specific databases for specific needs, for example, Solr for text matching.
 
@@ -29,6 +30,8 @@ Dari is open source and freely available for use under the BSD license.
 
      <a href="http://www.dariframework.org/javadocs/" target="_blank">Dari Javadocs</a>
 
+
+.. _PERFECT SENSE: http://www.perfectsensedigital.com/
 
 
 .. toctree::
