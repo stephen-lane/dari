@@ -2,27 +2,42 @@
 Overview
 ########
 
-We believe that working with data, whether they're simple blog posts or
-something much more complex, is the most critical part of building any
-application. It's also the most difficult and frustrating, because the
-current generation of data access frameworks don't do enough to provide
-you with all the information necessary to let you be productive as
-possible.
+Roughly translated to "bridge" in Korean, "Dari" is the name of our data framework that powers the `Brightspot`_ digital experience platform. Dari provides data modeling and access features that are leveraged by Brightspot content and asset management applications. Dari was created at `PERFECT SENSE`_ to make data handling easier and more efficient for clients in a variety of industries.
 
-Dari was created at `PERFECT SENSE digital`_ to make our work in
-handling data for a variety of clients in different industries easier
-and more efficient. We wanted to create a comprehensive toolset that
-spans every aspect of how data flows throughout your application.
 
-This is the fruit of our work so far, and we wanted to share it with the
-world. We hope you enjoy working with it as much as we do.
+Dari can be leveraged by any Java application that requires seamless database access and rapid evolution of data models. 
+Unlike other data frameworks, Dari provides a comprehensive toolset that spans every aspect of how data flows throughout your application. Features include:
+
+- Support for multiple databases. You can delegate to specific databases for specific needs, for example, Solr for text matching.
+
+- Data modeling with standard Java types and simple annotations. With Dari, anything can be modeled and accessed with a web view or through an API. A data model can be altered by modifying the Java classes that define it. 
+
+- Debugging tools, including diagrammatic views of data models, on-the-fly code compiling with immediate updates to the runtime environment, database and reindexing tools, and webpage metrics and Dari performance stats.
+
+- Query API for retrieving objects from databases. 
+
+- File Storage APIs for uploading and retrieving files on a local or remote storage location.
+
+- Tasks system for creating and managing background threads.
+
+Dari is open source and freely available for use under the BSD license.
+
+**See also:**
+
+- |javadoc_link|
+
+.. |javadoc_link| raw:: html
+
+     <a href="http://www.dariframework.org/javadocs/" target="_blank">Dari Javadocs</a>
+
+
+.. _Brightspot: http://www.brightspot.com/
+.. _PERFECT SENSE: http://www.perfectsensedigital.com/
+
 
 .. toctree::
     :hidden:
 
-    tutorial
-    database-support
     contribute
     license
 
-.. _PERFECT SENSE digital: http://www.perfectsensedigital.com/

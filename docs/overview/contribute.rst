@@ -5,12 +5,17 @@ Contributing
 Report Bugs
 ===========
 
-Report bugs using the `Github issue tracker`_.
+.. |github_link1| raw:: html
+
+     <a href="http://github.com/perfectsense/dari/issues" target="_blank">Github issue tracker</a>
+
+.. |github_link2| raw:: html
+
+     <a href="http://github.com/perfectsense/dari" target="_blank">Github</a>
+
+Report bugs using the |github_link1|.
 
 Get Involved
 ============
 
-Fork the source code from `Github`_ and send us a pull request!
-
-.. _Github issue tracker: http://github.com/perfectsense/dari/issues
-.. _Github: http://github.com/perfectsense/dari
+Fork the source code from |github_link2| and send us a pull request!
