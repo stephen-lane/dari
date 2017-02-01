@@ -704,7 +704,7 @@ public class Query<E> extends Record {
     /**
      * Sets this query to return objects with invisible
      * references resolved.
-     * 
+     *
      * @see State#isResolveInvisible()
      */
     public Query<E> resolveInvisible() {
