@@ -350,18 +350,36 @@ public class Query<E> extends Record {
         this.master = master;
     }
 
+    /**
+     * Returns {@code true} if this query will return objects
+     * with invisible references resolved.
+     *
+     * @see State#isResolveInvisible()
+     */
     public boolean isResolveInvisible() {
         return resolveInvisible;
     }
 
+    /**
+     * Sets whether this query will return objects with invisible
+     * references resolved.
+     *
+     * @see State#isResolveInvisible()
+     */
     public void setResolveInvisible(boolean resolveInvisible) {
         this.resolveInvisible = resolveInvisible;
     }
 
+    /**
+     * Gets the maximum allowed execution time (in seconds).
+     */
     public Double getTimeout() {
         return timeout;
     }
 
+    /**
+     * Sets the maximum allowed execution time (in seconds).
+     */
     public void setTimeout(Double timeout) {
         this.timeout = timeout;
     }
@@ -657,26 +675,46 @@ public class Query<E> extends Record {
         return this;
     }
 
+    /**
+     * Sets this query to return objects with references only.
+     *
+     * @see State#isReferenceOnly()
+     */
     public Query<E> resolveToReferenceOnly() {
         setResolveToReferenceOnly(true);
         return this;
     }
 
+    /**
+     * Sets this query to prevent being cached and returning a cached result.
+     */
     public Query<E> noCache() {
         setCache(false);
         return this;
     }
 
+    /**
+     * Sets this query to execute against master.
+     */
     public Query<E> master() {
         setMaster(true);
         return this;
     }
 
+    /**
+     * Sets this query to return objects with invisible
+     * references resolved.
+     * 
+     * @see State#isResolveInvisible()
+     */
     public Query<E> resolveInvisible() {
         setResolveInvisible(true);
         return this;
     }
 
+    /**
+     * Sets the maximum allowed execution time (in seconds).
+     */
     public Query<E> timeout(Double timeout) {
         setTimeout(timeout);
         return this;
