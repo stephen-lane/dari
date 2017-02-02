@@ -8,7 +8,6 @@ import java.util.Map;
 import java.util.Set;
 
 import javax.servlet.ServletContext;
-import javax.servlet.http.HttpServletRequest;
 
 /**
  * Item in a storage system. Typically, this is used to reference a file
@@ -202,7 +201,7 @@ public interface StorageItem extends SettingsBackedObject {
          *
          * @param storage Nullable (to indicate default storage).
          *
-         * @deprecated Use {@link Cdn#getUrl(HttpServletRequest, String)} instead.
+         * @deprecated Use {@link Cdn#getUrl(javax.servlet.http.HttpServletRequest, String)} instead.
          */
         @Deprecated
         public static StorageItem getPlainResource(String storage, ServletContext servletContext, String servletPath) {
@@ -216,7 +215,7 @@ public interface StorageItem extends SettingsBackedObject {
          *
          * @param storage Nullable (to indicate default storage).
          *
-         * @deprecated Use {@link Cdn#getUrl(HttpServletRequest, String)} instead.
+         * @deprecated Use {@link Cdn#getUrl(javax.servlet.http.HttpServletRequest, String)} instead.
          */
         @Deprecated
         public static StorageItem getGzippedResource(String storage, ServletContext servletContext, String servletPath) {
