@@ -963,7 +963,6 @@ public class ObjectField extends Record {
             if (!(ObjectUtils.isBlank(pattern) || StringUtils.matches(string, pattern))) {
                 String patternMessage = getPredicateValidationMessage();
 
-                System.out.println("Here " + patternMessage);
                 state.addError(this, !StringUtils.isBlank(patternMessage)
                         ? patternMessage
                         : String.format("Must match %s pattern!", pattern));
