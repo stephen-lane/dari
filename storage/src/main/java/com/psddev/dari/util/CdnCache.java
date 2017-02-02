@@ -18,26 +18,22 @@ import java.util.regex.Pattern;
 
 class CdnCache extends PullThroughCache<String, Map<CdnContext, Map<String, StorageItem>>> {
 
-    static final String CACHE_CONTROL_KEY = "Cache-Control";
-    static final String CACHE_CONTROL_VALUE = "public, max-age=31536000";
-
     private static final Pattern CSS_URL_PATTERN = Pattern.compile("(?i)url\\((['\"]?)([^)?#]*)([?#][^)]+)?\\1\\)");
 
-    protected String createPath(String contentType, String pathPrefix, String extension) {
-        return extension != null ? pathPrefix + "." + extension : pathPrefix;
+    protected boolean customizeItem(String contentType) {
+        return false;
     }
 
-    protected void saveItem(String contentType, StorageItem item, byte[] source) throws IOException {
-        item.setContentType(contentType);
+    protected String createItemPath(String pathPrefix, String extension) {
+        throw new UnsupportedOperationException();
+    }
 
-        Map<String, Object> metaDataMap = new HashMap<>();
-        Map<String, List<String>> httpHeaderMap = new HashMap<>();
-        httpHeaderMap.put(CACHE_CONTROL_KEY, Collections.singletonList(CACHE_CONTROL_VALUE));
-        metaDataMap.put(AbstractStorageItem.HTTP_HEADERS, httpHeaderMap);
-        item.setMetadata(metaDataMap);
+    protected void updateItemMetadata(Map<String, Object> metadata, Map<String, List<String>> httpHeaders) {
+        throw new UnsupportedOperationException();
+    }
 
-        item.setData(new ByteArrayInputStream(source));
-        item.save();
+    protected byte[] transformItemContent(byte[] content) throws IOException {
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -60,97 +56,120 @@ class CdnCache extends PullThroughCache<String, Map<CdnContext, Map<String, Stor
 
                     @Override
                     protected StorageItem produce(String servletPath) throws IOException, NoSuchAlgorithmException, URISyntaxException {
-                        byte[] source;
+                        byte[] content;
 
-                        try (InputStream sourceInput = cdnContext.open(servletPath)) {
-                            source = IoUtils.toByteArray(sourceInput);
+                        try (InputStream input = cdnContext.open(servletPath)) {
+                            content = IoUtils.toByteArray(input);
 
                         } catch (IOException error) {
                             return null;
                         }
 
-                        // path -> resource/context/path
-                        String contentType = ObjectUtils.getContentType(servletPath);
-                        String pathPrefix = "resource"
+                        // Unique hash based on the file content.
+                        MessageDigest md5 = MessageDigest.getInstance("MD5");
+                        md5.update((byte) 16);
+                        String hash = StringUtils.hex(md5.digest(content));
+
+                        String itemPathPrefix = "resource"
                                 + StringUtils.ensureSurrounding(cdnContext.getPathPrefix(), "/")
                                 + StringUtils.removeStart(servletPath, "/");
 
-                        String path;
+                        int dotAt = itemPathPrefix.lastIndexOf('.');
+                        String itemExtension;
 
-                        MessageDigest md5 = MessageDigest.getInstance("MD5");
-                        md5.update((byte) 16);
-                        String hash = StringUtils.hex(md5.digest(source));
-
-                        // name.ext -> createPath(name.hash, ext)
-                        int dotAt = pathPrefix.lastIndexOf('.');
                         if (dotAt > -1) {
-                            String extension = pathPrefix.substring(dotAt + 1);
-                            pathPrefix = pathPrefix.substring(0, dotAt) + "." + hash;
-                            path = createPath(contentType, pathPrefix, extension);
+                            itemExtension = itemPathPrefix.substring(dotAt + 1);
+                            itemPathPrefix = itemPathPrefix.substring(0, dotAt) + "." + hash;
 
-                            // name.ext -> createPath(name-hash, null)
                         } else {
-                            pathPrefix += "-" + hash;
-                            path = createPath(contentType, pathPrefix, null);
+                            itemExtension = null;
+                            itemPathPrefix += "-" + hash;
                         }
+
+                        String contentType = ObjectUtils.getContentType(servletPath);
+                        boolean customizeItem = customizeItem(contentType);
+                        String itemPath = customizeItem
+                                ? createItemPath(itemPathPrefix, itemExtension)
+                                : (itemExtension != null ? itemPathPrefix + "." + itemExtension : itemPathPrefix);
 
                         // Look into CSS files and change all the URLs.
                         if ("text/css".equals(contentType)) {
-                            String css = new String(source, StandardCharsets.UTF_8);
-                            StringBuilder newCssBuilder = new StringBuilder();
+                            String css = new String(content, StandardCharsets.UTF_8);
+                            StringBuilder newCss = new StringBuilder();
                             Matcher urlMatcher = CSS_URL_PATTERN.matcher(css);
-                            int previous = 0;
-                            String childPath;
-                            URI childUri;
-                            StorageItem childItem;
-                            String extra;
-                            int slashAt;
+                            int previousEnd = 0;
 
                             while (urlMatcher.find()) {
-                                newCssBuilder.append(css.substring(previous, urlMatcher.start()));
-                                previous = urlMatcher.end();
-                                childPath = urlMatcher.group(2);
-                                extra = urlMatcher.group(3);
+                                newCss.append(css.substring(previousEnd, urlMatcher.start()));
 
-                                newCssBuilder.append("url(");
+                                previousEnd = urlMatcher.end();
+                                String childPath = urlMatcher.group(2);
+                                String extra = urlMatcher.group(3);
+
+                                newCss.append("url(");
 
                                 if (childPath.length() == 0) {
-                                    newCssBuilder.append("''");
+                                    newCss.append("''");
 
                                 } else if (childPath.startsWith("data:")
                                         || childPath.endsWith(".htc")) {
-                                    newCssBuilder.append(childPath);
+                                    newCss.append(childPath);
 
                                 } else {
-                                    childUri = new URI(servletPath).resolve(childPath);
+                                    URI childUri = new URI(servletPath).resolve(childPath);
 
                                     if (childUri.isAbsolute()) {
-                                        newCssBuilder.append(childUri);
+                                        newCss.append(childUri);
 
                                     } else {
-                                        childItem = get(childUri.toString());
-                                        for (slashAt = 1; (slashAt = path.indexOf('/', slashAt)) > -1; ++slashAt) {
-                                            newCssBuilder.append("../");
+                                        StorageItem childItem = get(childUri.toString());
+
+                                        // Make the new URL relative.
+                                        for (int slashAt = 1; (slashAt = itemPath.indexOf('/', slashAt)) > -1; ++slashAt) {
+                                            newCss.append("../");
                                         }
-                                        newCssBuilder.append(childItem != null ? childItem.getPath() : childPath);
+
+                                        newCss.append(childItem != null ? childItem.getPath() : childPath);
                                     }
 
                                     if (extra != null) {
-                                        newCssBuilder.append(extra);
+                                        newCss.append(extra);
                                     }
                                 }
 
-                                newCssBuilder.append(')');
+                                newCss.append(')');
                             }
 
-                            newCssBuilder.append(css.substring(previous, css.length()));
-                            source = newCssBuilder.toString().getBytes(StandardCharsets.UTF_8);
+                            newCss.append(css.substring(previousEnd, css.length()));
+                            content = newCss.toString().getBytes(StandardCharsets.UTF_8);
                         }
 
                         StorageItem item = StorageItem.Static.createIn(storage);
-                        item.setPath(path);
+
+                        item.setPath(itemPath);
+
                         if (!item.isInStorage()) {
-                            saveItem(contentType, item, source);
+                            item.setContentType(contentType);
+
+                            // Cache "forever".
+                            Map<String, Object> metadata = new HashMap<>();
+                            Map<String, List<String>> httpHeaders = new HashMap<>();
+
+                            httpHeaders.put("Cache-Control", Collections.singletonList("public, max-age=31536000"));
+
+                            if (customizeItem) {
+                                updateItemMetadata(metadata, httpHeaders);
+                            }
+
+                            metadata.put(AbstractStorageItem.HTTP_HEADERS, httpHeaders);
+                            item.setMetadata(metadata);
+
+                            item.setData(new ByteArrayInputStream(
+                                    customizeItem
+                                            ? transformItemContent(content)
+                                            : content));
+
+                            item.save();
                         }
 
                         return item;
