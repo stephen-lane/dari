@@ -3,7 +3,7 @@ package com.psddev.dari.util;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,18 +28,16 @@ class GzipCdnCache extends CdnCache {
 
         } else {
             ByteArrayOutputStream byteOutput = new ByteArrayOutputStream();
-            GZIPOutputStream gzipOutput = new GZIPOutputStream(byteOutput);
-            try {
+
+            try (GZIPOutputStream gzipOutput = new GZIPOutputStream(byteOutput)) {
                 gzipOutput.write(source);
-            } finally {
-                gzipOutput.close();
             }
 
             item.setContentType(contentType);
-            Map<String, Object> metaDataMap = new HashMap<String, Object>();
-            Map<String, List<String>> httpHeaderMap = new HashMap<String, List<String>>();
-            httpHeaderMap.put(CACHE_CONTROL_KEY, Arrays.asList(CACHE_CONTROL_VALUE));
-            httpHeaderMap.put("Content-Encoding", Arrays.asList("gzip"));
+            Map<String, Object> metaDataMap = new HashMap<>();
+            Map<String, List<String>> httpHeaderMap = new HashMap<>();
+            httpHeaderMap.put(CACHE_CONTROL_KEY, Collections.singletonList(CACHE_CONTROL_VALUE));
+            httpHeaderMap.put("Content-Encoding", Collections.singletonList("gzip"));
             metaDataMap.put(AbstractStorageItem.HTTP_HEADERS, httpHeaderMap);
             item.setMetadata(metaDataMap);
 

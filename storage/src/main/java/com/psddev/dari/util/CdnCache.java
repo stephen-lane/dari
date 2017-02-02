@@ -8,7 +8,7 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -30,9 +30,9 @@ class CdnCache extends PullThroughCache<String, Map<CdnContext, Map<String, Stor
     protected void saveItem(String contentType, StorageItem item, byte[] source) throws IOException {
         item.setContentType(contentType);
 
-        Map<String, Object> metaDataMap = new HashMap<String, Object>();
-        Map<String, List<String>> httpHeaderMap = new HashMap<String, List<String>>();
-        httpHeaderMap.put(CACHE_CONTROL_KEY, Arrays.asList(CACHE_CONTROL_VALUE));
+        Map<String, Object> metaDataMap = new HashMap<>();
+        Map<String, List<String>> httpHeaderMap = new HashMap<>();
+        httpHeaderMap.put(CACHE_CONTROL_KEY, Collections.singletonList(CACHE_CONTROL_VALUE));
         metaDataMap.put(AbstractStorageItem.HTTP_HEADERS, httpHeaderMap);
         item.setMetadata(metaDataMap);
 
