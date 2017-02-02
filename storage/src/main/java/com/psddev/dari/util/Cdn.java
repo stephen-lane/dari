@@ -16,6 +16,9 @@ public class Cdn {
     private static final String ATTRIBUTE_PREFIX = Cdn.class.getName() + ".";
     private static final String CONTEXT_ATTRIBUTE = ATTRIBUTE_PREFIX + "context";
 
+    private static final CdnCache PLAIN_CACHE = new CdnCache();
+    private static final CdnCache GZIPPED_CACHE = new GzipCdnCache();
+
     /**
      * Returns the CDN context associated with the given {@code request}.
      *
@@ -66,8 +69,8 @@ public class Cdn {
             // Workaround for lack of gzip support in CloudFront.
             String encodings = request.getHeader("Accept-Encoding");
             StorageItem item = StringUtils.isBlank(encodings) || !encodings.contains("gzip")
-                    ? StorageItem.Static.getPlainResource(null, context, servletPath)
-                    : StorageItem.Static.getGzippedResource(null, context, servletPath);
+                    ? getPlainItem(null, context, servletPath)
+                    : getGzippedItem(null, context, servletPath);
 
             if (item != null) {
                 return JspUtils.isSecure(request)
@@ -101,5 +104,30 @@ public class Cdn {
         }
 
         return servletPath;
+    }
+
+    static StorageItem getPlainItem(String storage, CdnContext cdnContext, String servletPath) {
+        return getItem(PLAIN_CACHE, storage, cdnContext, servletPath);
+    }
+
+    static StorageItem getGzippedItem(String storage, CdnContext cdnContext, String servletPath) {
+        return getItem(GZIPPED_CACHE, storage, cdnContext, servletPath);
+    }
+
+    private static StorageItem getItem(
+            CdnCache resources,
+            String storage,
+            CdnContext cdnContext,
+            String servletPath) {
+
+        if (servletPath == null) {
+            return null;
+
+        } else {
+            return resources
+                    .get(storage != null ? storage : "")
+                    .get(cdnContext)
+                    .get(servletPath);
+        }
     }
 }
