@@ -206,7 +206,7 @@ public interface StorageItem extends SettingsBackedObject {
          */
         @Deprecated
         public static StorageItem getPlainResource(String storage, ServletContext servletContext, String servletPath) {
-            return Cdn.getPlainItem(storage, new ServletCdnContext(servletContext), servletPath);
+            return Cdn.getPlainItem(storage, ServletCdnContext.getInstance(servletContext), servletPath);
         }
 
         /**
@@ -220,7 +220,7 @@ public interface StorageItem extends SettingsBackedObject {
          */
         @Deprecated
         public static StorageItem getGzippedResource(String storage, ServletContext servletContext, String servletPath) {
-            return Cdn.getGzippedItem(storage, new ServletCdnContext(servletContext), servletPath);
+            return Cdn.getGzippedItem(storage, ServletCdnContext.getInstance(servletContext), servletPath);
         }
     }
 }

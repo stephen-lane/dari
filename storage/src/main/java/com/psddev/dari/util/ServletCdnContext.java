@@ -1,6 +1,9 @@
 package com.psddev.dari.util;
 
 import com.google.common.base.Preconditions;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 
 import javax.servlet.ServletContext;
 import java.io.FileNotFoundException;
@@ -16,14 +19,36 @@ import java.nio.file.Paths;
  */
 public class ServletCdnContext implements CdnContext {
 
+    private static final LoadingCache<ServletContext, ServletCdnContext> INSTANCES = CacheBuilder
+            .newBuilder()
+            .weakKeys()
+            .build(new CacheLoader<ServletContext, ServletCdnContext>() {
+
+                @Override
+                public ServletCdnContext load(ServletContext servletContext) {
+                    return new ServletCdnContext(servletContext);
+                }
+            });
+
     private final ServletContext servletContext;
+
+    /**
+     * Returns an instance based on the given {@code servletContext}.
+     *
+     * @param servletContext Nonnull.
+     * @return Nonnull.
+     */
+    public static ServletCdnContext getInstance(ServletContext servletContext) {
+        Preconditions.checkNotNull(servletContext);
+        return INSTANCES.getUnchecked(servletContext);
+    }
 
     /**
      * Creates an instance based on the given {@code servletContext}.
      *
      * @param servletContext Nonnull.
      */
-    public ServletCdnContext(ServletContext servletContext) {
+    protected ServletCdnContext(ServletContext servletContext) {
         Preconditions.checkNotNull(servletContext);
 
         this.servletContext = servletContext;
