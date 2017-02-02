@@ -2,7 +2,6 @@ package com.psddev.dari.util;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -260,7 +259,7 @@ public interface StorageItem extends SettingsBackedObject {
         };
 
         // Actual implementation of the *_RESOURCES maps.
-        private static class ResourceCache extends PullThroughCache<String, Map<ServletContext, Map<String, StorageItem>>> {
+        private static class ResourceCache extends PullThroughCache<String, Map<CdnContext, Map<String, StorageItem>>> {
 
             protected String createPath(String contentType, String pathPrefix, String extension) {
                 return extension != null ? pathPrefix + "." + extension : pathPrefix;
@@ -280,42 +279,40 @@ public interface StorageItem extends SettingsBackedObject {
             }
 
             @Override
-            protected Map<ServletContext, Map<String, StorageItem>> produce(final String storage) {
-                return new PullThroughCache<ServletContext, Map<String, StorageItem>>() {
+            protected Map<CdnContext, Map<String, StorageItem>> produce(final String storage) {
+                return new PullThroughCache<CdnContext, Map<String, StorageItem>>() {
 
                     @Override
-                    protected Map<String, StorageItem> produce(final ServletContext servletContext) {
+                    protected Map<String, StorageItem> produce(CdnContext cdnContext) {
                         return new PullThroughCache<String, StorageItem>() {
 
                             @Override
                             protected boolean isExpired(String servletPath, Date lastProduceDate) {
-                                String filePath = servletContext.getRealPath(servletPath);
-                                if (filePath != null) {
-                                    long lastModified = new File(filePath).lastModified();
-                                    if (lastModified > 0) {
-                                        return lastModified > lastProduceDate.getTime();
-                                    }
+                                try {
+                                    return cdnContext.getLastModified(servletPath) > lastProduceDate.getTime();
+
+                                } catch (IOException error) {
+                                    return false;
                                 }
-                                return false;
                             }
 
                             @Override
                             protected StorageItem produce(String servletPath) throws IOException, NoSuchAlgorithmException, URISyntaxException {
-                                InputStream sourceInput = servletContext.getResourceAsStream(servletPath);
-                                if (sourceInput == null) {
-                                    return null;
-                                }
-
                                 byte[] source;
-                                try {
+
+                                try (InputStream sourceInput = cdnContext.open(servletPath)) {
                                     source = IoUtils.toByteArray(sourceInput);
-                                } finally {
-                                    sourceInput.close();
+
+                                } catch (IOException error) {
+                                    return null;
                                 }
 
                                 // path -> resource/context/path
                                 String contentType = ObjectUtils.getContentType(servletPath);
-                                String pathPrefix = "resource" + servletContext.getContextPath() + servletPath;
+                                String pathPrefix = "resource"
+                                        + StringUtils.ensureSurrounding(cdnContext.getPathPrefix(), "/")
+                                        + StringUtils.removeStart(servletPath, "/");
+
                                 String path;
 
                                 MessageDigest md5 = MessageDigest.getInstance("MD5");
@@ -410,7 +407,11 @@ public interface StorageItem extends SettingsBackedObject {
          * @param storage May be {@code null} to use the default storage.
          */
         public static StorageItem getPlainResource(String storage, ServletContext servletContext, String servletPath) {
-            return getResource(PLAIN_RESOURCES, storage, servletContext, servletPath);
+            return getPlainResource(storage, new ServletCdnContext(servletContext), servletPath);
+        }
+
+        static StorageItem getPlainResource(String storage, CdnContext cdnContext, String servletPath) {
+            return getResource(PLAIN_RESOURCES, storage, cdnContext, servletPath);
         }
 
         /**
@@ -422,14 +423,18 @@ public interface StorageItem extends SettingsBackedObject {
          * @param storage May be {@code null} to use the default storage.
          */
         public static StorageItem getGzippedResource(String storage, ServletContext servletContext, String servletPath) {
-            return getResource(GZIPPED_RESOURCES, storage, servletContext, servletPath);
+            return getGzippedResource(storage, new ServletCdnContext(servletContext), servletPath);
+        }
+
+        static StorageItem getGzippedResource(String storage, CdnContext cdnContext, String servletPath) {
+            return getResource(GZIPPED_RESOURCES, storage, cdnContext, servletPath);
         }
 
         // Actual implementation of the public get*Resource methods.
         private static StorageItem getResource(
                 ResourceCache resources,
                 String storage,
-                ServletContext servletContext,
+                CdnContext cdnContext,
                 String servletPath) {
 
             if (servletPath == null) {
@@ -438,7 +443,7 @@ public interface StorageItem extends SettingsBackedObject {
 
             StorageItem item = resources
                     .get(storage != null ? storage : "")
-                    .get(servletContext)
+                    .get(cdnContext)
                     .get(servletPath);
 
             return item;
