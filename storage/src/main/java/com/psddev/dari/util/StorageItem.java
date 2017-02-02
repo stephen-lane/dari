@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Set;
 
 import javax.servlet.ServletContext;
+import javax.servlet.http.HttpServletRequest;
 
 /**
  * Item in a storage system. Typically, this is used to reference a file
@@ -197,10 +198,13 @@ public interface StorageItem extends SettingsBackedObject {
         /**
          * Finds the resource at the given {@code servletPath} within the given
          * {@code servletContext}, stores it in the given {@code storage},
-         * and returns its {@linkplain StorageItem#getPublicUrl URL}.
+         * and returns the storage item that represents it.
          *
-         * @param storage May be {@code null} to use the default storage.
+         * @param storage Nullable (to indicate default storage).
+         *
+         * @deprecated Use {@link Cdn#getUrl(HttpServletRequest, String)} instead.
          */
+        @Deprecated
         public static StorageItem getPlainResource(String storage, ServletContext servletContext, String servletPath) {
             return Cdn.getPlainItem(storage, new ServletCdnContext(servletContext), servletPath);
         }
@@ -208,11 +212,13 @@ public interface StorageItem extends SettingsBackedObject {
         /**
          * Finds and gzips the resource at the at the given {@code servletPath}
          * within the given {@code servletContext}, stores it in the given
-         * {@code storage}, and returns its {@linkplain
-         * StorageItem#getPublicUrl URL}.
+         * {@code storage}, and returns the storage item that represents it.
          *
-         * @param storage May be {@code null} to use the default storage.
+         * @param storage Nullable (to indicate default storage).
+         *
+         * @deprecated Use {@link Cdn#getUrl(HttpServletRequest, String)} instead.
          */
+        @Deprecated
         public static StorageItem getGzippedResource(String storage, ServletContext servletContext, String servletPath) {
             return Cdn.getGzippedItem(storage, new ServletCdnContext(servletContext), servletPath);
         }
