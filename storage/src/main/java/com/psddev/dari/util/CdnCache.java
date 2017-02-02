@@ -196,9 +196,7 @@ class CdnCache {
             LoadingCache<String, Value> valueCache = cache.getUnchecked(storage).getUnchecked(cdnContext);
             Value value = valueCache.getUnchecked(servletPath);
 
-            System.out.println("get: " + servletPath);
             if (cdnContext.getLastModified(servletPath) > value.time) {
-                System.out.println("expired");
                 valueCache.invalidate(servletPath);
                 value = valueCache.getUnchecked(servletPath);
             }
