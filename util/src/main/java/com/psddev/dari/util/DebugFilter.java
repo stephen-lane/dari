@@ -383,7 +383,12 @@ public class DebugFilter extends AbstractFilter {
         String interceptPath = getInterceptPath();
         String servletPath = request.getServletPath();
 
-        if (!StringUtils.ensureEnd(servletPath, "/").startsWith(interceptPath)) {
+        if (StringUtils.removeEnd(interceptPath, "/").equals(servletPath)) {
+            response.sendRedirect(request.getContextPath() + servletPath + "/");
+            return;
+        }
+
+        if (!servletPath.startsWith(interceptPath)) {
             chain.doFilter(request, response);
             return;
         }
