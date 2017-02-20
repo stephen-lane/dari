@@ -8,7 +8,7 @@
 
     <groupId>com.psddev</groupId>
     <artifactId>dari-grandparent</artifactId>
-    <version>3.2-SNAPSHOT</version>
+    <version>3.3-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>Dari: Grandparent POM</name>
@@ -517,6 +517,12 @@ try {
                                     <goal>aggregate-jar</goal>
                                 </goals>
                             </execution>
+                            <execution>
+                                <id>attach-javadocs</id>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                            </execution>
                         </executions>
                     </plugin>
 
@@ -530,6 +536,12 @@ try {
                                 <phase>package</phase>
                                 <goals>
                                     <goal>aggregate</goal>
+                                </goals>
+                            </execution>
+                            <execution>
+                                <id>attach-sources</id>
+                                <goals>
+                                    <goal>jar</goal>
                                 </goals>
                             </execution>
                         </executions>
