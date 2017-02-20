@@ -411,7 +411,9 @@ public interface Database extends AutoCloseable, SettingsBackedObject {
                 // Nothing to add.
 
             } else if (databaseClass.isInstance(database)) {
-                result.add((T) database);
+                if (!result.contains(database)) {
+                    result.add((T) database);
+                }
 
             } else if (database instanceof Iterable) {
                 for (Object subDatabase : (Iterable<?>) database) {
