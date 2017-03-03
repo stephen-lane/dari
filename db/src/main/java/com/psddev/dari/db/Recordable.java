@@ -7,6 +7,7 @@ import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -431,6 +432,27 @@ public interface Recordable {
     @Target(ElementType.FIELD)
     public @interface Where {
         String value();
+    }
+
+    /**
+     * Specifies the valid mime types for the target
+     * {@link com.psddev.dari.util.StorageItem} field.
+     *
+     * <p>Note that {@code value} can contain fully qualified mime types as
+     * well as prefixes of mime types, as long as they're prefixed with a
+     * forward slash. For example, to specify a file be a pdf or image:</p>
+     *
+     * <p><blockquote><pre><code data-type="java">
+     *     {@literal @}ContentTypes({ "application/pdf", "image/" })
+     *     private StorageItem file;
+     * </pre></blockquote></p>
+     */
+    @Documented
+    @ObjectField.AnnotationProcessorClass(ContentTypesProcessor.class)
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.FIELD)
+    @interface ContentTypes {
+        String[] value();
     }
 
     // --- Deprecated ---
@@ -951,6 +973,14 @@ class WhereProcessor implements ObjectField.AnnotationProcessor<Recordable.Where
     @Override
     public void process(ObjectType type, ObjectField field, Recordable.Where annotation) {
         field.setPredicate(annotation.value());
+    }
+}
+
+class ContentTypesProcessor implements ObjectField.AnnotationProcessor<Recordable.ContentTypes> {
+
+    @Override
+    public void process(ObjectType type, ObjectField field, Recordable.ContentTypes annotation) {
+        field.setContentTypes(new LinkedHashSet<>(Arrays.asList(annotation.value())));
     }
 }
 

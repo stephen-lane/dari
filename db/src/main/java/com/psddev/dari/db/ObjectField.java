@@ -145,6 +145,7 @@ public class ObjectField extends Record {
     private static final String JAVA_FIELD_NAME_KEY = "java.field";
     private static final String JAVA_DECLARING_CLASS_NAME_KEY = "java.declaringClass";
     private static final String JAVA_ENUM_CLASS_NAME_KEY = "java.enumClass";
+    private static final String CONTENT_TYPES_KEY = "contentTypes";
 
     private final transient ObjectStruct parent;
 
@@ -194,6 +195,8 @@ public class ObjectField extends Record {
     @InternalName("java.enumClass")
     private String javaEnumClassName;
 
+    private Set<String> contentTypes;
+
     private transient Map<String, Object> options;
 
     public ObjectField(ObjectField field) {
@@ -224,6 +227,7 @@ public class ObjectField extends Record {
         javaFieldName = field.javaFieldName;
         javaDeclaringClassName = field.javaDeclaringClassName;
         javaEnumClassName = field.javaEnumClassName;
+        contentTypes = field.contentTypes != null ? new LinkedHashSet<>(field.contentTypes) : null;
         options = field.options != null ? new CompactMap<String, Object>(field.options) : null;
     }
 
@@ -267,6 +271,7 @@ public class ObjectField extends Record {
         predicate = (String) definition.remove(PREDICATE_KEY);
         raw = Boolean.TRUE.equals(definition.remove(RAW_KEY));
         groups = ObjectUtils.to(SET_STRING_TYPE_REF, definition.remove(GROUPS_KEY));
+        contentTypes = ObjectUtils.to(SET_STRING_TYPE_REF, definition.remove(CONTENT_TYPES_KEY));
 
         @SuppressWarnings("unchecked")
         Collection<String> typeIds = (Collection<String>) definition.remove(VALUE_TYPES_KEY);
@@ -376,6 +381,7 @@ public class ObjectField extends Record {
         definition.put(JAVA_FIELD_NAME_KEY, javaFieldName);
         definition.put(JAVA_DECLARING_CLASS_NAME_KEY, javaDeclaringClassName);
         definition.put(JAVA_ENUM_CLASS_NAME_KEY, javaEnumClassName);
+        definition.put(CONTENT_TYPES_KEY, contentTypes);
 
         return definition;
     }
@@ -800,6 +806,17 @@ public class ObjectField extends Record {
         this.javaEnumClassName = className;
     }
 
+    public Set<String> getContentTypes() {
+        if (contentTypes == null) {
+            contentTypes = new LinkedHashSet<>();
+        }
+        return contentTypes;
+    }
+
+    public void setContentTypes(Set<String> contentTypes) {
+        this.contentTypes = contentTypes;
+    }
+
     /** Returns the map of custom option values. */
     public Map<String, Object> getOptions() {
         if (options == null) {
@@ -861,6 +878,8 @@ public class ObjectField extends Record {
         }
 
         Object value = state.get(getInternalName());
+        String internalType = getInternalType();
+
         if (isRequired() && ObjectUtils.isBlank(value)) {
             state.addError(this, "Required!");
         } else {
@@ -954,6 +973,20 @@ public class ObjectField extends Record {
             String pattern = getPattern();
             if (!(ObjectUtils.isBlank(pattern) || StringUtils.matches(string, pattern))) {
                 state.addError(this, String.format("Must match %s pattern!", pattern));
+            }
+
+        } else if (FILE_TYPE.equals(internalType) && value != null) {
+            Set<String> contentTypes = getContentTypes();
+
+            if (!contentTypes.isEmpty()) {
+                String fileContentType = ObjectUtils.to(StorageItem.class, value).getContentType();
+
+                if (contentTypes.stream()
+                        .noneMatch(contentType -> contentType.equals(fileContentType)
+                                || (contentType.endsWith("/") && fileContentType.startsWith(contentType)))) {
+
+                    state.addError(this, "Invalid content type!");
+                }
             }
         }
     }
