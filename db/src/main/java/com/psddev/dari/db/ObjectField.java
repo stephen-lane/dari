@@ -878,8 +878,6 @@ public class ObjectField extends Record {
         }
 
         Object value = state.get(getInternalName());
-        String internalType = getInternalType();
-
         if (isRequired() && ObjectUtils.isBlank(value)) {
             state.addError(this, "Required!");
         } else {
