@@ -343,6 +343,7 @@ public interface Recordable {
     @Target(ElementType.FIELD)
     public @interface Regex {
         String value();
+        String validationMessage() default "";
     }
 
     /** Specifies whether the target field value is required. */
@@ -432,6 +433,7 @@ public interface Recordable {
     @Target(ElementType.FIELD)
     public @interface Where {
         String value();
+        String validationMessage() default "";
     }
 
     /**
@@ -901,6 +903,10 @@ class RegexProcessor implements ObjectField.AnnotationProcessor<Annotation> {
         field.setPattern(annotation instanceof Recordable.FieldPattern
                 ? ((Recordable.FieldPattern) annotation).value()
                 : ((Recordable.Regex) annotation).value());
+
+        if (annotation instanceof Recordable.Regex) {
+            field.setPredicateValidationMessage(((Recordable.Regex) annotation).validationMessage());
+        }
     }
 }
 
@@ -973,6 +979,7 @@ class WhereProcessor implements ObjectField.AnnotationProcessor<Recordable.Where
     @Override
     public void process(ObjectType type, ObjectField field, Recordable.Where annotation) {
         field.setPredicate(annotation.value());
+        field.setPredicateValidationMessage(annotation.validationMessage());
     }
 }
 
