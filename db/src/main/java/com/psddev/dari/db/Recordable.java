@@ -7,7 +7,6 @@ import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -438,14 +437,12 @@ public interface Recordable {
 
     /**
      * Specifies the valid mime types for the target
-     * {@link com.psddev.dari.util.StorageItem} field.
-     *
-     * <p>Note that {@code value} can contain fully qualified mime types as
-     * well as prefixes of mime types, as long as they're prefixed with a
-     * forward slash. For example, to specify a file be a pdf or image:</p>
+     * {@link com.psddev.dari.util.StorageItem} field using the provided
+     * {@link com.psddev.dari.util.SparseSet} representation. For example, to
+     * specify a file be a pdf or image:</p>
      *
      * <p><blockquote><pre><code data-type="java">
-     *     {@literal @}MimeTypes({ "application/pdf", "image/" })
+     *     {@literal @}MimeTypes("+application/pdf +image/")
      *     private StorageItem file;
      * </pre></blockquote></p>
      */
@@ -454,7 +451,7 @@ public interface Recordable {
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.FIELD)
     @interface MimeTypes {
-        String[] value();
+        String value();
     }
 
     // --- Deprecated ---
@@ -987,7 +984,7 @@ class MimeTypesProcessor implements ObjectField.AnnotationProcessor<Recordable.M
 
     @Override
     public void process(ObjectType type, ObjectField field, Recordable.MimeTypes annotation) {
-        field.setMimeTypes(new LinkedHashSet<>(Arrays.asList(annotation.value())));
+        field.setMimeTypes(annotation.value());
     }
 }
 

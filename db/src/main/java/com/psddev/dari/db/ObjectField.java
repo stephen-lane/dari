@@ -33,6 +33,7 @@ import com.google.common.cache.LoadingCache;
 import com.psddev.dari.util.CollectionUtils;
 import com.psddev.dari.util.CompactMap;
 import com.psddev.dari.util.ObjectUtils;
+import com.psddev.dari.util.SparseSet;
 import com.psddev.dari.util.StorageItem;
 import com.psddev.dari.util.StringUtils;
 import com.psddev.dari.util.TypeDefinition;
@@ -199,8 +200,9 @@ public class ObjectField extends Record {
     @InternalName("java.enumClass")
     private String javaEnumClassName;
 
-    private Set<String> mimeTypes;
+    private String mimeTypes;
 
+    private transient SparseSet mimeTypesCache;
     private transient Map<String, Object> options;
 
     public ObjectField(ObjectField field) {
@@ -233,7 +235,8 @@ public class ObjectField extends Record {
         javaFieldName = field.javaFieldName;
         javaDeclaringClassName = field.javaDeclaringClassName;
         javaEnumClassName = field.javaEnumClassName;
-        mimeTypes = field.mimeTypes != null ? new LinkedHashSet<>(field.mimeTypes) : null;
+        mimeTypes = field.mimeTypes;
+        mimeTypesCache = new SparseSet(StringUtils.isBlank(mimeTypes) ? "+/" : mimeTypes);
         options = field.options != null ? new CompactMap<String, Object>(field.options) : null;
     }
 
@@ -279,7 +282,8 @@ public class ObjectField extends Record {
         predicateValidationMessage = (String) definition.remove(PREDICATE_VALIDATION_MESSAGE);
         raw = Boolean.TRUE.equals(definition.remove(RAW_KEY));
         groups = ObjectUtils.to(SET_STRING_TYPE_REF, definition.remove(GROUPS_KEY));
-        mimeTypes = ObjectUtils.to(SET_STRING_TYPE_REF, definition.remove(MIME_TYPES_KEY));
+        mimeTypes = (String) definition.remove(MIME_TYPES_KEY);
+        mimeTypesCache = new SparseSet(StringUtils.isBlank(mimeTypes) ? "+/" : mimeTypes);
 
         @SuppressWarnings("unchecked")
         Collection<String> typeIds = (Collection<String>) definition.remove(VALUE_TYPES_KEY);
@@ -824,15 +828,20 @@ public class ObjectField extends Record {
         this.javaEnumClassName = className;
     }
 
-    public Set<String> getMimeTypes() {
-        if (mimeTypes == null) {
-            mimeTypes = new LinkedHashSet<>();
-        }
+    public String getMimeTypes() {
         return mimeTypes;
     }
 
-    public void setMimeTypes(Set<String> mimeTypes) {
+    public void setMimeTypes(String mimeTypes) {
         this.mimeTypes = mimeTypes;
+        this.mimeTypesCache = null;
+    }
+
+    public boolean hasMimeType(String mimeType) {
+        if (mimeTypesCache == null) {
+            mimeTypesCache = new SparseSet(StringUtils.isBlank(mimeTypes) ? "+/" : mimeTypes);
+        }
+        return mimeTypesCache.contains(mimeType);
     }
 
     /** Returns the map of custom option values. */
@@ -998,19 +1007,11 @@ public class ObjectField extends Record {
                         : String.format("Must match %s pattern!", pattern));
             }
 
-        } else if (FILE_TYPE.equals(internalType) && value != null) {
-            Set<String> mimeTypes = getMimeTypes();
+        } else if (FILE_TYPE.equals(internalType)
+                && value != null
+                && !hasMimeType(ObjectUtils.to(StorageItem.class, value).getContentType())) {
 
-            if (!mimeTypes.isEmpty()) {
-                String fileMimeType = ObjectUtils.to(StorageItem.class, value).getContentType();
-
-                if (mimeTypes.stream()
-                        .noneMatch(mimeType -> mimeType.equals(fileMimeType)
-                                || (mimeType.endsWith("/") && fileMimeType.startsWith(mimeType)))) {
-
-                    state.addError(this, "Invalid mime type!");
-                }
-            }
+            state.addError(this, "Invalid mime type!");
         }
     }
 
