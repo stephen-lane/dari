@@ -443,15 +443,15 @@ public interface Recordable {
      * forward slash. For example, to specify a file be a pdf or image:</p>
      *
      * <p><blockquote><pre><code data-type="java">
-     *     {@literal @}ContentTypes({ "application/pdf", "image/" })
+     *     {@literal @}MimeTypes({ "application/pdf", "image/" })
      *     private StorageItem file;
      * </pre></blockquote></p>
      */
     @Documented
-    @ObjectField.AnnotationProcessorClass(ContentTypesProcessor.class)
+    @ObjectField.AnnotationProcessorClass(MimeTypesProcessor.class)
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.FIELD)
-    @interface ContentTypes {
+    @interface MimeTypes {
         String[] value();
     }
 
@@ -976,11 +976,11 @@ class WhereProcessor implements ObjectField.AnnotationProcessor<Recordable.Where
     }
 }
 
-class ContentTypesProcessor implements ObjectField.AnnotationProcessor<Recordable.ContentTypes> {
+class MimeTypesProcessor implements ObjectField.AnnotationProcessor<Recordable.MimeTypes> {
 
     @Override
-    public void process(ObjectType type, ObjectField field, Recordable.ContentTypes annotation) {
-        field.setContentTypes(new LinkedHashSet<>(Arrays.asList(annotation.value())));
+    public void process(ObjectType type, ObjectField field, Recordable.MimeTypes annotation) {
+        field.setMimeTypes(new LinkedHashSet<>(Arrays.asList(annotation.value())));
     }
 }
 
