@@ -202,7 +202,6 @@ public class ObjectField extends Record {
 
     private String mimeTypes;
 
-    private transient SparseSet mimeTypesCache;
     private transient Map<String, Object> options;
 
     public ObjectField(ObjectField field) {
@@ -236,7 +235,6 @@ public class ObjectField extends Record {
         javaDeclaringClassName = field.javaDeclaringClassName;
         javaEnumClassName = field.javaEnumClassName;
         mimeTypes = field.mimeTypes;
-        mimeTypesCache = new SparseSet(StringUtils.isBlank(mimeTypes) ? "+/" : mimeTypes);
         options = field.options != null ? new CompactMap<String, Object>(field.options) : null;
     }
 
@@ -283,7 +281,6 @@ public class ObjectField extends Record {
         raw = Boolean.TRUE.equals(definition.remove(RAW_KEY));
         groups = ObjectUtils.to(SET_STRING_TYPE_REF, definition.remove(GROUPS_KEY));
         mimeTypes = (String) definition.remove(MIME_TYPES_KEY);
-        mimeTypesCache = new SparseSet(StringUtils.isBlank(mimeTypes) ? "+/" : mimeTypes);
 
         @SuppressWarnings("unchecked")
         Collection<String> typeIds = (Collection<String>) definition.remove(VALUE_TYPES_KEY);
@@ -834,14 +831,6 @@ public class ObjectField extends Record {
 
     public void setMimeTypes(String mimeTypes) {
         this.mimeTypes = mimeTypes;
-        this.mimeTypesCache = null;
-    }
-
-    public boolean hasMimeType(String mimeType) {
-        if (mimeTypesCache == null) {
-            mimeTypesCache = new SparseSet(StringUtils.isBlank(mimeTypes) ? "+/" : mimeTypes);
-        }
-        return mimeTypesCache.contains(mimeType);
     }
 
     /** Returns the map of custom option values. */
@@ -1007,11 +996,14 @@ public class ObjectField extends Record {
                         : String.format("Must match %s pattern!", pattern));
             }
 
-        } else if (FILE_TYPE.equals(internalType)
-                && value != null
-                && !hasMimeType(ObjectUtils.to(StorageItem.class, value).getContentType())) {
+        } else if (FILE_TYPE.equals(internalType) && value != null) {
+            String mimeTypes = getMimeTypes();
 
-            state.addError(this, "Invalid mime type!");
+            if (!StringUtils.isBlank(mimeTypes)
+                    && !new SparseSet(mimeTypes).contains(ObjectUtils.to(StorageItem.class, value).getContentType())) {
+
+                state.addError(this, "Invalid mime type!");
+            }
         }
     }
 
