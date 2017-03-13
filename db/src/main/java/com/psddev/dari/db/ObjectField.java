@@ -15,7 +15,6 @@ import java.lang.reflect.WildcardType;
 import java.net.URI;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
@@ -25,8 +24,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.StringJoiner;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import com.google.common.base.Optional;
 import com.google.common.cache.CacheBuilder;
@@ -1004,38 +1003,48 @@ public class ObjectField extends Record {
             if (!StringUtils.isBlank(mimeTypes)
                     && !new SparseSet(mimeTypes).contains(ObjectUtils.to(StorageItem.class, value).getContentType())) {
 
-                String message = null;
-
-                String validMimeTypes = Arrays.stream(mimeTypes.split(" "))
-                        .filter(mimeType -> !mimeType.equals("+/"))
-                        .filter(mimeType -> mimeType.startsWith("+"))
-                        .map(mimeType -> mimeType.substring(1))
-                        .map(mimeType -> mimeType.endsWith("/") ? mimeType + "*" : mimeType)
-                        .collect(Collectors.joining(", "));
-
-                if (!StringUtils.isBlank(validMimeTypes)) {
-                    message = String.format("Mime type must match one of the following: [%s]", validMimeTypes);
-                }
-
-                String invalidMimeTypes = Arrays.stream(mimeTypes.split(" "))
-                        .filter(mimeType -> mimeType.startsWith("-"))
-                        .map(mimeType -> mimeType.substring(1))
-                        .map(mimeType -> mimeType.endsWith("/") ? mimeType + "*" : mimeType)
-                        .collect(Collectors.joining(", "));
-
-                if (!StringUtils.isBlank(invalidMimeTypes)) {
-                    if (message == null) {
-                        message = String.format("Mime type may not match any of the following: [%s]", invalidMimeTypes);
-
-                    } else {
-                        message += String.format(" and may not match any of the following: [%s]", invalidMimeTypes);
-                    }
-
-                }
-
-                state.addError(this, message);
+                state.addError(this, getMimeTypesValidationMessage());
             }
         }
+    }
+
+    private String getMimeTypesValidationMessage() {
+        StringJoiner validJoiner = new StringJoiner(", ");
+        StringJoiner invalidJoiner = new StringJoiner(", ");
+
+        for (String mimeType : getMimeTypes().split(" ")) {
+            if (mimeType.equals("+/")) {
+                continue;
+            }
+
+            String typeToAdd = mimeType.substring(1) + (mimeType.endsWith("/") ? "*" : "");
+
+            if (mimeType.startsWith("+")) {
+                validJoiner.add(typeToAdd);
+
+            } else if (mimeType.startsWith("-")) {
+                invalidJoiner.add(typeToAdd);
+            }
+        }
+
+        String message = null;
+
+        if (validJoiner.length() > 0) {
+            message = String.format("Mime type must match one of the following: [%s]", validJoiner.toString());
+        }
+
+        if (invalidJoiner.length() > 0) {
+            if (message == null) {
+                message = "Mime type";
+
+            } else {
+                message += " and";
+            }
+
+            message += String.format(" may not match any of the following: [%s]", invalidJoiner.toString());
+        }
+
+        return message;
     }
 
     /**
