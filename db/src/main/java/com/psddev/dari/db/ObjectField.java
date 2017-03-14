@@ -1003,12 +1003,12 @@ public class ObjectField extends Record {
             if (!StringUtils.isBlank(mimeTypes)
                     && !new SparseSet(mimeTypes).contains(ObjectUtils.to(StorageItem.class, value).getContentType())) {
 
-                state.addError(this, getMimeTypesValidationMessage());
+                state.addError(this, createMimeTypesValidationMessage());
             }
         }
     }
 
-    private String getMimeTypesValidationMessage() {
+    private String createMimeTypesValidationMessage() {
         StringJoiner validJoiner = new StringJoiner(", ");
         StringJoiner invalidJoiner = new StringJoiner(", ");
 
@@ -1030,12 +1030,12 @@ public class ObjectField extends Record {
         String message = null;
 
         if (validJoiner.length() > 0) {
-            message = String.format("Mime type must match one of the following: [%s]", validJoiner.toString());
+            message = String.format("MIME type must match one of the following: [%s]", validJoiner.toString());
         }
 
         if (invalidJoiner.length() > 0) {
             if (message == null) {
-                message = "Mime type";
+                message = "MIME type";
 
             } else {
                 message += " and";
