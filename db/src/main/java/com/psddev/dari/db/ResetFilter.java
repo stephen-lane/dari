@@ -1,7 +1,6 @@
 package com.psddev.dari.db;
 
 import java.io.IOException;
-import java.util.NoSuchElementException;
 
 import javax.servlet.FilterChain;
 import javax.servlet.ServletException;
@@ -54,29 +53,7 @@ public class ResetFilter extends AbstractFilter {
             FilterChain chain)
             throws IOException, ServletException {
 
-        // Clear all default database overrides
-        try {
-            while (true) {
-                Database.Static.restoreDefault();
-            }
-        } catch (NoSuchElementException error) {
-            // No more defaults to restore.
-        }
-
-        // Make sure the databases aren't stuck in read-only mode.
-        Database.Static.setIgnoreReadConnection(false);
-
-        // Clear all batch writes.
-        for (Database database : Database.Static.getAll()) {
-            try {
-                while (true) {
-                    database.endWrites();
-                }
-            } catch (IllegalStateException error) {
-                continue;
-            }
-        }
-
+        Database.resetThreadLocals();
         chain.doFilter(request, response);
     }
 }
