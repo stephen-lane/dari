@@ -954,7 +954,7 @@ public enum SqlIndex {
                             inRowIndex.append(';');
                         }
 
-                        int nameId = database.getSymbolId(index.getUniqueName());
+                        long nameId = database.getSymbolId(index.getUniqueName());
                         for (Object[] values : indexValue.getValuesArray()) {
                             StringBuilder tokenBuilder = new StringBuilder();
                             tokenBuilder.append(nameId);

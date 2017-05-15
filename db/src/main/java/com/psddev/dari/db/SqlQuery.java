@@ -382,7 +382,7 @@ class SqlQuery {
                 continue;
             }
 
-            int symbolId = database.getReadSymbolId(key.getIndexKey(useIndex));
+            long symbolId = database.getReadSymbolId(key.getIndexKey(useIndex));
             String sourceTableAndSymbol = fieldData.getIndexTable().toLowerCase(Locale.ENGLISH) + symbolId;
 
             SqlIndex useSqlIndex = SqlIndex.Static.getByIndex(useIndex);

@@ -1341,7 +1341,7 @@ public class SqlVendor {
 
         @Override
         protected String getSetUpResourcePath() {
-            return "postgres/schema-12.sql";
+            return "cockroach/schema-12.sql";
         }
 
         @Override
@@ -1368,22 +1368,13 @@ public class SqlVendor {
 
         @Override
         protected void appendUuid(StringBuilder builder, UUID value) {
-            builder.append("'" + value.toString() + "'");
+            builder.append("to_uuid('" + value.toString() + "')");
         }
 
         @Override
         public void appendValue(StringBuilder builder, Object value) {
             if (value instanceof String) {
                 builder.append("'" + StringUtils.escapeSql((String) value) + "'");
-
-            } else if (value instanceof Location) {
-                Location valueLocation = (Location) value;
-                builder.append("ST_GeomFromText('POINT(");
-                builder.append(valueLocation.getX());
-                builder.append(' ');
-                builder.append(valueLocation.getY());
-                builder.append(")', 4326)");
-
             } else {
                 super.appendValue(builder, value);
             }
@@ -1396,279 +1387,66 @@ public class SqlVendor {
             builder.append('\'');
         }
 
-        @Override
-        protected void appendWhereRegion(StringBuilder builder, Region region, String field) {
-            builder.append(field);
-            builder.append(" <-> ST_SetSRID(ST_MakePoint(");
-            builder.append(region.getX());
-            builder.append(", ");
-            builder.append(region.getY());
-            builder.append("), 4326) < ");
-            builder.append(region.getRadius());
-        }
-
-        @Override
-        protected void appendWhereLocation(StringBuilder builder, Location location, String field) {
-            builder.append("ST_Contains(");
-            builder.append(field);
-            builder.append(", ST_GEOMFROMTEXT('POINT(");
-            builder.append(SqlDatabase.quoteValue(location.getX()));
-            builder.append(' ');
-            builder.append(SqlDatabase.quoteValue(location.getY()));
-            builder.append(")', 4326))");
-        }
-
-        @Override
-        protected void appendNearestLocation(
-                StringBuilder orderbyBuilder,
-                StringBuilder selectBuilder,
-                Location location, String field) {
-
-            StringBuilder builder = new StringBuilder();
-
-            builder.append(field);
-            builder.append(" <-> ST_SetSRID(ST_MakePoint(");
-            builder.append(location.getX());
-            builder.append(", ");
-            builder.append(location.getY());
-            builder.append("), 4326) ");
-
-            orderbyBuilder.append(builder);
-            selectBuilder.append(builder);
-        }
-
-        @Override
-        public void appendBindLocation(StringBuilder builder, Location location, List<Object> parameters) {
-            builder.append("ST_GeomFromText(?, 4326)");
-            if (location != null && parameters != null) {
-                parameters.add("POINT(" + location.getX() + " " + location.getY() + ")");
-            }
-        }
-
-        @Override
-        public void appendBindRegion(StringBuilder builder, Region region, List<Object> parameters) {
-            builder.append("ST_GeomFromText(?, 4326)");
-            if (parameters != null) {
-                StringBuilder b = new StringBuilder();
-
-                b.append("MULTIPOLYGON(");
-                for (Region.Polygon polygon : region.getPolygons()) {
-                    for (Region.LinearRing ring : polygon) {
-                        b.append("((");
-                        for (Region.Coordinate coordinate : ring) {
-                            b.append(SqlDatabase.quoteValue(coordinate.getLatitude()));
-                            b.append(' ');
-                            b.append(SqlDatabase.quoteValue(coordinate.getLongitude()));
-                            b.append(", ");
-                        }
-                        b.setLength(b.length() - 2);
-                        b.append(")), ");
-                    }
-                }
-
-                for (Region.Circle circles : region.getCircles()) {
-                    for (Region.Polygon polygon : circles.getPolygons()) {
-                        for (Region.LinearRing ring : polygon) {
-                            b.append("((");
-                            for (Region.Coordinate coordinate : ring) {
-                                b.append(SqlDatabase.quoteValue(coordinate.getLatitude()));
-                                b.append(' ');
-                                b.append(SqlDatabase.quoteValue(coordinate.getLongitude()));
-                                b.append(", ");
-                            }
-                            b.setLength(b.length() - 2);
-                            b.append(")), ");
-                        }
-                    }
-                }
-
-                b.setLength(b.length() - 2);
-                b.append(")");
-
-                parameters.add(b);
-            }
-        }
-
-        @Override
-        public void appendBindUuid(StringBuilder builder, UUID uuid, List<Object> parameters) {
-            builder.append('?');
-            if (uuid != null && parameters != null) {
-                parameters.add(uuid);
-            }
-        }
-
+        // Cockroach db encodes strings as UTF by default
         @Override
         public String convertRawToStringSql(String field) {
-            return "CONVERT_FROM(" + field + ", 'UTF-8')";
+            return field;
         }
 
         @Override
-        public UUID getUuid(ResultSet result, int col) throws SQLException {
-            return UuidUtils.fromString(result.getString(col));
+        public Set<String> getTables(Connection connection) throws SQLException {
+            Set<String> tableNames = new HashSet<String>();
+            String catalog = connection.getCatalog();
+            DatabaseMetaData meta = connection.getMetaData();
+            ResultSet result = meta.getTables(catalog, catalog, null, null);
+
+            try {
+                while (result.next()) {
+                    String name = result.getString("TABLE_NAME");
+
+                    if (name != null) {
+                        tableNames.add(name);
+                    }
+                }
+
+            } finally {
+                result.close();
+            }
+
+            return tableNames;
         }
 
         @Override
-        public String getSelectTimestampMillisSql() {
-            return "SELECT ROUND(EXTRACT(EPOCH FROM NOW())*1000)";
+        public Set<String> getColumns(Connection connection, String table) throws SQLException {
+            Set<String> columnNames = new HashSet<String>();
+            String catalog = connection.getCatalog();
+            DatabaseMetaData meta = connection.getMetaData();
+            ResultSet result = null;
+
+            try {
+                result = meta.getColumns(catalog, catalog, table, null);
+                while (result.next()) {
+                    String columnName = result.getString("COLUMN_NAME");
+                    if (columnName != null) {
+                        columnNames.add(columnName);
+                    }
+                }
+            } finally {
+                if (result != null) {
+                    result.close();
+                }
+            }
+
+            return columnNames;
+        }
+
+        @Override
+        public boolean useSavepoint() {
+            return false;
         }
 
         /* ******************* METRICS ******************* */
-        @Override
-        public void appendMetricUpdateDataSql(StringBuilder sql, String columnIdentifier, List<Object> parameters, double amount, long eventDate, boolean increment, boolean updateFuture) {
-
-            sql.append("CONCAT(");
-                // timestamp
-                appendHexEncodeExistingTimestampSql(sql, columnIdentifier);
-                sql.append(',');
-                // cumulativeAmount and amount
-                if (increment) {
-                    // cumulativeAmount should always be incremented
-                    appendHexEncodeIncrementAmountSql(sql, parameters, columnIdentifier, MetricAccess.CUMULATIVEAMOUNT_POSITION, amount);
-                    sql.append(',');
-                    if (updateFuture) {
-                        // if we're updating future rows, only update the interval amount if it's the exact eventDate
-                        sql.append("CASE WHEN ");
-                            appendIdentifier(sql, columnIdentifier);
-                            sql.append(" <= ");
-                            appendMetricEncodeTimestampSql(sql, parameters, eventDate, 'F');
-                            sql.append(" THEN "); // if it's the exact date, then update the amount
-                            appendHexEncodeIncrementAmountSql(sql, parameters, columnIdentifier, MetricAccess.AMOUNT_POSITION, amount);
-                            sql.append(" ELSE "); // if it's a date in the future, leave the date alone
-                            appendHexEncodeIncrementAmountSql(sql, parameters, columnIdentifier, MetricAccess.AMOUNT_POSITION, 0);
-                        sql.append(" END ");
-                    } else {
-                        appendHexEncodeIncrementAmountSql(sql, parameters, columnIdentifier, MetricAccess.AMOUNT_POSITION, amount);
-                    }
-                } else {
-                    appendHexEncodeSetAmountSql(sql, parameters, amount);
-                    sql.append(',');
-                    appendHexEncodeSetAmountSql(sql, parameters, amount);
-                }
-            sql.append(" )");
-        }
-
-        @Override
-        public void appendMetricFixDataSql(StringBuilder sql, String columnIdentifier, List<Object> parameters, long eventDate, double cumulativeAmount, double amount) {
-            sql.append("CONCAT(");
-                // timestamp
-                appendHexEncodeExistingTimestampSql(sql, columnIdentifier);
-                sql.append(',');
-                // cumulativeAmount
-                appendHexEncodeSetAmountSql(sql, parameters, cumulativeAmount);
-                sql.append(',');
-                // amount
-                appendHexEncodeSetAmountSql(sql, parameters, amount);
-            sql.append(" )");
-        }
-
-        @Override
-        public void appendMetricEncodeTimestampSql(StringBuilder str, List<Object> parameters, long timestamp, Character rpadHexChar) {
-            if (rpadHexChar != null) {
-                str.append("RPAD(");
-            }
-            str.append("LPAD(");
-                str.append("TO_HEX(");
-                    if (parameters == null) {
-                        appendValue(str, (int) (timestamp / MetricAccess.DATE_DECIMAL_SHIFT));
-                    } else {
-                        appendBindValue(str, (int) (timestamp / MetricAccess.DATE_DECIMAL_SHIFT), parameters);
-                    }
-                str.append(')');
-            str.append(", " + (MetricAccess.DATE_BYTE_SIZE * 2) + ", '0')");
-            if (rpadHexChar != null) {
-                str.append(',');
-                appendValue(str, MetricAccess.DATE_BYTE_SIZE * 2 + MetricAccess.AMOUNT_BYTE_SIZE * 2 + MetricAccess.AMOUNT_BYTE_SIZE * 2);
-                str.append(", '");
-                str.append(rpadHexChar);
-                str.append("')");
-            }
-        }
-
-        @Override
-        public void appendMetricSelectAmountSql(StringBuilder str, String columnIdentifier, int position) {
-            str.append(" ('x'||");
-                str.append("SUBSTRING(");
-                    appendIdentifier(str, columnIdentifier);
-                    str.append(',');
-                    appendValue(str, 1 + (MetricAccess.DATE_BYTE_SIZE * 2) + ((position - 1) * MetricAccess.AMOUNT_BYTE_SIZE * 2));
-                    str.append(',');
-                    appendValue(str, MetricAccess.AMOUNT_BYTE_SIZE * 2);
-                str.append(')');
-            str.append(")::bit(");
-            str.append(MetricAccess.AMOUNT_BYTE_SIZE * 8);
-            str.append(")::bigint");
-        }
-
-        @Override
-        public void appendMetricSelectTimestampSql(StringBuilder str, String columnIdentifier) {
-            str.append(" ('x'||");
-                str.append("SUBSTRING(");
-                    appendIdentifier(str, columnIdentifier);
-                    str.append(',');
-                    appendValue(str, 1);
-                    str.append(',');
-                    appendValue(str, MetricAccess.DATE_BYTE_SIZE * 2);
-                str.append(')');
-            str.append(")::bit(");
-            str.append(MetricAccess.DATE_BYTE_SIZE * 8);
-            str.append(")::bigint");
-        }
-
-        @Override
-        public void appendMetricDateFormatTimestampSql(StringBuilder str, String columnIdentifier, MetricInterval metricInterval) {
-            str.append("TO_CHAR(TO_TIMESTAMP(");
-            appendMetricSelectTimestampSql(str, columnIdentifier);
-            str.append('*');
-            appendValue(str, (MetricAccess.DATE_DECIMAL_SHIFT / 1000L));
-            str.append(")::TIMESTAMP,");
-            appendValue(str, metricInterval.getSqlTruncatedDateFormat(this));
-            str.append(')');
-        }
-
-        @Override
-        public void appendBindMetricBytes(StringBuilder str, byte[] bytes, List<Object> parameters) {
-            appendValue(str, StringUtils.hex(bytes));
-        }
-
-        @Override
-        public void appendMetricDataBytes(StringBuilder str, String columnIdentifier) {
-            str.append("DECODE(");
-            str.append(columnIdentifier);
-            str.append(", 'HEX')");
-        }
-
-        private void appendHexEncodeExistingTimestampSql(StringBuilder str, String columnIdentifier) {
-            // columnIdentifier is "data" or "max(`data`)" - already quoted
-            str.append("SUBSTRING(");
-                appendIdentifier(str, columnIdentifier);
-                str.append(',');
-                appendValue(str, 1);
-                str.append(',');
-                appendValue(str, MetricAccess.DATE_BYTE_SIZE * 2);
-            str.append(')');
-        }
-
-        private void appendHexEncodeIncrementAmountSql(StringBuilder str, List<Object> parameters, String columnIdentifier, int position, double amount) {
-            // position is 1 or 2
-            // columnIdentifier is "`data`" unless it is aliased - already quoted
-            str.append("LPAD(");
-                str.append("TO_HEX(");
-                    // conv(hex(substr(data, 1+4, 8)), 16, 10)
-                    appendMetricSelectAmountSql(str, columnIdentifier, position);
-                    str.append('+');
-                    appendBindValue(str, (long) (amount * MetricAccess.AMOUNT_DECIMAL_SHIFT), parameters);
-                str.append(" )");
-            str.append(", " + (MetricAccess.AMOUNT_BYTE_SIZE * 2) + ", '0')");
-        }
-
-        private void appendHexEncodeSetAmountSql(StringBuilder str, List<Object> parameters, double amount) {
-            str.append("LPAD(");
-                str.append("TO_HEX(");
-                    appendBindValue(str, (long) (amount * MetricAccess.AMOUNT_DECIMAL_SHIFT), parameters);
-                str.append(" )");
-            str.append(", " + (MetricAccess.AMOUNT_BYTE_SIZE * 2) + ", '0')");
-        }
-
+       // Not supported by cockroach
         /* ******************* METRICS ******************* */
     }
 

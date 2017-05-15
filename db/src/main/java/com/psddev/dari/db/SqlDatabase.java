@@ -549,8 +549,8 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
      * Returns an unique numeric ID for the given {@code symbol},
      * or {@code -1} if it's not available.
      */
-    public int getReadSymbolId(String symbol) {
-        Integer id = symbols.get().get(symbol);
+    public long getReadSymbolId(String symbol) {
+        Long id = symbols.get().get(symbol);
 
         if (id == null) {
             Connection connection = openConnection();
@@ -571,8 +571,8 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
     /**
      * Returns an unique numeric ID for the given {@code symbol}.
      */
-    public int getSymbolId(String symbol) {
-        Integer id = symbols.get().get(symbol);
+    public long getSymbolId(String symbol) {
+        Long id = symbols.get().get(symbol);
         if (id == null) {
 
             SqlVendor vendor = getVendor();
@@ -611,8 +611,8 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
         return id;
     }
 
-    private Integer selectSymbolId(Connection connection, String symbol) {
-        Integer id = null;
+    private Long selectSymbolId(Connection connection, String symbol) {
+        Long id = null;
 
         try {
             StringBuilder selectBuilder = new StringBuilder();
@@ -633,7 +633,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
                 statement = connection.createStatement();
                 result = statement.executeQuery(selectSql);
                 if (result.next()) {
-                    id = result.getInt(1);
+                    id = result.getLong(1);
                 }
 
             } catch (SQLException ex) {
@@ -691,10 +691,10 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
     }
 
     // Cache of all internal symbols.
-    private final transient Lazy<Map<String, Integer>> symbols = new Lazy<Map<String, Integer>>() {
+    private final transient Lazy<Map<String, Long>> symbols = new Lazy<Map<String, Long>>() {
 
         @Override
-        protected Map<String, Integer> create() {
+        protected Map<String, Long> create() {
             SqlVendor vendor = getVendor();
             StringBuilder selectBuilder = new StringBuilder();
             selectBuilder.append("SELECT ");
@@ -721,9 +721,9 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
                 statement = connection.createStatement();
                 result = statement.executeQuery(selectSql);
 
-                Map<String, Integer> symbols = new ConcurrentHashMap<String, Integer>();
+                Map<String, Long> symbols = new ConcurrentHashMap<String, Long>();
                 while (result.next()) {
-                    symbols.put(new String(result.getBytes(2), StandardCharsets.UTF_8), result.getInt(1));
+                    symbols.put(new String(result.getBytes(2), StandardCharsets.UTF_8), result.getLong(1));
                 }
 
                 return symbols;
@@ -1128,7 +1128,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
         SqlIndex useSqlIndex = SqlIndex.Static.getByIndex(useIndex);
         SqlIndex.Table indexTable = useSqlIndex.getReadTable(this, useIndex);
         String sourceTableName = fieldData.getIndexTable();
-        int symbolId = getReadSymbolId(key.getIndexKey(useIndex));
+        long symbolId = getReadSymbolId(key.getIndexKey(useIndex));
         StringBuilder sql = new StringBuilder();
         int fieldIndex = 0;
 
@@ -1673,7 +1673,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
         try {
             Connection connection = getConnectionFromDataSource(dataSource);
 
-            connection.setReadOnly(false);
+            //connection.setReadOnly(false);
 
             if (vendor != null) {
                 vendor.setTransactionIsolation(connection);
@@ -1741,7 +1741,7 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
         try {
             Connection connection = getConnectionFromDataSource(readDataSource);
 
-            connection.setReadOnly(true);
+            //connection.setReadOnly(true);
             return connection;
 
         } catch (SQLException error) {
@@ -2755,33 +2755,33 @@ public class SqlDatabase extends AbstractDatabase<Connection> {
                     List<Object> parameters = new ArrayList<Object>();
                     StringBuilder insertBuilder = new StringBuilder();
 
-                    insertBuilder.append("INSERT INTO ");
-                    vendor.appendIdentifier(insertBuilder, RECORD_UPDATE_TABLE);
-                    insertBuilder.append(" (");
-                    vendor.appendIdentifier(insertBuilder, ID_COLUMN);
-                    insertBuilder.append(',');
-                    vendor.appendIdentifier(insertBuilder, TYPE_ID_COLUMN);
-                    insertBuilder.append(',');
-                    vendor.appendIdentifier(insertBuilder, UPDATE_DATE_COLUMN);
-                    insertBuilder.append(") VALUES (");
-                    vendor.appendBindValue(insertBuilder, id, parameters);
-                    insertBuilder.append(',');
-                    vendor.appendBindValue(insertBuilder, typeId, parameters);
-                    insertBuilder.append(',');
-                    vendor.appendBindValue(insertBuilder, now, parameters);
-                    insertBuilder.append(')');
-
-                    try {
-                        Static.executeUpdateWithList(vendor, connection, insertBuilder.toString(), parameters);
-
-                    } catch (SQLException ex) {
-                        if (Static.isIntegrityConstraintViolation(ex)) {
-                            isNew = false;
-                            continue;
-                        } else {
-                            throw ex;
-                        }
-                    }
+//                    insertBuilder.append("INSERT INTO ");
+//                    vendor.appendIdentifier(insertBuilder, RECORD_UPDATE_TABLE);
+//                    insertBuilder.append(" (");
+//                    vendor.appendIdentifier(insertBuilder, ID_COLUMN);
+//                    insertBuilder.append(',');
+//                    vendor.appendIdentifier(insertBuilder, TYPE_ID_COLUMN);
+//                    insertBuilder.append(',');
+//                    vendor.appendIdentifier(insertBuilder, UPDATE_DATE_COLUMN);
+//                    insertBuilder.append(") VALUES (");
+//                    vendor.appendBindValue(insertBuilder, id, parameters);
+//                    insertBuilder.append(',');
+//                    vendor.appendBindValue(insertBuilder, typeId, parameters);
+//                    insertBuilder.append(',');
+//                    vendor.appendBindValue(insertBuilder, now, parameters);
+//                    insertBuilder.append(')');
+//
+//                    try {
+//                        Static.executeUpdateWithList(vendor, connection, insertBuilder.toString(), parameters);
+//
+//                    } catch (SQLException ex) {
+//                        if (Static.isIntegrityConstraintViolation(ex)) {
+//                            isNew = false;
+//                            continue;
+//                        } else {
+//                            throw ex;
+//                        }
+//                    }
 
                 } else {
                     List<Object> parameters = new ArrayList<Object>();
